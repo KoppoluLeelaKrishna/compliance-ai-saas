@@ -13,7 +13,14 @@ REPO_ROOT = PROJECT_ROOT.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from worker.src.utils.db_sqlite import init_db, save_findings, save_scan  # noqa: E402
+APP_ENV = os.getenv("APP_ENV", "local").strip().lower()
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+USE_POSTGRES = APP_ENV == "production" and bool(DATABASE_URL)
+
+if USE_POSTGRES:
+    from worker.src.utils.db_postgres import init_db, save_findings, save_scan  # noqa: E402
+else:
+    from worker.src.utils.db_sqlite import init_db, save_findings, save_scan  # noqa: E402
 
 
 def _utc_now() -> str:

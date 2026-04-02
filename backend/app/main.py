@@ -114,7 +114,7 @@ def build_cors_origins() -> List[str]:
         origins.extend([item.strip().rstrip("/") for item in extra.split(",") if item.strip()])
 
     
-    if app_env != "production":
+    if APP_ENV != "production":
         origins.extend(
             [
                 "http://localhost:3000",

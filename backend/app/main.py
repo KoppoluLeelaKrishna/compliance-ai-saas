@@ -170,7 +170,7 @@ PLAN_ACCOUNT_LIMITS = {
     "msp": 999999,
 }
 
-app = FastAPI(title="Compliance MVP API", version="0.4.0")
+app = FastAPI(title="VigiliCloud API", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -1006,7 +1006,7 @@ def health():
 @app.get("/")
 def root():
     return {
-        "name": "Compliance MVP API",
+        "name": "VigiliCloud API",
         "version": "0.4.0",
         "app_env": APP_ENV,
         "frontend_url": FRONTEND_URL,

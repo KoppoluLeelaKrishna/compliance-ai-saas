@@ -976,13 +976,7 @@ def sanitize_plan(plan: str) -> str:
         raise HTTPException(status_code=400, detail="Invalid plan")
     return cleaned
 
-@app.get("/debug/aws-env")
-def debug_aws_env():
-    return {
-        "has_access_key": bool(os.getenv("AWS_ACCESS_KEY_ID")),
-        "has_secret_key": bool(os.getenv("AWS_SECRET_ACCESS_KEY")),
-        "aws_default_region": os.getenv("AWS_DEFAULT_REGION", ""),
-    }
+
 
 @app.on_event("startup")
 def startup() -> None:

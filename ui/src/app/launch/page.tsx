@@ -167,8 +167,7 @@ export default function LaunchPage() {
 
   const outreachTemplate = `Hi [Name],
 
-I built an AWS-focused compliance workflow that helps teams connect AWS accounts, detect misconfigurations, review findings, track remediation actions, and export structured evidence.
-
+I built VigiliCloud, an AWS-focused compliance workflow that helps teams connect AWS accounts, detect misconfigurations, review findings, track remediation actions, and export structured evidence.
 The current product already supports:
 - connected AWS accounts
 - account-linked scans
@@ -379,7 +378,7 @@ Leela`;
             </div>
 
             <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-              Treat this page as your founder launch board: QA status, demo flow, copy, and asset checklist in one place.
+              Treat this page as the VigiliCloud founder launch board: QA status, demo flow, copy, and asset checklist in one place.
             </div>
           </div>
 

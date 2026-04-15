@@ -320,7 +320,7 @@ export default function AccountsPage() {
                   value={form.customer_name}
                   onChange={(e) => onChange("customer_name", e.target.value)}
                   className="w-full rounded-xl border border-neutral-800 bg-black px-3 py-2 outline-none focus:border-neutral-600"
-                  placeholder="Origin Bank"
+                  placeholder="Customer name"
                   required
                   disabled={!editing && limitReached}
                 />
@@ -332,7 +332,7 @@ export default function AccountsPage() {
                   value={form.account_name}
                   onChange={(e) => onChange("account_name", e.target.value)}
                   className="w-full rounded-xl border border-neutral-800 bg-black px-3 py-2 outline-none focus:border-neutral-600"
-                  placeholder="Production AWS"
+                  placeholder="AWS production account"
                   required
                   disabled={!editing && limitReached}
                 />
@@ -356,7 +356,7 @@ export default function AccountsPage() {
                   value={form.role_arn}
                   onChange={(e) => onChange("role_arn", e.target.value)}
                   className="min-h-[90px] w-full rounded-xl border border-neutral-800 bg-black px-3 py-2 outline-none focus:border-neutral-600"
-                  placeholder="arn:aws:iam::123456789012:role/ComplianceReadOnlyRole"
+                  placeholder="arn:aws:iam::123456789012:role/VigiliCloudReadOnlyRole"
                   required
                   disabled={!editing && limitReached}
                 />

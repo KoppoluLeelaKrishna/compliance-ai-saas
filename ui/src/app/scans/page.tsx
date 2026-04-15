@@ -495,7 +495,7 @@ export default function ScansPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Scans & Findings</h1>
           <p className="mt-2 text-sm text-neutral-400">
-            Run scans, review findings, and understand plan-based scan and export access.
+            Run scans, review findings, apply remediation guidance, and export evidence.
           </p>
         </div>
 
@@ -601,7 +601,7 @@ export default function ScansPage() {
           <div className="mt-4 rounded-xl border border-neutral-800 bg-black px-4 py-3 text-sm text-neutral-300">
             {loadingBilling
               ? "Checking plan access..."
-              : `${currentPlan} plan supports exports and account-linked scans.`}
+              : `${currentPlan} plan supports account-linked scans and evidence exports.`}
           </div>
         </section>
 
@@ -955,7 +955,7 @@ export default function ScansPage() {
         <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1fr_0.95fr]">
           <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Fix Guidance + Actions</h2>
+              <h2 className="text-xl font-semibold">Remediation Guidance + Actions</h2>
               {selectedFinding ? (
                 <button
                   onClick={() => {

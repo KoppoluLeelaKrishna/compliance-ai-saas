@@ -124,7 +124,7 @@ export default function SettingsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Settings</h1>
           <p className="mt-2 text-sm text-neutral-400">
-            Account profile, billing status, plan capabilities, and workspace configuration.
+            Manage your VigiliCloud profile, billing status, plan capabilities, and workspace settings.
           </p>
         </div>
 
@@ -376,7 +376,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="mt-4 rounded-xl border border-neutral-800 bg-black p-4 text-sm text-neutral-400">
-              <div className="mb-1 font-medium text-neutral-300">API Endpoint</div>
+              <div className="mb-1 font-medium text-neutral-300">VigiliCloud API Endpoint</div>
               <div className="break-all font-mono text-xs">{API_BASE}</div>
             </div>
           </section>

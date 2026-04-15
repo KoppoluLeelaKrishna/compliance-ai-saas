@@ -117,7 +117,7 @@ export default function HomePage() {
           <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
             <div>
               <div className="mb-5 inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
-                AWS-only compliance workflow
+                AWS security posture workflow
               </div>
 
               <h1 className="max-w-4xl text-5xl font-bold leading-tight tracking-tight md:text-6xl">
@@ -126,7 +126,7 @@ export default function HomePage() {
               </h1>
 
               <p className="mt-6 max-w-3xl text-lg leading-8 text-neutral-300">
-                Compliance AI SaaS helps teams connect AWS accounts, run focused
+                VigiliCloud helps teams connect AWS accounts, run focused
                 posture checks, review findings, capture remediation actions, export
                 structured evidence, and move toward customer demos, paid pilots,
                 and launch readiness.
@@ -266,7 +266,7 @@ export default function HomePage() {
               Why this product
             </div>
             <h2 className="text-4xl font-bold">
-              A lightweight compliance workflow for AWS-focused teams
+              A lightweight AWS security workflow for focused teams
             </h2>
             <p className="mt-5 text-lg leading-8 text-neutral-300">
               This product is designed to stay small, useful, and demo-ready:
@@ -316,7 +316,7 @@ export default function HomePage() {
               Use this to position your first paid pilot
             </h2>
             <p className="mt-4 text-lg text-neutral-300">
-              Position the product as an AWS-only compliance workflow for startups,
+              Position VigiliCloud as an AWS-native security posture workflow for startups,
               security-conscious teams, and MSPs that need fast visibility without
               a heavyweight platform.
             </p>
@@ -335,20 +335,19 @@ export default function HomePage() {
             <div className="mb-4 text-xs uppercase tracking-[0.25em] text-neutral-500">
               Final launch checklist
             </div>
-            <h2 className="text-4xl font-bold">What still remains</h2>
+            <h2 className="text-4xl font-bold">Launch checklist</h2>
 
             <div className="mt-8 space-y-3 text-sm text-neutral-300">
-              <div>• public frontend deployment</div>
-              <div>• backend deployment</div>
-              <div>• custom domain</div>
+              <div>• custom domain cutover</div>
               <div>• final QA pass</div>
               <div>• demo video</div>
+              <div>• clean product screenshots</div>
+              <div>• customer onboarding instructions</div>
               <div>• pilot outreach</div>
             </div>
 
             <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-              Day 29 is about making the product easier to present publicly,
-              easier to explain in a demo, and closer to launch.
+              VigiliCloud is now pilot-ready. The remaining work is branding, domain cutover, and launch polish.
             </div>
           </div>
         </div>
@@ -358,10 +357,10 @@ export default function HomePage() {
             <div className="mb-4 text-xs uppercase tracking-[0.25em] text-neutral-500">
               Next step
             </div>
-            <h2 className="text-4xl font-bold">Ready to keep pushing toward public launch?</h2>
+            <h2 className="text-4xl font-bold">Ready to launch VigiliCloud publicly?</h2>
             <p className="mt-4 text-lg text-neutral-300">
-              The app now looks much closer to a public pilot-ready product.
-              Keep using Launch Prep as the place for final QA, outreach, and demo execution.
+              VigiliCloud is now in launch-polish mode.
+              Use Launch Prep for final QA, outreach, and demo execution.
             </p>
 
             <div className="mt-8 space-y-3">
@@ -413,7 +412,7 @@ export default function HomePage() {
         </div>
 
         <footer className="mx-auto mt-16 flex max-w-7xl flex-col gap-4 border-t border-white/10 pt-6 text-sm text-neutral-500 md:flex-row md:items-center md:justify-between">
-          <div>Compliance AI SaaS</div>
+          <div>VigiliCloud</div>
           <div className="flex gap-4">
             <Link href="/">Home</Link>
             <Link href="/plans">Plans</Link>

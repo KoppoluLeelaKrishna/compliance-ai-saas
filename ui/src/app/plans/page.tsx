@@ -217,7 +217,7 @@ export default function PlansPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Plans & Billing</h1>
           <p className="mt-2 text-sm text-neutral-400">
-            Day 28: final public-facing pricing polish and pilot-ready positioning.
+            Simple pricing for VigiliCloud pilots, growing teams, and MSP workflows.
           </p>
         </div>
 
@@ -269,7 +269,7 @@ export default function PlansPage() {
           </div>
 
           <div className="mt-4 rounded-2xl border border-neutral-800 bg-black p-4 text-sm text-neutral-300">
-            This page now supports demo calls and pilot conversations by showing pricing, active plan state, Stripe readiness, and upgrade flow clearly.
+            Use this page during demo calls and pilot conversations to explain pricing, plan limits, Stripe readiness, and upgrade flow clearly.
           </div>
         </section>
 
@@ -384,10 +384,10 @@ export default function PlansPage() {
             <div className="mb-3 text-xs uppercase tracking-[0.25em] text-neutral-500">
               Pilot positioning
             </div>
-            <h2 className="text-3xl font-bold">Use this pricing page in a founder-led pilot conversation</h2>
+            <h2 className="text-3xl font-bold">Use this pricing page in a VigiliCloud pilot conversation</h2>
             <p className="mt-4 text-neutral-300">
-              This product is easiest to position as an AWS-only compliance workflow for
-              early-stage teams, consultants, and MSPs that want fast visibility and actionable posture checks.
+              VigiliCloud is easiest to position as an AWS-native security posture workflow for
+              early-stage teams, consultants, and MSPs that want fast visibility and actionable remediation guidance.
             </p>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-black p-4">
@@ -403,9 +403,9 @@ export default function PlansPage() {
             <div className="mb-3 text-xs uppercase tracking-[0.25em] text-neutral-500">
               Remaining launch work
             </div>
-            <h2 className="text-3xl font-bold">Before real public launch</h2>
+            <h2 className="text-3xl font-bold">Before full VigiliCloud launch</h2>
             <ul className="mt-4 space-y-3 text-sm leading-7 text-neutral-300">
-              <li>• production hosting and domain</li>
+              <li>• custom domain cutover</li>
               <li>• final QA across scans, billing, and onboarding</li>
               <li>• demo video and clean product screenshots</li>
               <li>• customer onboarding instructions</li>
@@ -413,7 +413,7 @@ export default function PlansPage() {
             </ul>
 
             <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-              Day 28 makes pricing more usable in public-facing demos and early pilot conversations.
+              This pricing page is ready for public demos, early pilots, and first customer conversations.
             </div>
           </div>
         </section>

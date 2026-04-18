@@ -73,8 +73,8 @@ export default function OnboardingPage() {
   const [loggingIn, setLoggingIn] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const [email, setEmail] = useState("admin@compliance.local");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const [message, setMessage] = useState("");
@@ -133,15 +133,15 @@ export default function OnboardingPage() {
 
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
-    setLoggingIn(true);
     setError("");
     setMessage("");
+    setLoggingIn(true);
 
     try {
       await api("/auth/login", {
         method: "POST",
         body: JSON.stringify({
-          email: email.trim(),
+          email,
           password,
         }),
       });
@@ -154,35 +154,6 @@ export default function OnboardingPage() {
       }, 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setLoggingIn(false);
-    }
-  }
-
-  async function handleDemoLogin() {
-    setEmail("admin@compliance.local");
-    setPassword("admin123");
-    setError("");
-    setMessage("");
-
-    setLoggingIn(true);
-    try {
-      await api("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({
-          email: "admin@compliance.local",
-          password: "admin123",
-        }),
-      });
-
-      setMessage("Demo login successful. Redirecting to workspace...");
-      await loadPageState();
-
-      setTimeout(() => {
-        router.push("/scans");
-      }, 700);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Demo login failed");
     } finally {
       setLoggingIn(false);
     }
@@ -204,6 +175,8 @@ export default function OnboardingPage() {
       setPlan("free");
       setAccounts([]);
       setBilling(null);
+      setEmail("");
+      setPassword("");
       setMessage("Logged out successfully.");
       router.refresh();
     } catch (err) {
@@ -232,9 +205,9 @@ export default function OnboardingPage() {
               </h1>
 
               <p className="mt-6 max-w-3xl text-lg leading-8 text-neutral-300">
-                This access page supports the full product workflow: login, open the workspace,
-                manage connected AWS accounts, review findings, handle pricing access,
-                and sign out cleanly when needed.
+                This access page supports the full product workflow: login, open
+                the workspace, manage connected AWS accounts, review findings,
+                handle billing access, and sign out cleanly when needed.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2 text-xs text-neutral-300">
@@ -273,22 +246,12 @@ export default function OnboardingPage() {
                     </button>
                   </>
                 ) : (
-                  <>
-                    <a
-                      href="#auth"
-                      className="rounded-2xl bg-white px-6 py-3 font-medium text-black"
-                    >
-                      Get Started
-                    </a>
-                    <button
-                      type="button"
-                      onClick={handleDemoLogin}
-                      disabled={loggingIn || loadingPage}
-                      className="rounded-2xl border border-white/10 px-6 py-3 hover:bg-white/5 disabled:opacity-60"
-                    >
-                      {loggingIn ? "Signing in..." : "Use Demo Login"}
-                    </button>
-                  </>
+                  <a
+                    href="#auth"
+                    className="rounded-2xl bg-white px-6 py-3 font-medium text-black"
+                  >
+                    Get Started
+                  </a>
                 )}
               </div>
 
@@ -300,7 +263,9 @@ export default function OnboardingPage() {
                   </div>
                 </div>
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                  <div className="text-sm text-neutral-400">Connected Accounts</div>
+                  <div className="text-sm text-neutral-400">
+                    Connected Accounts
+                  </div>
                   <div className="mt-2 text-4xl font-bold">
                     {loadingPage ? "..." : accounts.length}
                   </div>
@@ -344,13 +309,21 @@ export default function OnboardingPage() {
                   <>
                     <div className="text-sm text-neutral-400">Logged in as</div>
                     <div className="mt-2 text-3xl font-bold">{userName}</div>
-                    <div className="mt-2 text-sm text-neutral-400">{userEmail || "-"}</div>
+                    <div className="mt-2 text-sm text-neutral-400">
+                      {userEmail || "-"}
+                    </div>
                   </>
                 ) : (
                   <>
-                    <div className="text-sm text-neutral-400">Demo credentials</div>
-                    <div className="mt-2 text-xl font-semibold">admin@compliance.local</div>
-                    <div className="mt-2 text-sm text-neutral-400">Password: admin123</div>
+                    <div className="text-sm text-neutral-400">
+                      Workspace sign-in
+                    </div>
+                    <div className="mt-2 text-xl font-semibold">
+                      Use your assigned credentials
+                    </div>
+                    <div className="mt-2 text-sm text-neutral-400">
+                      Sign in with your workspace email and password.
+                    </div>
                   </>
                 )}
               </div>
@@ -367,7 +340,9 @@ export default function OnboardingPage() {
               </div>
 
               <div className="mt-4 rounded-3xl border border-white/10 bg-black/40 p-5">
-                <div className="mb-3 text-sm text-neutral-400">What this login unlocks</div>
+                <div className="mb-3 text-sm text-neutral-400">
+                  What this login unlocks
+                </div>
                 <ul className="space-y-2 text-sm text-neutral-300">
                   <li>• account onboarding and test connection</li>
                   <li>• scan runs and findings review</li>
@@ -381,7 +356,7 @@ export default function OnboardingPage() {
         </div>
       </section>
 
-      <section id="auth" className="border-b border-white/10 px-6 py-16 scroll-mt-24">
+      <section id="auth" className="scroll-mt-24 border-b border-white/10 px-6 py-16">
         <div className="mx-auto max-w-7xl">
           {message ? (
             <div className="mb-6 rounded-2xl border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-200">
@@ -401,9 +376,12 @@ export default function OnboardingPage() {
                 <div className="mb-4 text-xs uppercase tracking-[0.25em] text-neutral-500">
                   Session active
                 </div>
-                <h2 className="text-4xl font-bold">You are already logged in</h2>
+                <h2 className="text-4xl font-bold">
+                  You are already logged in
+                </h2>
                 <p className="mt-4 text-lg text-neutral-300">
-                  Your session is active. You can continue directly into the product or sign out and test login again.
+                  Your session is active. You can continue directly into the
+                  product or sign out and test login again.
                 </p>
 
                 <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
@@ -438,12 +416,15 @@ export default function OnboardingPage() {
                 </div>
                 <h2 className="text-4xl font-bold">Logout and login again</h2>
                 <p className="mt-4 text-lg text-neutral-300">
-                  Use logout here whenever you want to test the full auth flow again.
+                  Use logout here whenever you want to test the full auth flow
+                  again.
                 </p>
 
                 <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-5">
                   <div className="text-sm text-neutral-400">Status</div>
-                  <div className="mt-2 text-2xl font-bold text-emerald-300">Authenticated</div>
+                  <div className="mt-2 text-2xl font-bold text-emerald-300">
+                    Authenticated
+                  </div>
                 </div>
 
                 <button
@@ -463,58 +444,46 @@ export default function OnboardingPage() {
                 </div>
                 <h2 className="text-4xl font-bold">Welcome back</h2>
                 <p className="mt-4 text-lg text-neutral-300">
-                  Sign in to continue to your workspace and manage scans, accounts, billing, and launch workflows.
+                  Sign in to continue to your workspace and manage scans,
+                  accounts, billing, and launch workflows.
                 </p>
 
-                <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-                  Local demo credentials are prefilled for quick testing.
+                <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-neutral-300">
+                  Use your workspace email and password to continue.
                 </div>
-
-                <div className="mt-6 space-y-3 text-sm text-neutral-300">
-                  <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <div className="text-neutral-400">Email</div>
-                    <div className="mt-1 font-medium">admin@compliance.local</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <div className="text-neutral-400">Password</div>
-                    <div className="mt-1 font-medium">admin123</div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleDemoLogin}
-                  disabled={loggingIn || loadingPage}
-                  className="mt-6 rounded-2xl border border-white/10 px-5 py-3 text-sm hover:bg-white/5 disabled:opacity-60"
-                >
-                  {loggingIn ? "Signing in..." : "Use Demo Login"}
-                </button>
               </div>
 
               <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
                 <div className="mb-4 text-xs uppercase tracking-[0.25em] text-neutral-500">
                   Login form
                 </div>
-                <h2 className="text-4xl font-bold">Secure access to your workspace</h2>
+                <h2 className="text-4xl font-bold">
+                  Secure access to your workspace
+                </h2>
                 <p className="mt-4 text-lg text-neutral-300">
-                  Enter your credentials below. After successful login, you will be redirected to the scans workspace.
+                  Enter your credentials below. After successful login, you will
+                  be redirected to the scans workspace.
                 </p>
 
                 <form onSubmit={handleLogin} className="mt-6 space-y-4">
                   <div>
-                    <label className="mb-2 block text-sm text-neutral-300">Email</label>
+                    <label className="mb-2 block text-sm text-neutral-300">
+                      Email
+                    </label>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="admin@compliance.local"
+                      placeholder="Enter your email"
                       className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 outline-none focus:border-neutral-500"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm text-neutral-300">Password</label>
+                    <label className="mb-2 block text-sm text-neutral-300">
+                      Password
+                    </label>
                     <div className="flex gap-3">
                       <input
                         type={showPassword ? "text" : "password"}

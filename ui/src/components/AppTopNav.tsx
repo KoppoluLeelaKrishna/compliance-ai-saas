@@ -54,7 +54,6 @@ export default function AppTopNav() {
   const appLinks = [
     { href: "/scans", label: "Scans" },
     { href: "/accounts", label: "Accounts" },
-    { href: "/agents", label: "AI Agents" },
     { href: "/plans", label: "Plans" },
     { href: "/launch", label: "Launch" },
   ];

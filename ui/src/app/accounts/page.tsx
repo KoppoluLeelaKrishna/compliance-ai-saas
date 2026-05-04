@@ -1,23 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import AppTopNav from "@/components/AppTopNav";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-
-type Account = {
-  id: number;
-  customer_name: string;
-  account_name: string;
-  aws_account_id: string;
-  role_arn: string;
-  external_id: string;
-  region: string;
-  status: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at?: string;
-};
+import { api } from "@/lib/api";
+import { Account, BillingMe } from "@/types";
+import { Card } from "@/components/ui/Card";
 
 type AccountForm = {
   customer_name: string;
@@ -27,14 +13,6 @@ type AccountForm = {
   external_id: string;
   region: string;
   is_active: boolean;
-};
-
-type BillingMe = {
-  subscription_status: string;
-  stripe_customer_id?: string;
-  stripe_subscription_id?: string;
-  account_limit?: number;
-  connected_accounts_used?: number;
 };
 
 const emptyForm: AccountForm = {
@@ -52,28 +30,6 @@ function fmtDate(value?: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
-}
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-  });
-
-  if (!res.ok) {
-    let msg = `Request failed: ${res.status}`;
-    try {
-      const data = await res.json();
-      msg = data?.detail || data?.message || JSON.stringify(data);
-    } catch {}
-    throw new Error(msg);
-  }
-
-  return res.json();
 }
 
 export default function AccountsPage() {
@@ -146,7 +102,7 @@ export default function AccountsPage() {
       customer_name: account.customer_name,
       account_name: account.account_name,
       aws_account_id: account.aws_account_id,
-      role_arn: account.role_arn,
+      role_arn: account.role_arn || "",
       external_id: account.external_id || "",
       region: account.region || "us-east-1",
       is_active: !!account.is_active,
@@ -237,251 +193,234 @@ export default function AccountsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black px-6 py-8 text-white">
-      <div className="mx-auto max-w-7xl">
-        <AppTopNav />
+    <main className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold">Account Management</h1>
+        <p className="mt-2 text-neutral-400">
+          Add, edit, test, and manage connected customer AWS accounts.
+        </p>
+      </div>
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Account Management</h1>
-          <p className="mt-2 text-sm text-neutral-400">
-            Add, edit, test, and manage connected customer AWS accounts.
-          </p>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Card className="p-5">
+          <div className="text-sm text-neutral-400">Total Accounts</div>
+          <div className="mt-2 text-3xl font-bold">{accounts.length}</div>
+        </Card>
+        <Card className="p-5">
+          <div className="text-sm text-neutral-400">Active Accounts</div>
+          <div className="mt-2 text-3xl font-bold">{activeCount}</div>
+        </Card>
+        <Card className="p-5">
+          <div className="text-sm text-neutral-400">Current Plan</div>
+          <div className="mt-2 text-3xl font-bold">{loadingBilling ? "..." : currentPlan}</div>
+        </Card>
+        <Card className="p-5">
+          <div className="text-sm text-neutral-400">Account Usage</div>
+          <div className="mt-2 text-3xl font-bold">
+            {loadingBilling ? "..." : `${accountsUsed}/${accountLimit}`}
+          </div>
+        </Card>
+      </div>
+
+      {(message || error) && (
+        <div className={`rounded-xl border p-4 text-sm ${error ? "border-red-700 bg-red-950/40 text-red-200" : "border-emerald-700 bg-emerald-950/40 text-emerald-200"}`}>
+          {error || message}
         </div>
+      )}
 
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5">
-            <div className="text-sm text-neutral-400">Total Accounts</div>
-            <div className="mt-2 text-3xl font-bold">{accounts.length}</div>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5">
-            <div className="text-sm text-neutral-400">Active Accounts</div>
-            <div className="mt-2 text-3xl font-bold">{activeCount}</div>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5">
-            <div className="text-sm text-neutral-400">Current Plan</div>
-            <div className="mt-2 text-3xl font-bold">{loadingBilling ? "..." : currentPlan}</div>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5">
-            <div className="text-sm text-neutral-400">Account Usage</div>
-            <div className="mt-2 text-3xl font-bold">
-              {loadingBilling ? "..." : `${accountsUsed}/${accountLimit}`}
+      {limitReached && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-yellow-700/50 bg-yellow-950/20 p-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="font-semibold text-yellow-300">Account limit reached</div>
+            <div className="mt-1 text-sm text-yellow-100/80">
+              Your current plan allows up to {accountLimit} connected account(s). Upgrade to add more.
             </div>
           </div>
         </div>
+      )}
 
-        {message ? (
-          <div className="mb-4 rounded-xl border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-200">
-            {message}
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="mb-4 rounded-xl border border-red-700 bg-red-950 px-4 py-3 text-sm text-red-200">
-            {error}
-          </div>
-        ) : null}
-
-        {limitReached ? (
-          <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-yellow-700 bg-yellow-950/40 p-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="font-semibold text-yellow-300">Account limit reached</div>
-              <div className="mt-1 text-sm text-yellow-100/80">
-                Your current plan allows up to {accountLimit} connected account(s). Upgrade to add more.
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_1fr]">
-          <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[400px_1fr]">
+        <section>
+          <Card className="h-full">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold">
                 {editing ? "Edit Account" : "Add Account"}
               </h2>
-              <button
-                onClick={startCreate}
-                className="rounded-xl border border-neutral-800 px-3 py-2 text-sm hover:bg-neutral-900"
-              >
-                New
-              </button>
+              {editing && (
+                <button
+                  onClick={startCreate}
+                  className="text-xs text-neutral-500 hover:text-white"
+                >
+                  Clear
+                </button>
+              )}
             </div>
 
-            {!editing && limitReached ? (
-              <div className="mb-4 rounded-xl border border-dashed border-neutral-700 bg-black p-4 text-sm text-neutral-400">
-                You have used all available account slots for your current plan.
-                Upgrade on the Plans page to create another account.
-              </div>
-            ) : null}
-
             <form onSubmit={submitForm} className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm text-neutral-300">Customer Name</label>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Customer Name</label>
                 <input
                   value={form.customer_name}
                   onChange={(e) => onChange("customer_name", e.target.value)}
-                  className="w-full rounded-xl border border-neutral-800 bg-black px-3 py-2 outline-none focus:border-neutral-600"
-                  placeholder="Customer name"
+                  className="w-full rounded-xl border border-white/10 bg-black px-4 py-2 outline-none focus:border-emerald-500"
+                  placeholder="e.g. Acme Corp"
                   required
                   disabled={!editing && limitReached}
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm text-neutral-300">Account Name</label>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Account Name</label>
                 <input
                   value={form.account_name}
                   onChange={(e) => onChange("account_name", e.target.value)}
-                  className="w-full rounded-xl border border-neutral-800 bg-black px-3 py-2 outline-none focus:border-neutral-600"
-                  placeholder="AWS production account"
+                  className="w-full rounded-xl border border-white/10 bg-black px-4 py-2 outline-none focus:border-emerald-500"
+                  placeholder="e.g. Production"
                   required
                   disabled={!editing && limitReached}
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm text-neutral-300">AWS Account ID</label>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500">AWS Account ID</label>
                 <input
                   value={form.aws_account_id}
                   onChange={(e) => onChange("aws_account_id", e.target.value)}
-                  className="w-full rounded-xl border border-neutral-800 bg-black px-3 py-2 outline-none focus:border-neutral-600"
-                  placeholder="123456789012"
+                  className="w-full rounded-xl border border-white/10 bg-black px-4 py-2 outline-none focus:border-emerald-500"
+                  placeholder="12-digit ID"
                   required
                   disabled={!editing && limitReached}
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm text-neutral-300">Role ARN</label>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Role ARN</label>
                 <textarea
                   value={form.role_arn}
                   onChange={(e) => onChange("role_arn", e.target.value)}
-                  className="min-h-[90px] w-full rounded-xl border border-neutral-800 bg-black px-3 py-2 outline-none focus:border-neutral-600"
-                  placeholder="arn:aws:iam::123456789012:role/VigiliCloudReadOnlyRole"
+                  className="min-h-[80px] w-full rounded-xl border border-white/10 bg-black px-4 py-2 outline-none focus:border-emerald-500"
+                  placeholder="arn:aws:iam::..."
                   required
                   disabled={!editing && limitReached}
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm text-neutral-300">External ID</label>
-                <input
-                  value={form.external_id}
-                  onChange={(e) => onChange("external_id", e.target.value)}
-                  className="w-full rounded-xl border border-neutral-800 bg-black px-3 py-2 outline-none focus:border-neutral-600"
-                  placeholder="Optional"
-                  disabled={!editing && limitReached}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Region</label>
+                  <input
+                    value={form.region}
+                    onChange={(e) => onChange("region", e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-black px-4 py-2 outline-none focus:border-emerald-500"
+                    placeholder="us-east-1"
+                    required
+                    disabled={!editing && limitReached}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500">External ID</label>
+                  <input
+                    value={form.external_id}
+                    onChange={(e) => onChange("external_id", e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-black px-4 py-2 outline-none focus:border-emerald-500"
+                    placeholder="Optional"
+                    disabled={!editing && limitReached}
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm text-neutral-300">Region</label>
-                <input
-                  value={form.region}
-                  onChange={(e) => onChange("region", e.target.value)}
-                  className="w-full rounded-xl border border-neutral-800 bg-black px-3 py-2 outline-none focus:border-neutral-600"
-                  placeholder="us-east-1"
-                  required
-                  disabled={!editing && limitReached}
-                />
-              </div>
-
-              <label className="flex items-center gap-3 rounded-xl border border-neutral-800 p-3">
+              <label className="flex items-center gap-3 rounded-xl border border-white/10 p-4 transition-colors hover:bg-white/5">
                 <input
                   type="checkbox"
                   checked={form.is_active}
                   onChange={(e) => onChange("is_active", e.target.checked)}
                   disabled={!editing && limitReached}
+                  className="h-4 w-4 rounded border-white/10 bg-black text-emerald-500 focus:ring-emerald-500"
                 />
-                <span className="text-sm">Account is active</span>
+                <span className="text-sm font-medium">Account is active</span>
               </label>
 
               <button
                 type="submit"
                 disabled={saving || (!editing && limitReached)}
-                className="w-full rounded-xl bg-white px-4 py-2 font-medium text-black disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-2xl bg-white px-4 py-3 font-bold text-black hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {saving ? "Saving..." : editing ? "Update Account" : "Create Account"}
+                {saving ? "Saving..." : editing ? "Update Account" : "Connect Account"}
               </button>
             </form>
-          </section>
+          </Card>
+        </section>
 
-          <section className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Connected Accounts</h2>
-              <span className="text-sm text-neutral-400">{accounts.length} total</span>
+        <section>
+          <Card>
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Connected Accounts</h2>
+              <span className="text-xs font-medium text-neutral-500">{accounts.length} total</span>
             </div>
 
             {loading ? (
-              <div className="rounded-xl border border-neutral-800 p-4 text-neutral-400">
-                Loading accounts...
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-16 w-full animate-pulse rounded-2xl bg-white/5" />
+                ))}
               </div>
             ) : accounts.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-neutral-700 p-8 text-center">
-                <div className="text-lg font-semibold">No accounts yet</div>
+              <div className="rounded-3xl border border-dashed border-white/10 p-12 text-center">
+                <div className="text-lg font-bold">No accounts connected</div>
                 <p className="mt-2 text-sm text-neutral-400">
-                  Add your first customer AWS account to begin customer-linked scans.
+                  Connect your first customer AWS account to start running scans.
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="text-left text-neutral-400">
-                    <tr className="border-b border-neutral-800">
-                      <th className="px-3 py-3">Customer</th>
-                      <th className="px-3 py-3">Account</th>
-                      <th className="px-3 py-3">AWS Account ID</th>
-                      <th className="px-3 py-3">Region</th>
-                      <th className="px-3 py-3">Status</th>
-                      <th className="px-3 py-3">Active</th>
-                      <th className="px-3 py-3">Created</th>
-                      <th className="px-3 py-3">Actions</th>
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/5 text-xs uppercase tracking-wider text-neutral-500">
+                      <th className="px-3 py-4 font-medium">Customer / Account</th>
+                      <th className="px-3 py-4 font-medium">AWS ID</th>
+                      <th className="px-3 py-4 font-medium">Status</th>
+                      <th className="px-3 py-4 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-white/5">
                     {accounts.map((account) => (
-                      <tr key={account.id} className="border-b border-neutral-900 align-top">
-                        <td className="px-3 py-3 font-medium">{account.customer_name}</td>
-                        <td className="px-3 py-3">{account.account_name}</td>
-                        <td className="px-3 py-3">{account.aws_account_id}</td>
-                        <td className="px-3 py-3">{account.region}</td>
-                        <td className="px-3 py-3">
-                          <span className="rounded-full border border-neutral-700 px-2 py-1 text-xs">
+                      <tr key={account.id} className="group">
+                        <td className="px-3 py-5">
+                          <div className="font-bold text-white">{account.customer_name}</div>
+                          <div className="text-xs text-neutral-500">{account.account_name} • {account.region}</div>
+                        </td>
+                        <td className="px-3 py-5 font-mono text-xs text-neutral-400">
+                          {account.aws_account_id}
+                        </td>
+                        <td className="px-3 py-5">
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                            account.is_active ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-red-500/30 bg-red-500/10 text-red-400"
+                          }`}>
                             {account.status}
                           </span>
                         </td>
-                        <td className="px-3 py-3">
-                          {account.is_active ? (
-                            <span className="text-emerald-400">Yes</span>
-                          ) : (
-                            <span className="text-red-400">No</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3">{fmtDate(account.created_at)}</td>
-                        <td className="px-3 py-3">
-                          <div className="flex flex-wrap gap-2">
+                        <td className="px-3 py-5 text-right">
+                          <div className="flex justify-end gap-2">
                             <button
                               onClick={() => startEdit(account)}
-                              className="rounded-lg border border-neutral-800 px-3 py-1 hover:bg-neutral-900"
+                              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/5"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => testConnection(account.id)}
                               disabled={testingId === account.id}
-                              className="rounded-lg border border-neutral-800 px-3 py-1 hover:bg-neutral-900 disabled:opacity-60"
+                              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/5 disabled:opacity-50"
                             >
-                              {testingId === account.id ? "Testing..." : "Test"}
+                              {testingId === account.id ? "..." : "Test"}
                             </button>
                             <button
                               onClick={() => deleteAccount(account.id)}
                               disabled={deletingId === account.id}
-                              className="rounded-lg border border-red-900 px-3 py-1 text-red-300 hover:bg-red-950 disabled:opacity-60"
+                              className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50"
                             >
-                              {deletingId === account.id ? "Deleting..." : "Delete"}
+                              Delete
                             </button>
-                          </div>
-                          <div className="mt-2 break-all text-xs text-neutral-500">
-                            {account.role_arn}
                           </div>
                         </td>
                       </tr>
@@ -490,8 +429,8 @@ export default function AccountsPage() {
                 </table>
               </div>
             )}
-          </section>
-        </div>
+          </Card>
+        </section>
       </div>
     </main>
   );

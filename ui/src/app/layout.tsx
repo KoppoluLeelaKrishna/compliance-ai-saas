@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import AppTopNav from "@/components/AppTopNav";
 
 export const metadata: Metadata = {
   title: "VigiliCloud",
@@ -13,7 +14,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="min-h-screen bg-black text-white">
+        <div className="mx-auto max-w-7xl px-6 py-8">
+          <AppTopNav />
+          {children}
+        </div>
+      </body>
     </html>
   );
 }

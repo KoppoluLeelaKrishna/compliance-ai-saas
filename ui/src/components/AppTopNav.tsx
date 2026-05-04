@@ -3,43 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-
-type AuthMe = {
-  authenticated: boolean;
-  user?: {
-    id: number;
-    email: string;
-    name: string;
-    role: string;
-    subscription_status?: string;
-  };
-};
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data?.detail || `Request failed: ${res.status}`);
-  }
-
-  return data;
-}
+import { api } from "@/lib/api";
+import { AuthMe } from "@/types";
 
 function navClass(active: boolean) {
   return active
-    ? "rounded-xl bg-white px-4 py-2 font-medium text-black"
-    : "rounded-xl border border-white/10 px-4 py-2 hover:bg-white/5";
+    ? "rounded-xl bg-white px-4 py-2 font-bold text-black shadow-lg shadow-white/10"
+    : "rounded-xl border border-white/10 px-4 py-2 font-medium text-neutral-400 hover:bg-white/5 hover:text-white transition-all";
 }
 
 export default function AppTopNav() {
@@ -70,6 +40,7 @@ export default function AppTopNav() {
   }, [pathname]);
 
   async function handleLogout() {
+    if (loggingOut) return;
     setLoggingOut(true);
     try {
       await api("/auth/logout", {
@@ -80,29 +51,26 @@ export default function AppTopNav() {
       router.refresh();
     } catch {
       setLoggingOut(false);
-      return;
+    } finally {
+      setLoggingOut(false);
     }
-    setLoggingOut(false);
   }
 
   return (
-    <div className="mb-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-sm font-bold">
+    <div className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+      <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-xl font-bold text-emerald-400">
           V
         </div>
         <div>
-          <div className="text-lg font-semibold">VigiliCloud</div>
-          <div className="text-xs text-neutral-400">
-            AWS security posture checks, remediation workflows, and evidence exports for lean teams and MSPs
+          <div className="text-2xl font-black tracking-tight">VigiliCloud</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-neutral-500 font-bold">
+            AWS Compliance SaaS
           </div>
         </div>
-      </div>
+      </Link>
 
-      <nav className="flex flex-wrap items-center gap-3 text-sm">
-        <Link href="/" className={navClass(pathname === "/")}>
-          Home
-        </Link>
+      <nav className="flex flex-wrap items-center gap-2 text-sm">
         <Link href="/plans" className={navClass(pathname === "/plans")}>
           Plans
         </Link>
@@ -115,34 +83,33 @@ export default function AppTopNav() {
         <Link href="/launch" className={navClass(pathname === "/launch")}>
           Launch Prep
         </Link>
-        <Link href="/settings" className={navClass(pathname === "/settings")}>
-          Settings
-        </Link>
+
+        <div className="mx-2 h-4 w-px bg-white/10 hidden md:block" />
 
         {loading ? (
-          <span className="rounded-xl border border-white/10 px-4 py-2 text-neutral-400">
-            ...
-          </span>
+          <div className="h-10 w-24 animate-pulse rounded-xl bg-white/5" />
         ) : authenticated ? (
-          <>
-            <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-emerald-300">
+          <div className="flex items-center gap-2">
+            <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300">
               {userName}
             </span>
             <button
               onClick={handleLogout}
               disabled={loggingOut}
-              className="rounded-xl border border-white/10 px-4 py-2 hover:bg-white/5 disabled:opacity-60"
+              className="rounded-xl border border-white/10 px-4 py-2 font-medium text-neutral-400 hover:bg-white/5 disabled:opacity-50"
             >
-              {loggingOut ? "Logging out..." : "Logout"}
+              {loggingOut ? "..." : "Logout"}
             </button>
-            <Link href="/scans" className="rounded-xl bg-white px-4 py-2 font-medium text-black">
-              Open Workspace
-            </Link>
-          </>
+          </div>
         ) : (
-          <Link href="/onboarding" className="rounded-xl bg-white px-4 py-2 font-medium text-black">
-            Login
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/signin" className="rounded-xl border border-white/10 px-4 py-2 font-medium text-neutral-400 hover:bg-white/5 hover:text-white transition-all text-sm">
+              Sign In
+            </Link>
+            <Link href="/signup" className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-black hover:bg-emerald-400 transition-colors text-sm">
+              Sign Up
+            </Link>
+          </div>
         )}
       </nav>
     </div>

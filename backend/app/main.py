@@ -238,6 +238,12 @@ class LoginIn(BaseModel):
     password: str
 
 
+class RegisterIn(BaseModel):
+    email: str
+    password: str
+    name: str
+
+
 class CheckoutSessionIn(BaseModel):
     plan: str
 
@@ -1012,7 +1018,6 @@ def root():
         "frontend_url": FRONTEND_URL,
         "auth": "enabled",
         "billing": "deployment_ready",
-        "db_backend": "postgres" if USE_POSTGRES else "sqlite",
     }
 
 
@@ -1063,6 +1068,63 @@ def auth_login(payload: LoginIn, request: Request):
             "session": {
                 "expires_at": session["expires_at"],
             },
+        }
+    )
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session["token"],
+        httponly=True,
+        samesite=COOKIE_SAMESITE,
+        secure=COOKIE_SECURE,
+        max_age=SESSION_TTL_HOURS * 60 * 60,
+        path="/",
+    )
+    return response
+
+
+@app.post("/auth/register")
+def auth_register(payload: RegisterIn, request: Request):
+    ip = client_ip(request)
+    enforce_rate_limit(f"register:{ip}", 5, 300)
+
+    email = sanitize_email(payload.email)
+    password = sanitize_password(payload.password)
+    name = (payload.name or "").strip()
+    if not name or len(name) > 100:
+        raise HTTPException(status_code=400, detail="Name is required (max 100 characters)")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO users (
+                email, password_hash, name, role, created_at,
+                subscription_status, stripe_customer_id, stripe_subscription_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (email, hash_password(password), name, "user", now_utc_iso(), "free", "", ""),
+        )
+        conn.commit()
+        user_id = cur.lastrowid
+    except Exception:
+        conn.close()
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+
+    conn.close()
+
+    session = create_session(user_id)
+    response = JSONResponse(
+        {
+            "ok": True,
+            "user": {
+                "id": user_id,
+                "email": email,
+                "name": name,
+                "role": "user",
+                "subscription_status": "free",
+            },
+            "session": {"expires_at": session["expires_at"]},
         }
     )
     response.set_cookie(

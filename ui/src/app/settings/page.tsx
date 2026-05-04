@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import AppTopNav from "@/components/AppTopNav";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
@@ -119,8 +118,6 @@ export default function SettingsPage() {
   return (
     <main className="min-h-screen bg-black px-6 py-8 text-white">
       <div className="mx-auto max-w-7xl">
-        <AppTopNav />
-
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Settings</h1>
           <p className="mt-2 text-sm text-neutral-400">
@@ -264,6 +261,7 @@ export default function SettingsPage() {
 
                 <div className="flex flex-wrap gap-3">
                   <button
+                    type="button"
                     onClick={syncBilling}
                     disabled={syncLoading}
                     className="rounded-xl border border-neutral-800 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
@@ -273,6 +271,7 @@ export default function SettingsPage() {
 
                   {isPaidPlan && billing?.stripe?.portal_ready ? (
                     <button
+                      type="button"
                       onClick={openPortal}
                       disabled={portalLoading}
                       className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-60"

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import AppTopNav from "@/components/AppTopNav";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
@@ -201,8 +200,6 @@ Leela`;
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white">
       <div className="mx-auto max-w-7xl">
-        <AppTopNav />
-
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Launch Prep</h1>
           <p className="mt-2 text-sm text-neutral-400">

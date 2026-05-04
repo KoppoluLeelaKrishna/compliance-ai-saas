@@ -12,7 +12,7 @@ import {
   FixGuidance,
   ScanItem,
 } from "@/types";
-import { Card, Badge } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { FindingsTable } from "@/components/scans/FindingsTable";
 import { FindingDetail } from "@/components/scans/FindingDetail";
 import { ScanFilters } from "@/components/scans/ScanFilters";
@@ -45,6 +45,9 @@ export default function ScansPage() {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  const [aiAnalysis, setAiAnalysis] = useState("");
+  const [loadingAi, setLoadingAi] = useState(false);
 
   async function loadInitialData() {
     setLoading(true);
@@ -213,6 +216,21 @@ export default function ScansPage() {
     }
   }
 
+  async function handleAiAnalysis() {
+    if (!selectedScanId || loadingAi) return;
+    setLoadingAi(true);
+    setAiAnalysis("");
+    setError("");
+    try {
+      const data = await api<{ analysis: string }>(`/scans/${selectedScanId}/ai-analysis`, { method: "POST" });
+      setAiAnalysis(data.analysis);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AI analysis failed");
+    } finally {
+      setLoadingAi(false);
+    }
+  }
+
   const severityCounts = useMemo(() => {
     const counts: Record<string, number> = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
     filteredFindings.forEach(f => {
@@ -238,20 +256,30 @@ export default function ScansPage() {
             Analyze your AWS posture, track remediation, and export compliance evidence.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           <button
+            type="button"
             onClick={() => window.open(`${API_BASE}/scans/${selectedScanId}/export.json`, "_blank")}
             disabled={!selectedScanId}
-            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium hover:bg-white/5 disabled:opacity-50"
+            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium hover:bg-white/5 disabled:opacity-50 transition-colors"
           >
             Export JSON
           </button>
           <button
+            type="button"
+            onClick={handleAiAnalysis}
+            disabled={!selectedScanId || loadingAi}
+            className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+          >
+            {loadingAi ? "Analyzing..." : "✦ AI Analysis"}
+          </button>
+          <button
+            type="button"
             onClick={handleRunScan}
             disabled={running}
-            className="rounded-xl bg-white px-6 py-2 text-sm font-bold text-black hover:bg-neutral-200 disabled:opacity-50"
+            className="rounded-xl bg-emerald-500 px-5 py-2 text-sm font-bold text-black hover:bg-emerald-400 disabled:opacity-50 transition-colors"
           >
-            {running ? "Scanning..." : "Run New Scan"}
+            {running ? "Scanning..." : "Run Scan"}
           </button>
         </div>
       </div>
@@ -302,6 +330,25 @@ export default function ScansPage() {
           setResolutionFilter("ALL");
         }}
       />
+
+      {aiAnalysis && (
+        <Card className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
+              <span>✦</span>
+              <span>AI Security Analysis</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAiAnalysis("")}
+              className="text-xs text-neutral-500 hover:text-white transition-colors"
+            >
+              Dismiss
+            </button>
+          </div>
+          <p className="whitespace-pre-wrap text-sm leading-7 text-neutral-300">{aiAnalysis}</p>
+        </Card>
+      )}
 
       <FindingsTable
         findings={filteredFindings}

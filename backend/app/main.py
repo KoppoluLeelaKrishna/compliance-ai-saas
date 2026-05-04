@@ -1906,6 +1906,58 @@ def _export_rows(scan_id: str) -> List[Dict[str, Any]]:
     return rows
 
 
+@app.post("/scans/{scan_id}/ai-analysis")
+def ai_analysis(
+    scan_id: str,
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not anthropic_key:
+        raise HTTPException(status_code=503, detail="AI analysis is not configured on this server.")
+
+    rows = _export_rows(scan_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Scan not found or has no findings.")
+
+    import anthropic as _anthropic
+
+    findings_summary = "\n".join(
+        f"- [{r['severity']}] {r['service']}: {r['title']} (resource: {r['resource_id']}, status: {r['status']})"
+        for r in rows[:40]
+    )
+
+    client = _anthropic.Anthropic(api_key=anthropic_key)
+    response = client.messages.create(
+        model="claude-haiku-4-5",
+        max_tokens=1024,
+        system=(
+            "You are an AWS security expert reviewing compliance scan findings. "
+            "Give concise, actionable analysis. Use bullet points. Be direct."
+        ),
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    f"Here are the findings from an AWS compliance scan:\n\n{findings_summary}\n\n"
+                    "Provide:\n"
+                    "1. A 2-sentence executive summary of the security posture.\n"
+                    "2. The top 3 most critical issues to fix first and why.\n"
+                    "3. Quick wins (issues easy to fix immediately).\n"
+                    "4. Estimated remediation priority order."
+                ),
+            }
+        ],
+    )
+
+    analysis_text = next(
+        (block.text for block in response.content if block.type == "text"), ""
+    )
+    return {"scan_id": scan_id, "analysis": analysis_text, "findings_count": len(rows)}
+
+
 @app.get("/scans/{scan_id}/export.json")
 def export_scan_json(
     scan_id: str,

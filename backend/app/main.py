@@ -29,7 +29,17 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Detect project root — differs between local dev and Docker
+# Local: compliance-ai-saas/backend/app/main.py → parents[2] = compliance-ai-saas/
+# Docker: /app/app/main.py → parents[1] = /app/ (where worker/ also lives)
+_root_candidates = [
+    Path(__file__).resolve().parents[2],
+    Path(__file__).resolve().parents[1],
+]
+PROJECT_ROOT = next(
+    (r for r in _root_candidates if (r / "worker" / "src" / "runner.py").exists()),
+    _root_candidates[0],
+)
 SCANNER_PATH = PROJECT_ROOT / "worker" / "src" / "runner.py"
 PYTHON_EXE = sys.executable
 

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import AppTopNav from "@/components/AppTopNav";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
@@ -190,8 +189,6 @@ export default function OnboardingPage() {
     <main className="min-h-screen bg-black text-white">
       <section className="border-b border-white/10 px-6 py-8">
         <div className="mx-auto max-w-7xl">
-          <AppTopNav />
-
           <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
             <div>
               <div className="mb-5 inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">

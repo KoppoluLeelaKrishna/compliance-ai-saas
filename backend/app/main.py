@@ -113,9 +113,13 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 def build_cors_origins() -> List[str]:
-    origins: List[str] = []
+    origins: List[str] = [
+        # Production domains — always allowed
+        "https://app.vigilicloud.com",
+        "https://vigilicloud-ui.onrender.com",
+    ]
 
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").strip().rstrip("/")
+    frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
     if frontend_url:
         origins.append(frontend_url)
 
@@ -123,14 +127,7 @@ def build_cors_origins() -> List[str]:
     if extra:
         origins.extend([item.strip().rstrip("/") for item in extra.split(",") if item.strip()])
 
-    
-    if APP_ENV != "production":
-        origins.extend(
-            [
-                "http://localhost:3000",
-                "http://127.0.0.1:3000",
-            ]
-        )
+    origins.extend(["http://localhost:3000", "http://127.0.0.1:3000"])
 
     deduped: List[str] = []
     seen = set()

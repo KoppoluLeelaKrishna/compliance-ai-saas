@@ -1936,28 +1936,35 @@ def ai_analysis(
         for r in rows[:40]
     )
 
-    client = _anthropic.Anthropic(api_key=anthropic_key)
-    response = client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=1024,
-        system=(
-            "You are an AWS security expert reviewing compliance scan findings. "
-            "Give concise, actionable analysis. Use bullet points. Be direct."
-        ),
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    f"Here are the findings from an AWS compliance scan:\n\n{findings_summary}\n\n"
-                    "Provide:\n"
-                    "1. A 2-sentence executive summary of the security posture.\n"
-                    "2. The top 3 most critical issues to fix first and why.\n"
-                    "3. Quick wins (issues easy to fix immediately).\n"
-                    "4. Estimated remediation priority order."
-                ),
-            }
-        ],
-    )
+    try:
+        client = _anthropic.Anthropic(api_key=anthropic_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1024,
+            system=(
+                "You are an AWS security expert reviewing compliance scan findings. "
+                "Give concise, actionable analysis. Use bullet points. Be direct."
+            ),
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        f"Here are the findings from an AWS compliance scan:\n\n{findings_summary}\n\n"
+                        "Provide:\n"
+                        "1. A 2-sentence executive summary of the security posture.\n"
+                        "2. The top 3 most critical issues to fix first and why.\n"
+                        "3. Quick wins (issues easy to fix immediately).\n"
+                        "4. Estimated remediation priority order."
+                    ),
+                }
+            ],
+        )
+    except _anthropic.BadRequestError as e:
+        raise HTTPException(status_code=402, detail=str(e))
+    except _anthropic.AuthenticationError:
+        raise HTTPException(status_code=503, detail="Invalid Anthropic API key.")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"AI analysis failed: {str(e)}")
 
     analysis_text = next(
         (block.text for block in response.content if block.type == "text"), ""

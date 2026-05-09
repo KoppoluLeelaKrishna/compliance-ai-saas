@@ -159,7 +159,7 @@ export default function ScansPage() {
     setError("");
     setMessage("");
     try {
-      const payload: any = {};
+      const payload: { account_id?: number } = {};
       if (selectedAccountId) payload.account_id = Number(selectedAccountId);
       
       const data = await api<{ scan_id: string; count: number }>("/scans/run", {

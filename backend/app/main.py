@@ -67,6 +67,7 @@ if USE_POSTGRES:
         save_scan_account_link,
         update_connected_account,
         update_connected_account_status,
+        update_scan_user_id,
         upsert_action,
         upsert_fix_guidance,
     )
@@ -87,6 +88,7 @@ else:
         save_scan_account_link,
         update_connected_account,
         update_connected_account_status,
+        update_scan_user_id,
         upsert_action,
         upsert_fix_guidance,
     )
@@ -554,9 +556,15 @@ def get_plan_capabilities(plan: str) -> Dict[str, Any]:
     }
 
 
-def count_connected_accounts() -> int:
+def count_connected_accounts(user_id: Optional[int] = None) -> int:
     conn = get_conn()
-    row = conn.execute("SELECT COUNT(*) AS c FROM connected_accounts").fetchone()
+    if user_id is not None:
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM connected_accounts WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+    else:
+        row = conn.execute("SELECT COUNT(*) AS c FROM connected_accounts").fetchone()
     conn.close()
     return int(row["c"] if row else 0)
 
@@ -695,11 +703,11 @@ def assume_account_credentials(account_row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def validate_account_or_404(account_id: Optional[int]) -> Optional[Dict[str, Any]]:
+def validate_account_or_404(account_id: Optional[int], user_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
     if not account_id:
         return None
 
-    row = get_connected_account(account_id)
+    row = get_connected_account(account_id, user_id=user_id)
     if not row:
         raise HTTPException(status_code=404, detail="Connected account not found")
 
@@ -720,6 +728,15 @@ def require_export_access(user: Dict[str, Any]) -> None:
             status_code=403,
             detail="Your current plan does not allow exports. Upgrade your plan to export scan results.",
         )
+
+
+def require_scan_owner(scan_id: str, user_id: int) -> Dict[str, Any]:
+    s = get_scan(scan_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="scan not found")
+    if int(s.get("user_id", 1)) != user_id:
+        raise HTTPException(status_code=404, detail="scan not found")
+    return s
 
 
 def require_account_linked_scan_access(user: Dict[str, Any]) -> None:
@@ -1155,7 +1172,13 @@ def auth_logout(
     delete_session(token)
 
     response = JSONResponse({"ok": True})
-    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        path="/",
+        samesite=COOKIE_SAMESITE,
+        secure=COOKIE_SECURE,
+        httponly=True,
+    )
     return response
 
 
@@ -1184,7 +1207,7 @@ def billing_me(
 ):
     user = get_current_user(session_cookie, authorization)
     capabilities = get_plan_capabilities(user.get("subscription_status", "free"))
-    connected_accounts_used = count_connected_accounts()
+    connected_accounts_used = count_connected_accounts(user_id=user["id"])
 
     return {
         "subscription_status": user.get("subscription_status", "free"),
@@ -1753,7 +1776,7 @@ def run_scan(
     if payload.account_id:
         require_account_linked_scan_access(user)
 
-    selected_account = validate_account_or_404(payload.account_id)
+    selected_account = validate_account_or_404(payload.account_id, user_id=user["id"])
     if selected_account:
         try:
             creds = assume_account_credentials(selected_account)
@@ -1780,8 +1803,10 @@ def run_scan(
         raise HTTPException(status_code=500, detail=f"Invalid scanner output: {p.stdout}")
 
     scan_id = data.get("scan_id", "")
-    if scan_id and selected_account:
-        save_scan_account_link(scan_id, selected_account)
+    if scan_id:
+        update_scan_user_id(scan_id, user["id"])
+        if selected_account:
+            save_scan_account_link(scan_id, selected_account)
 
     return {
         "scan_id": scan_id,
@@ -1795,11 +1820,8 @@ def read_scan(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
-
-    s = get_scan(scan_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="scan not found")
+    user = get_current_user(session_cookie, authorization)
+    s = require_scan_owner(scan_id, user["id"])
     return enrich_scan(dict(s))
 
 
@@ -1809,11 +1831,8 @@ def read_findings(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
-
-    s = get_scan(scan_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="scan not found")
+    user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
 
     account = get_scan_account_link(scan_id)
     findings = get_findings(scan_id)
@@ -1841,9 +1860,9 @@ def scans_list_endpoint(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
+    user = get_current_user(session_cookie, authorization)
 
-    rows = list_scans(50, account_id=account_id)
+    rows = list_scans(50, account_id=account_id, user_id=user["id"])
     normalized = [dict(r) for r in rows]
     return {"scans": enrich_scans(normalized)}
 
@@ -1854,7 +1873,8 @@ def get_actions_for_scan(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
+    user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
     return {"scan_id": scan_id, "actions": get_actions(scan_id)}
 
 
@@ -1867,7 +1887,8 @@ def set_action(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
+    user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
 
     resolution = payload.action.upper()
     if resolution not in ("FIXED", "IGNORED"):
@@ -1920,6 +1941,7 @@ def ai_analysis(
     authorization: Optional[str] = Header(default=None),
 ):
     user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
 
     anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
     if not anthropic_key:
@@ -1981,10 +2003,7 @@ def export_scan_json(
 ):
     user = get_current_user(session_cookie, authorization)
     require_export_access(user)
-
-    s = get_scan(scan_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="scan not found")
+    s = require_scan_owner(scan_id, user["id"])
 
     rows = _export_rows(scan_id)
     return JSONResponse(
@@ -2004,10 +2023,7 @@ def export_scan_csv(
 ):
     user = get_current_user(session_cookie, authorization)
     require_export_access(user)
-
-    s = get_scan(scan_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="scan not found")
+    require_scan_owner(scan_id, user["id"])
 
     rows = _export_rows(scan_id)
     output = io.StringIO()
@@ -2054,7 +2070,7 @@ def create_account(
     user = get_current_user(session_cookie, authorization)
 
     limit = get_account_limit_for_user(user)
-    current_count = count_connected_accounts()
+    current_count = count_connected_accounts(user_id=user["id"])
     if current_count >= limit:
         raise HTTPException(
             status_code=403,
@@ -2069,6 +2085,7 @@ def create_account(
     region = sanitize_region(payload.region)
 
     account_id = create_connected_account(
+        user_id=user["id"],
         customer_name=customer_name,
         account_name=account_name,
         aws_account_id=aws_account_id,
@@ -2078,7 +2095,7 @@ def create_account(
         status="PENDING",
         is_active=payload.is_active,
     )
-    row = get_connected_account(account_id)
+    row = get_connected_account(account_id, user_id=user["id"])
     return {"status": "ok", "account": normalize_account_row(row)}
 
 
@@ -2087,8 +2104,8 @@ def get_accounts(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
-    accounts = [normalize_account_row(r) for r in list_connected_accounts()]
+    user = get_current_user(session_cookie, authorization)
+    accounts = [normalize_account_row(r) for r in list_connected_accounts(user_id=user["id"])]
     return {"accounts": accounts}
 
 
@@ -2098,9 +2115,9 @@ def get_account(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
+    user = get_current_user(session_cookie, authorization)
 
-    row = get_connected_account(account_id)
+    row = get_connected_account(account_id, user_id=user["id"])
     if not row:
         raise HTTPException(status_code=404, detail="account not found")
     return {"account": normalize_account_row(row)}
@@ -2113,7 +2130,7 @@ def update_account(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
+    user = get_current_user(session_cookie, authorization)
 
     customer_name = sanitize_text(payload.customer_name, "customer_name", max_len=120)
     account_name = sanitize_text(payload.account_name, "account_name", max_len=120)
@@ -2125,6 +2142,7 @@ def update_account(
 
     ok = update_connected_account(
         account_id=account_id,
+        user_id=user["id"],
         customer_name=customer_name,
         account_name=account_name,
         aws_account_id=aws_account_id,
@@ -2137,7 +2155,7 @@ def update_account(
     if not ok:
         raise HTTPException(status_code=404, detail="account not found")
 
-    row = get_connected_account(account_id)
+    row = get_connected_account(account_id, user_id=user["id"])
     return {"status": "ok", "account": normalize_account_row(row)}
 
 
@@ -2147,10 +2165,10 @@ def delete_account(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
+    user = get_current_user(session_cookie, authorization)
 
     try:
-        ok = delete_connected_account(account_id)
+        ok = delete_connected_account(account_id, user_id=user["id"])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -2166,9 +2184,9 @@ def test_connection(
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
 ):
-    get_current_user(session_cookie, authorization)
+    user = get_current_user(session_cookie, authorization)
 
-    row = get_connected_account(account_id)
+    row = get_connected_account(account_id, user_id=user["id"])
     if not row:
         raise HTTPException(status_code=404, detail="account not found")
 
@@ -2188,7 +2206,7 @@ def test_connection(
         ident = assumed_sts.get_caller_identity()
         update_connected_account_status(account_id, "ACTIVE")
 
-        refreshed = get_connected_account(account_id)
+        refreshed = get_connected_account(account_id, user_id=user["id"])
 
         return {
             "status": "ok",

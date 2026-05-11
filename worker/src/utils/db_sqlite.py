@@ -48,22 +48,17 @@ def init_db() -> None:
     conn = get_conn()
     cur = conn.cursor()
 
-    # -------------------------
-    # scans
-    # -------------------------
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS scans (
             scan_id TEXT PRIMARY KEY,
             status TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            user_id INTEGER NOT NULL DEFAULT 1
         )
         """
     )
 
-    # -------------------------
-    # findings
-    # -------------------------
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS findings (
@@ -81,9 +76,6 @@ def init_db() -> None:
         """
     )
 
-    # -------------------------
-    # fix guidance
-    # -------------------------
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS fix_guidance (
@@ -99,9 +91,6 @@ def init_db() -> None:
         """
     )
 
-    # -------------------------
-    # finding actions
-    # -------------------------
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS finding_actions (
@@ -117,13 +106,11 @@ def init_db() -> None:
         """
     )
 
-    # -------------------------
-    # connected accounts
-    # -------------------------
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS connected_accounts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL DEFAULT 1,
             customer_name TEXT NOT NULL,
             account_name TEXT NOT NULL DEFAULT '',
             aws_account_id TEXT NOT NULL,
@@ -138,10 +125,12 @@ def init_db() -> None:
         """
     )
 
-    # migration for older DBs
+    # migrations for older DBs
+    add_column_if_missing(conn, "connected_accounts", "user_id", "user_id INTEGER NOT NULL DEFAULT 1")
     add_column_if_missing(conn, "connected_accounts", "account_name", "account_name TEXT NOT NULL DEFAULT ''")
     add_column_if_missing(conn, "connected_accounts", "is_active", "is_active INTEGER NOT NULL DEFAULT 1")
     add_column_if_missing(conn, "connected_accounts", "updated_at", f"updated_at TEXT NOT NULL DEFAULT '{now_utc_iso()}'")
+    add_column_if_missing(conn, "scans", "user_id", "user_id INTEGER NOT NULL DEFAULT 1")
 
     conn.execute(
         """
@@ -151,9 +140,6 @@ def init_db() -> None:
         """
     )
 
-    # -------------------------
-    # scan-account links
-    # -------------------------
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS scan_account_links (
@@ -174,6 +160,8 @@ def init_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_scan_id ON findings(scan_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_actions_scan_id ON finding_actions(scan_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_links_account_id ON scan_account_links(account_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_user_id ON scans(user_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON connected_accounts(user_id)")
 
     conn.commit()
     conn.close()
@@ -197,11 +185,21 @@ def save_scan(scan_id: str, status: str) -> None:
     conn.close()
 
 
+def update_scan_user_id(scan_id: str, user_id: int) -> None:
+    conn = get_conn()
+    conn.execute(
+        "UPDATE scans SET user_id = ? WHERE scan_id = ?",
+        (user_id, scan_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_scan(scan_id: str) -> Optional[Dict[str, Any]]:
     conn = get_conn()
     row = conn.execute(
         """
-        SELECT scan_id, status, created_at
+        SELECT scan_id, status, created_at, user_id
         FROM scans
         WHERE scan_id = ?
         """,
@@ -211,7 +209,7 @@ def get_scan(scan_id: str) -> Optional[Dict[str, Any]]:
     return row_to_dict(row)
 
 
-def list_scans(limit: int = 50, account_id: Optional[int] = None) -> List[Dict[str, Any]]:
+def list_scans(limit: int = 50, account_id: Optional[int] = None, user_id: Optional[int] = None) -> List[Dict[str, Any]]:
     conn = get_conn()
 
     if account_id is not None:
@@ -232,10 +230,34 @@ def list_scans(limit: int = 50, account_id: Optional[int] = None) -> List[Dict[s
             LEFT JOIN scan_account_links l
               ON s.scan_id = l.scan_id
             WHERE l.account_id = ?
+              AND (? IS NULL OR s.user_id = ?)
             ORDER BY datetime(s.created_at) DESC
             LIMIT ?
             """,
-            (account_id, limit),
+            (account_id, user_id, user_id, limit),
+        ).fetchall()
+    elif user_id is not None:
+        rows = conn.execute(
+            """
+            SELECT
+                s.scan_id,
+                s.status,
+                s.created_at,
+                l.account_id,
+                l.customer_name,
+                l.account_name,
+                l.aws_account_id,
+                l.role_arn,
+                l.region,
+                l.linked_at
+            FROM scans s
+            LEFT JOIN scan_account_links l
+              ON s.scan_id = l.scan_id
+            WHERE s.user_id = ?
+            ORDER BY datetime(s.created_at) DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
         ).fetchall()
     else:
         rows = conn.execute(
@@ -562,6 +584,7 @@ def get_actions(scan_id: str) -> List[Dict[str, Any]]:
 # Connected Accounts
 # =========================
 def create_connected_account(
+    user_id: int,
     customer_name: str,
     account_name: str,
     aws_account_id: str,
@@ -578,6 +601,7 @@ def create_connected_account(
     cur.execute(
         """
         INSERT INTO connected_accounts (
+            user_id,
             customer_name,
             account_name,
             aws_account_id,
@@ -589,9 +613,10 @@ def create_connected_account(
             created_at,
             updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            user_id,
             customer_name,
             account_name,
             aws_account_id,
@@ -610,57 +635,105 @@ def create_connected_account(
     return int(account_id)
 
 
-def list_connected_accounts() -> List[Dict[str, Any]]:
+def list_connected_accounts(user_id: Optional[int] = None) -> List[Dict[str, Any]]:
     conn = get_conn()
-    rows = conn.execute(
-        """
-        SELECT
-            id,
-            customer_name,
-            account_name,
-            aws_account_id,
-            role_arn,
-            external_id,
-            region,
-            status,
-            is_active,
-            created_at,
-            updated_at
-        FROM connected_accounts
-        ORDER BY datetime(updated_at) DESC, id DESC
-        """
-    ).fetchall()
+    if user_id is not None:
+        rows = conn.execute(
+            """
+            SELECT
+                id,
+                user_id,
+                customer_name,
+                account_name,
+                aws_account_id,
+                role_arn,
+                external_id,
+                region,
+                status,
+                is_active,
+                created_at,
+                updated_at
+            FROM connected_accounts
+            WHERE user_id = ?
+            ORDER BY datetime(updated_at) DESC, id DESC
+            """,
+            (user_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT
+                id,
+                user_id,
+                customer_name,
+                account_name,
+                aws_account_id,
+                role_arn,
+                external_id,
+                region,
+                status,
+                is_active,
+                created_at,
+                updated_at
+            FROM connected_accounts
+            ORDER BY datetime(updated_at) DESC, id DESC
+            """
+        ).fetchall()
     conn.close()
     return rows_to_dicts(rows)
 
 
-def get_connected_account(account_id: int) -> Optional[Dict[str, Any]]:
+def get_connected_account(account_id: int, user_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
     conn = get_conn()
-    row = conn.execute(
-        """
-        SELECT
-            id,
-            customer_name,
-            account_name,
-            aws_account_id,
-            role_arn,
-            external_id,
-            region,
-            status,
-            is_active,
-            created_at,
-            updated_at
-        FROM connected_accounts
-        WHERE id = ?
-        """,
-        (account_id,),
-    ).fetchone()
+    if user_id is not None:
+        row = conn.execute(
+            """
+            SELECT
+                id,
+                user_id,
+                customer_name,
+                account_name,
+                aws_account_id,
+                role_arn,
+                external_id,
+                region,
+                status,
+                is_active,
+                created_at,
+                updated_at
+            FROM connected_accounts
+            WHERE id = ? AND user_id = ?
+            """,
+            (account_id, user_id),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT
+                id,
+                user_id,
+                customer_name,
+                account_name,
+                aws_account_id,
+                role_arn,
+                external_id,
+                region,
+                status,
+                is_active,
+                created_at,
+                updated_at
+            FROM connected_accounts
+            WHERE id = ?
+            """,
+            (account_id,),
+        ).fetchone()
     conn.close()
     return row_to_dict(row)
 
 
 def update_connected_account(
     account_id: int,
+    user_id: int,
     customer_name: str,
     account_name: str,
     aws_account_id: str,
@@ -673,7 +746,7 @@ def update_connected_account(
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT id FROM connected_accounts WHERE id = ?", (account_id,))
+    cur.execute("SELECT id FROM connected_accounts WHERE id = ? AND user_id = ?", (account_id, user_id))
     existing = cur.fetchone()
     if not existing:
         conn.close()
@@ -692,7 +765,7 @@ def update_connected_account(
             status = ?,
             is_active = ?,
             updated_at = ?
-        WHERE id = ?
+        WHERE id = ? AND user_id = ?
         """,
         (
             customer_name,
@@ -705,6 +778,7 @@ def update_connected_account(
             1 if is_active else 0,
             now_utc_iso(),
             account_id,
+            user_id,
         ),
     )
     conn.commit()
@@ -726,11 +800,14 @@ def update_connected_account_status(account_id: int, status: str) -> None:
     conn.close()
 
 
-def delete_connected_account(account_id: int) -> bool:
+def delete_connected_account(account_id: int, user_id: Optional[int] = None) -> bool:
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT id FROM connected_accounts WHERE id = ?", (account_id,))
+    if user_id is not None:
+        cur.execute("SELECT id FROM connected_accounts WHERE id = ? AND user_id = ?", (account_id, user_id))
+    else:
+        cur.execute("SELECT id FROM connected_accounts WHERE id = ?", (account_id,))
     existing = cur.fetchone()
     if not existing:
         conn.close()

@@ -12,12 +12,15 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [slowWarning, setSlowWarning] = useState(false);
   const [error, setError] = useState("");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    setSlowWarning(false);
     setLoading(true);
+    const timer = setTimeout(() => setSlowWarning(true), 5000);
     try {
       await api("/auth/login", {
         method: "POST",
@@ -27,7 +30,9 @@ export default function SignInPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
     } finally {
+      clearTimeout(timer);
       setLoading(false);
+      setSlowWarning(false);
     }
   }
 
@@ -46,6 +51,12 @@ export default function SignInPage() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
+          {slowWarning && (
+            <div className="mb-5 rounded-2xl border border-yellow-800/60 bg-yellow-950/40 px-4 py-3 text-sm text-yellow-300">
+              The server is starting up — this can take up to a minute on first use. Please wait&hellip;
+            </div>
+          )}
+
           {error && (
             <div className="mb-5 rounded-2xl border border-red-800/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
               {error}

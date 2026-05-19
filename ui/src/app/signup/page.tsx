@@ -27,7 +27,7 @@ export default function SignUpPage() {
         method: "POST",
         body: JSON.stringify({ name, email, password }),
       });
-      router.push("/scans");
+      router.push("/onboarding");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed");
     } finally {

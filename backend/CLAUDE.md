@@ -1,7 +1,7 @@
 # Backend — Claude Code Guide
 
 ## Stack
-FastAPI + Python 3.12 · SQLite (local) · Postgres (production) · boto3 · Stripe · Anthropic SDK
+FastAPI + Python 3.12 · SQLite (local) · Postgres (production) · boto3 · Razorpay · Anthropic SDK
 
 ## Entry Point
 `app/main.py` — single-file monolith with all routes, models, and business logic.

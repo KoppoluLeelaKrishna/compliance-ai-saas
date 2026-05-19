@@ -966,6 +966,7 @@ def sanitize_plan(plan: str) -> str:
 def startup() -> None:
     init_db()
     ensure_auth_tables()
+    _do_seed_fix_guidance()
 
 
 @app.get("/health")
@@ -1419,14 +1420,7 @@ def read_fix_guidance(
     return g
 
 
-@app.post("/fix-guidance/seed")
-def seed_fix_guidance(
-    payload: Optional[Dict[str, Any]] = Body(default=None),
-    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
-    authorization: Optional[str] = Header(default=None),
-):
-    get_current_user(session_cookie, authorization)
-
+def _do_seed_fix_guidance() -> None:
     upsert_fix_guidance(
         "S3_PUBLIC_ACCESS_BLOCK_OFF",
         "Enable S3 Block Public Access",
@@ -1587,6 +1581,165 @@ def seed_fix_guidance(
         "",
     )
 
+    upsert_fix_guidance(
+        "CLOUDTRAIL_NO_TRAIL",
+        "Create a CloudTrail trail",
+        "No CloudTrail trail exists in this region. All API activity is unlogged.",
+        "CloudTrail → Trails → Create trail",
+        [
+            "Open CloudTrail → Trails → Create trail",
+            "Enable multi-region trail for complete coverage",
+            "Choose or create an S3 bucket for log storage",
+            "Enable log file validation",
+            "Enable CloudWatch Logs integration",
+            "Save and verify trail is active",
+            "Re-run scan",
+        ],
+        [
+            "aws cloudtrail create-trail --name vigilicloud-trail --s3-bucket-name <bucket> --is-multi-region-trail",
+            "aws cloudtrail start-logging --name vigilicloud-trail",
+        ],
+        "",
+    )
+
+    upsert_fix_guidance(
+        "CLOUDTRAIL_NOT_LOGGING",
+        "Enable CloudTrail logging",
+        "A CloudTrail trail exists but is not currently logging.",
+        "CloudTrail → Trails → select trail → Logging toggle",
+        [
+            "Open CloudTrail → Trails",
+            "Select the affected trail",
+            "Toggle Logging to ON",
+            "Confirm the change",
+            "Re-run scan",
+        ],
+        [
+            "aws cloudtrail start-logging --name <trail-name>",
+        ],
+        "",
+    )
+
+    upsert_fix_guidance(
+        "CLOUDTRAIL_NOT_MULTI_REGION",
+        "Enable multi-region CloudTrail",
+        "Trail only covers one region. Activity in other regions is not logged.",
+        "CloudTrail → Trails → Edit trail",
+        [
+            "Open CloudTrail → Trails",
+            "Edit the trail",
+            "Enable Apply trail to all regions",
+            "Save changes",
+            "Re-run scan",
+        ],
+        [
+            "aws cloudtrail update-trail --name <trail-name> --is-multi-region-trail",
+        ],
+        "",
+    )
+
+    upsert_fix_guidance(
+        "CLOUDTRAIL_LOG_VALIDATION_DISABLED",
+        "Enable CloudTrail log file validation",
+        "Log file validation is off. Logs can be tampered without detection.",
+        "CloudTrail → Trails → Edit trail → Log file validation",
+        [
+            "Open CloudTrail → Trails → Edit",
+            "Enable Log file validation",
+            "Save changes",
+            "Re-run scan",
+        ],
+        [
+            "aws cloudtrail update-trail --name <trail-name> --enable-log-file-validation",
+        ],
+        "",
+    )
+
+    upsert_fix_guidance(
+        "RDS_STORAGE_NOT_ENCRYPTED",
+        "Enable RDS storage encryption",
+        "RDS instance storage is not encrypted at rest. Encryption cannot be enabled on a running instance — requires snapshot restore.",
+        "RDS → Databases → Actions → Take snapshot, then restore with encryption",
+        [
+            "Take a snapshot of the unencrypted DB instance",
+            "Copy the snapshot with encryption enabled",
+            "Restore a new DB instance from the encrypted snapshot",
+            "Update application connection strings",
+            "Delete the old unencrypted instance",
+            "Re-run scan",
+        ],
+        [
+            "aws rds create-db-snapshot --db-instance-identifier <db-id> --db-snapshot-identifier <snap-id>",
+            "aws rds copy-db-snapshot --source-db-snapshot-identifier <snap-id> --target-db-snapshot-identifier <encrypted-snap-id> --kms-key-id <kms-key>",
+            "aws rds restore-db-instance-from-db-snapshot --db-instance-identifier <new-db-id> --db-snapshot-identifier <encrypted-snap-id>",
+        ],
+        "",
+    )
+
+    upsert_fix_guidance(
+        "RDS_PUBLICLY_ACCESSIBLE",
+        "Disable RDS public accessibility",
+        "RDS instance is publicly accessible from the internet. It should only be reachable within your VPC.",
+        "RDS → Databases → Modify → Connectivity → Public access",
+        [
+            "Open RDS → Databases → select instance → Modify",
+            "Under Connectivity expand Additional configuration",
+            "Set Public access to No",
+            "Apply immediately",
+            "Re-run scan",
+        ],
+        [
+            "aws rds modify-db-instance --db-instance-identifier <db-id> --no-publicly-accessible --apply-immediately",
+        ],
+        "",
+    )
+
+    upsert_fix_guidance(
+        "IAM_USER_NO_MFA",
+        "Enable MFA for IAM user",
+        "IAM user has no MFA device. If credentials are compromised, the account has no second factor.",
+        "IAM → Users → select user → Security credentials → MFA device",
+        [
+            "Open IAM → Users → select user",
+            "Go to Security credentials tab",
+            "Click Assign MFA device",
+            "Choose Virtual MFA device (Google Authenticator / Authy)",
+            "Scan QR code and enter two consecutive codes",
+            "Save",
+            "Re-run scan",
+        ],
+        [
+            "aws iam create-virtual-mfa-device --virtual-mfa-device-name <device-name> --outfile /tmp/qrcode.png --bootstrap-method QRCodePNG",
+            "aws iam enable-mfa-device --user-name <user> --serial-number <arn> --authentication-code1 <code1> --authentication-code2 <code2>",
+        ],
+        "",
+    )
+
+    upsert_fix_guidance(
+        "IAM_ROOT_NO_MFA",
+        "Enable MFA on the AWS root account",
+        "The root account has no MFA. This is a critical risk — root has unrestricted access to everything.",
+        "AWS Console → Account menu (top right) → Security credentials → MFA",
+        [
+            "Sign in as the root account",
+            "Click account name (top right) → Security credentials",
+            "Under Multi-factor authentication (MFA) click Assign MFA device",
+            "Choose hardware or virtual MFA",
+            "Complete the setup and test login with MFA",
+        ],
+        [],
+        "",
+    )
+
+
+@app.post("/fix-guidance/seed")
+def seed_fix_guidance(
+    payload: Optional[Dict[str, Any]] = Body(default=None),
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    get_current_user(session_cookie, authorization)
+    _do_seed_fix_guidance()
     return {"status": "ok"}
 
 

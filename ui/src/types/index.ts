@@ -25,9 +25,8 @@ export type BillingMe = {
   subscription_status: string;
   account_limit: number;
   connected_accounts_used: number;
-  stripe?: {
+  razorpay?: {
     configured: boolean;
-    mode: string;
     webhook_configured: boolean;
     checkout_ready: boolean;
   };
@@ -112,9 +111,8 @@ export type HealthResponse = {
   app_env: string;
   frontend_url: string;
   cookie_secure: boolean;
-  stripe: {
+  razorpay: {
     configured: boolean;
-    mode: string;
     webhook_configured: boolean;
     checkout_ready: boolean;
   };

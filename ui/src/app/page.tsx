@@ -53,9 +53,9 @@ export default function HomePage() {
     ? `${billing.connected_accounts_used}/${billing.account_limit}`
     : "-";
 
-  const billingMode = billing?.stripe?.mode?.toUpperCase() || "TEST";
-  const checkoutReady = billing?.stripe?.checkout_ready ?? true;
-  const webhookReady = billing?.stripe?.webhook_configured ?? true;
+  const checkoutReady = billing?.razorpay?.checkout_ready ?? false;
+  const webhookReady = billing?.razorpay?.webhook_configured ?? false;
+  const billingConfigured = billing?.razorpay?.configured ?? false;
 
   return (
     <main>
@@ -84,7 +84,7 @@ export default function HomePage() {
                 "Account-linked scans",
                 "Fix guidance + actions",
                 "CSV / JSON exports",
-                "Stripe checkout + portal",
+                "Razorpay checkout",
                 "Launch prep dashboard",
               ].map((item) => (
                 <span
@@ -120,7 +120,7 @@ export default function HomePage() {
             <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
               <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
                 <div className="text-sm text-neutral-400">Checks Live</div>
-                <div className="mt-2 text-4xl font-bold">4+</div>
+                <div className="mt-2 text-4xl font-bold">7+</div>
               </div>
               <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
                 <div className="text-sm text-neutral-400">Connected Accounts</div>
@@ -163,8 +163,8 @@ export default function HomePage() {
 
             <div className="mt-4 grid grid-cols-2 gap-4">
               <div className="rounded-3xl border border-white/10 bg-black/40 p-5">
-                <div className="text-sm text-neutral-400">Billing Mode</div>
-                <div className="mt-2 text-4xl font-bold">{billingMode}</div>
+                <div className="text-sm text-neutral-400">Razorpay</div>
+                <div className="mt-2 text-4xl font-bold">{loading ? "..." : billingConfigured ? "READY" : "SETUP"}</div>
               </div>
               <div className="rounded-3xl border border-white/10 bg-black/40 p-5">
                 <div className="text-sm text-neutral-400">Launch Status</div>
@@ -197,7 +197,7 @@ export default function HomePage() {
                 <li>• run account-linked scans and review findings</li>
                 <li>• capture resolution notes and remediation actions</li>
                 <li>• export scan results as JSON or CSV</li>
-                <li>• show Stripe-backed billing and launch prep workflow</li>
+                <li>• show Razorpay-backed billing and launch prep workflow</li>
               </ul>
             </div>
           </div>

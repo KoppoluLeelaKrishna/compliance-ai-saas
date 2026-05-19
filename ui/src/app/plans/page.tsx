@@ -299,8 +299,8 @@ export default function PlansPage() {
                   )}
                 </div>
 
-                <div className="mt-3 text-4xl font-bold">{plan.price}</div>
-                <div className="mt-1 text-sm text-neutral-500">{plan.usd}</div>
+                <div className="mt-3 text-4xl font-bold">{plan.usd}</div>
+                <div className="mt-1 text-sm text-neutral-500">{plan.price} · billed in INR</div>
                 <p className="mt-5 text-lg text-neutral-300">{plan.description}</p>
 
                 <ul className="mt-8 space-y-3 text-lg text-neutral-200">

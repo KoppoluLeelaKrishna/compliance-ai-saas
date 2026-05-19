@@ -56,6 +56,7 @@ export default function AppTopNav() {
     { href: "/findings", label: "Findings" },
     { href: "/accounts", label: "Accounts" },
     { href: "/plans", label: "Plans" },
+    { href: "/onboarding", label: "Get Started" },
     { href: "/launch", label: "Launch" },
   ];
 

@@ -278,6 +278,10 @@ export default function PlansPage() {
           </div>
         </section>
 
+        <p className="mb-6 text-xs text-neutral-600">
+          All plans billed in INR via Razorpay. USD prices are approximate and shown for reference only — the INR amount is fixed and does not change with exchange rates.
+        </p>
+
         <div className="mb-10 grid gap-6 md:grid-cols-3">
           {PLAN_CARDS.map((plan) => {
             const isCurrent = currentPlanKey === plan.key;
@@ -300,7 +304,7 @@ export default function PlansPage() {
                 </div>
 
                 <div className="mt-3 text-4xl font-bold">{plan.usd}</div>
-                <div className="mt-1 text-sm text-neutral-500">{plan.price} · billed in INR</div>
+                <div className="mt-1 text-sm text-neutral-500">{plan.price} · billed in INR · approx.</div>
                 <p className="mt-5 text-lg text-neutral-300">{plan.description}</p>
 
                 <ul className="mt-8 space-y-3 text-lg text-neutral-200">

@@ -1,31 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-type StripePriceState = {
+type RazorpayConfig = {
   configured: boolean;
-  matches_mode: boolean;
-  price_id: string;
-};
-
-type StripeConfig = {
-  configured: boolean;
-  mode: string;
   webhook_configured: boolean;
   checkout_ready: boolean;
-  portal_ready: boolean;
-  prices: Record<string, StripePriceState>;
 };
 
 type BillingState = {
   subscription_status: string;
-  stripe_customer_id: string;
-  stripe_subscription_id: string;
+  razorpay_subscription_id: string;
   account_limit: number;
   connected_accounts_used: number;
-  plans: { key: string; label: string; price_id: string }[];
-  stripe?: StripeConfig;
+  plans: { key: string; label: string; plan_id: string }[];
+  razorpay?: RazorpayConfig;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
@@ -34,31 +23,53 @@ const PLAN_CARDS = [
   {
     key: "starter",
     title: "Starter",
-    price: "$99/mo",
+    price: "₹8,299/mo",
+    usd: "~$99/mo",
     description: "For solo teams starting AWS compliance checks.",
     bullets: ["Up to 3 AWS accounts", "Core scans", "Dashboard + exports"],
   },
   {
     key: "pro",
     title: "Pro",
-    price: "$299/mo",
+    price: "₹24,999/mo",
+    usd: "~$299/mo",
     description: "For growing teams managing multiple customer environments.",
     bullets: ["Up to 10 AWS accounts", "Better reporting", "Operational scaling"],
+    highlighted: true,
   },
   {
     key: "msp",
     title: "MSP",
-    price: "$999+/mo",
+    price: "₹83,499+/mo",
+    usd: "~$999+/mo",
     description: "For agencies and managed service providers.",
     bullets: ["Many accounts", "Multi-customer workflows", "High-volume usage"],
   },
 ];
 
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Razorpay: any;
+  }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 export default function PlansPage() {
   const [billing, setBilling] = useState<BillingState | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  const [portalLoading, setPortalLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -67,18 +78,10 @@ export default function PlansPage() {
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers || {}),
-      },
+      headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
     });
-
     const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new Error(data?.detail || "Request failed");
-    }
-
+    if (!res.ok) throw new Error(data?.detail || "Request failed");
     return data as T;
   }
 
@@ -89,8 +92,7 @@ export default function PlansPage() {
       const data = await fetchJson<BillingState>("/billing/me");
       setBilling(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load billing";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Failed to load billing");
     } finally {
       setLoading(false);
     }
@@ -100,20 +102,14 @@ export default function PlansPage() {
     try {
       setSyncLoading(true);
       setError("");
-
-      const data = await fetchJson<BillingState & { synced?: boolean }>("/billing/sync", {
-        method: "POST",
-      });
-
+      const data = await fetchJson<BillingState>("/billing/sync", { method: "POST" });
       setBilling(data);
-
       if (showMessage) {
-        setSuccessMessage("Billing state refreshed.");
-        setTimeout(() => setSuccessMessage(""), 1800);
+        setSuccessMessage("Billing status refreshed.");
+        setTimeout(() => setSuccessMessage(""), 2000);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Billing refresh failed";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Billing refresh failed");
     } finally {
       setSyncLoading(false);
     }
@@ -121,92 +117,88 @@ export default function PlansPage() {
 
   useEffect(() => {
     loadBilling();
-
     const params = new URLSearchParams(window.location.search);
-    const checkout = params.get("checkout");
-
-    if (checkout === "success") {
-      setSuccessMessage("Checkout completed. Syncing billing status...");
-      setTimeout(() => {
-        syncBilling(false);
-      }, 1000);
-    } else if (checkout === "cancelled") {
-      setError("Checkout was cancelled.");
-    }
+    if (params.get("checkout") === "cancelled") setError("Checkout was cancelled.");
   }, []);
 
   async function startCheckout(plan: string) {
+    setCheckoutLoading(plan);
+    setError("");
     try {
-      setCheckoutLoading(plan);
-      setError("");
+      const loaded = await loadRazorpayScript();
+      if (!loaded) throw new Error("Failed to load Razorpay. Please try again.");
 
-      const data = await fetchJson<{ url: string }>("/billing/create-checkout-session", {
-        method: "POST",
-        body: JSON.stringify({ plan }),
-      });
+      const data = await fetchJson<{ subscription_id: string; key_id: string; plan: string }>(
+        "/billing/create-checkout-session",
+        { method: "POST", body: JSON.stringify({ plan }) }
+      );
 
-      if (!data?.url) {
-        throw new Error("Stripe checkout URL missing");
-      }
+      const options = {
+        key: data.key_id,
+        subscription_id: data.subscription_id,
+        name: "VigiliCloud",
+        description: `VigiliCloud ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
+        theme: { color: "#10b981" },
+        handler: async (response: {
+          razorpay_payment_id: string;
+          razorpay_subscription_id: string;
+          razorpay_signature: string;
+        }) => {
+          try {
+            await fetchJson("/billing/verify-payment", {
+              method: "POST",
+              body: JSON.stringify({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_subscription_id: response.razorpay_subscription_id,
+                razorpay_signature: response.razorpay_signature,
+                plan: data.plan,
+              }),
+            });
+            setSuccessMessage("Subscription activated! Welcome to VigiliCloud.");
+            await loadBilling();
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Payment verification failed");
+          } finally {
+            setCheckoutLoading(null);
+          }
+        },
+        modal: {
+          ondismiss: () => setCheckoutLoading(null),
+        },
+      };
 
-      window.location.href = data.url;
+      const rzp = new window.Razorpay(options);
+      rzp.open();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Checkout failed";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Checkout failed");
       setCheckoutLoading(null);
     }
   }
 
-  async function openPortal() {
+  async function handleCancel() {
+    if (!confirm("Cancel your subscription? You will lose access at the end of this billing cycle.")) return;
+    setCancelLoading(true);
+    setError("");
     try {
-      setPortalLoading(true);
-      setError("");
-
-      const data = await fetchJson<{ url: string }>("/billing/portal", {
-        method: "POST",
-        body: JSON.stringify({
-          return_url: `${window.location.origin}/plans`,
-        }),
-      });
-
-      if (!data?.url) {
-        throw new Error("Billing portal URL missing");
-      }
-
-      window.location.href = data.url;
+      await fetchJson("/billing/cancel-subscription", { method: "POST" });
+      setSuccessMessage("Subscription cancelled. You'll have access until end of billing cycle.");
+      await loadBilling();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Portal open failed";
-      setError(message);
-      setPortalLoading(false);
+      setError(err instanceof Error ? err.message : "Cancellation failed");
+    } finally {
+      setCancelLoading(false);
     }
   }
 
-  const currentPlanLabel = useMemo(() => {
-    if (!billing?.subscription_status) return "FREE";
-    return billing.subscription_status.toUpperCase();
-  }, [billing]);
-
   const currentPlanKey = (billing?.subscription_status || "free").toLowerCase();
+  const isPaidPlan = currentPlanKey !== "free";
+  const rzConfig = billing?.razorpay;
 
-  const isPaidPlan = useMemo(() => {
-    const status = billing?.subscription_status?.toLowerCase() || "free";
-    return status !== "free";
-  }, [billing]);
-
-  const stripe = billing?.stripe;
-  const stripeModeLabel =
-    stripe?.mode === "live"
-      ? "LIVE MODE"
-      : stripe?.mode === "test"
-      ? "TEST MODE"
-      : "DISABLED";
-
-  const modeBadgeClasses =
-    stripe?.mode === "live"
-      ? "border-emerald-700 bg-emerald-950 text-emerald-300"
-      : stripe?.mode === "test"
-      ? "border-yellow-700 bg-yellow-950 text-yellow-300"
-      : "border-red-800 bg-red-950 text-red-300";
+  const statusBadge = useMemo(() => {
+    if (!rzConfig?.configured) return { label: "NOT CONFIGURED", cls: "border-red-800 bg-red-950 text-red-300" };
+    if (rzConfig.checkout_ready) return { label: "READY", cls: "border-emerald-700 bg-emerald-950 text-emerald-300" };
+    return { label: "PARTIAL SETUP", cls: "border-yellow-700 bg-yellow-950 text-yellow-300" };
+  }, [rzConfig]);
 
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white">
@@ -218,86 +210,68 @@ export default function PlansPage() {
           </p>
         </div>
 
-        {successMessage ? (
+        {successMessage && (
           <div className="mb-5 rounded-2xl border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-200">
             {successMessage}
           </div>
-        ) : null}
-
-        {error ? (
+        )}
+        {error && (
           <div className="mb-5 rounded-2xl border border-red-800 bg-red-950 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
-        ) : null}
+        )}
 
         <section className="mb-6 rounded-3xl border border-neutral-800 bg-neutral-950 p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm text-neutral-400">Billing Environment</div>
-              <div className="mt-2 text-2xl font-bold">{loading ? "..." : stripeModeLabel}</div>
+              <div className="text-sm text-neutral-400">Payment Provider</div>
+              <div className="mt-1 text-xl font-bold">Razorpay</div>
             </div>
-
-            <span className={`rounded-full border px-3 py-1 text-xs font-medium ${modeBadgeClasses}`}>
-              {loading ? "Checking..." : stripeModeLabel}
+            <span className={`rounded-full border px-3 py-1 text-xs font-medium ${statusBadge.cls}`}>
+              {loading ? "Checking..." : statusBadge.label}
             </span>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-neutral-800 bg-black p-4">
               <div className="text-sm text-neutral-400">Checkout Ready</div>
               <div className="mt-2 text-2xl font-bold">
-                {loading ? "..." : stripe?.checkout_ready ? "Yes" : "No"}
+                {loading ? "..." : rzConfig?.checkout_ready ? "Yes" : "No"}
               </div>
             </div>
-
             <div className="rounded-2xl border border-neutral-800 bg-black p-4">
-              <div className="text-sm text-neutral-400">Webhook Ready</div>
+              <div className="text-sm text-neutral-400">Webhook Configured</div>
               <div className="mt-2 text-2xl font-bold">
-                {loading ? "..." : stripe?.webhook_configured ? "Yes" : "No"}
+                {loading ? "..." : rzConfig?.webhook_configured ? "Yes" : "No"}
               </div>
             </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-black p-4">
-              <div className="text-sm text-neutral-400">Portal Ready</div>
-              <div className="mt-2 text-2xl font-bold">
-                {loading ? "..." : stripe?.portal_ready ? "Yes" : "No"}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-neutral-800 bg-black p-4 text-sm text-neutral-300">
-            Use this page during demo calls and pilot conversations to explain pricing, plan limits, Stripe readiness, and upgrade flow clearly.
           </div>
         </section>
 
         <section className="mb-8 rounded-3xl border border-neutral-800 bg-neutral-950 p-6">
           <div className="text-sm text-neutral-400">Current Plan</div>
-          <div className="mt-3 text-5xl font-bold">{loading ? "..." : currentPlanLabel}</div>
+          <div className="mt-3 text-5xl font-bold">
+            {loading ? "..." : (billing?.subscription_status || "free").toUpperCase()}
+          </div>
           <div className="mt-4 text-lg text-neutral-300">
             Account usage: {billing?.connected_accounts_used ?? 0}/{billing?.account_limit ?? 1}
           </div>
-
-          <div className="mt-4 text-sm text-neutral-500">
-            {isPaidPlan
-              ? "Your subscription is active. You can manage billing anytime."
-              : "You are on the free tier. Upgrade when you need more capacity."}
-          </div>
-
           <div className="mt-6 flex flex-wrap gap-3">
-            {isPaidPlan ? (
+            {isPaidPlan && (
               <button
-                onClick={openPortal}
-                disabled={portalLoading || !stripe?.portal_ready}
-                className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black disabled:opacity-60"
+                type="button"
+                onClick={handleCancel}
+                disabled={cancelLoading}
+                className="rounded-2xl border border-red-800 bg-red-950/50 px-5 py-3 text-sm text-red-300 hover:bg-red-950 disabled:opacity-60 transition-colors"
               >
-                {portalLoading ? "Opening Portal..." : "Manage Billing"}
+                {cancelLoading ? "Cancelling..." : "Cancel Subscription"}
               </button>
-            ) : null}
-
+            )}
             <button
+              type="button"
               onClick={() => syncBilling(true)}
               disabled={syncLoading}
-              className="rounded-2xl border border-neutral-800 px-5 py-3 text-sm hover:bg-neutral-900 disabled:opacity-60"
+              className="rounded-2xl border border-neutral-800 px-5 py-3 text-sm hover:bg-neutral-900 disabled:opacity-60 transition-colors"
             >
               {syncLoading ? "Refreshing..." : "Refresh Billing"}
             </button>
@@ -307,27 +281,26 @@ export default function PlansPage() {
         <div className="mb-10 grid gap-6 md:grid-cols-3">
           {PLAN_CARDS.map((plan) => {
             const isCurrent = currentPlanKey === plan.key;
-            const priceState = stripe?.prices?.[plan.key];
-            const checkoutBlocked =
-              !stripe?.checkout_ready || !priceState?.configured || !priceState?.matches_mode;
+            const checkoutBlocked = !rzConfig?.checkout_ready;
 
             return (
               <section
                 key={plan.key}
                 className={`rounded-3xl border bg-neutral-950 p-8 ${
-                  isCurrent ? "border-white" : "border-neutral-800"
+                  isCurrent ? "border-white" : plan.highlighted ? "border-emerald-500/40" : "border-neutral-800"
                 }`}
               >
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h2 className="text-4xl font-bold">{plan.title}</h2>
-                  {isCurrent ? (
+                  {isCurrent && (
                     <span className="rounded-full border border-emerald-600 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">
-                      Current Plan
+                      Current
                     </span>
-                  ) : null}
+                  )}
                 </div>
 
-                <div className="mt-3 text-5xl font-bold">{plan.price}</div>
+                <div className="mt-3 text-4xl font-bold">{plan.price}</div>
+                <div className="mt-1 text-sm text-neutral-500">{plan.usd}</div>
                 <p className="mt-5 text-lg text-neutral-300">{plan.description}</p>
 
                 <ul className="mt-8 space-y-3 text-lg text-neutral-200">
@@ -336,41 +309,24 @@ export default function PlansPage() {
                   ))}
                 </ul>
 
-                <div className="mt-6 rounded-2xl border border-neutral-800 bg-black p-4 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-400">Price ID</span>
-                    <span className={priceState?.configured ? "text-emerald-300" : "text-red-300"}>
-                      {priceState?.configured ? "Configured" : "Missing"}
-                    </span>
-                  </div>
-                  <div className="mt-2 break-all text-xs text-neutral-500">
-                    {priceState?.price_id || "Not configured"}
-                  </div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-neutral-400">Mode Match</span>
-                    <span className={priceState?.matches_mode ? "text-emerald-300" : "text-red-300"}>
-                      {priceState?.matches_mode ? "Valid" : "Check setup"}
-                    </span>
-                  </div>
-                </div>
-
                 <button
+                  type="button"
                   onClick={() => startCheckout(plan.key)}
                   disabled={checkoutLoading === plan.key || isCurrent || checkoutBlocked}
-                  className="mt-10 w-full rounded-2xl bg-white px-5 py-4 text-lg font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-10 w-full rounded-2xl bg-white px-5 py-4 text-lg font-medium text-black disabled:cursor-not-allowed disabled:opacity-50 hover:bg-neutral-100 transition-colors"
                 >
                   {isCurrent
                     ? "Current Plan"
                     : checkoutLoading === plan.key
-                    ? "Redirecting..."
+                    ? "Opening checkout..."
                     : `Upgrade to ${plan.title}`}
                 </button>
 
-                {!isCurrent && checkoutBlocked ? (
+                {!isCurrent && checkoutBlocked && !loading && (
                   <div className="mt-3 text-xs text-red-300">
-                    Checkout is blocked until Stripe setup is complete for this plan.
+                    Configure RAZORPAY_KEY_ID and plan IDs to enable checkout.
                   </div>
-                ) : null}
+                )}
               </section>
             );
           })}
@@ -386,9 +342,8 @@ export default function PlansPage() {
               VigiliCloud is easiest to position as an AWS-native security posture workflow for
               early-stage teams, consultants, and MSPs that want fast visibility and actionable remediation guidance.
             </p>
-
             <div className="mt-6 rounded-2xl border border-white/10 bg-black p-4">
-              <div className="text-lg font-semibold">$2,500 pilot example</div>
+              <div className="text-lg font-semibold">₹2,00,000 pilot example</div>
               <div className="mt-3 text-sm leading-7 text-neutral-300">
                 Up to 2 AWS accounts, misconfiguration review, remediation workflow, evidence exports,
                 and a live founder-led walkthrough for internal or customer-facing readiness.
@@ -402,15 +357,14 @@ export default function PlansPage() {
             </div>
             <h2 className="text-3xl font-bold">Before full VigiliCloud launch</h2>
             <ul className="mt-4 space-y-3 text-sm leading-7 text-neutral-300">
-              <li>• custom domain cutover</li>
-              <li>• final QA across scans, billing, and onboarding</li>
-              <li>• demo video and clean product screenshots</li>
-              <li>• customer onboarding instructions</li>
-              <li>• pilot outreach execution</li>
+              <li>• Configure Razorpay: add RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, plan IDs to Render env vars</li>
+              <li>• Create plans in Razorpay dashboard (starter, pro, msp)</li>
+              <li>• Set up Razorpay webhook pointing to /billing/webhook</li>
+              <li>• Custom domain cutover</li>
+              <li>• Final QA across scans, billing, and onboarding</li>
             </ul>
-
             <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-              This pricing page is ready for public demos, early pilots, and first customer conversations.
+              Pricing page is ready for demos and pilot conversations.
             </div>
           </div>
         </section>

@@ -20,7 +20,7 @@ from typing import Any, Deque, Dict, List, Optional
 from urllib.parse import urlparse
 
 import boto3
-import stripe
+import razorpay
 from dotenv import load_dotenv
 from fastapi import Body, Cookie, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -156,20 +156,23 @@ COOKIE_SECURE = env_bool("COOKIE_SECURE", IS_PRODUCTION)
 COOKIE_SAMESITE = "none" if COOKIE_SECURE else "lax"
 CORS_ORIGINS = build_cors_origins()
 
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "").strip()
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "").strip()
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "").strip()
 
-STRIPE_PRICE_STARTER = os.getenv("STRIPE_PRICE_STARTER", "").strip()
-STRIPE_PRICE_PRO = os.getenv("STRIPE_PRICE_PRO", "").strip()
-STRIPE_PRICE_MSP = os.getenv("STRIPE_PRICE_MSP", "").strip()
+RAZORPAY_PLAN_STARTER = os.getenv("RAZORPAY_PLAN_STARTER", "").strip()
+RAZORPAY_PLAN_PRO = os.getenv("RAZORPAY_PLAN_PRO", "").strip()
+RAZORPAY_PLAN_MSP = os.getenv("RAZORPAY_PLAN_MSP", "").strip()
 
-stripe.api_key = STRIPE_SECRET_KEY
-
-PLAN_PRICE_IDS = {
-    "starter": STRIPE_PRICE_STARTER,
-    "pro": STRIPE_PRICE_PRO,
-    "msp": STRIPE_PRICE_MSP,
+RAZORPAY_PLAN_IDS = {
+    "starter": RAZORPAY_PLAN_STARTER,
+    "pro": RAZORPAY_PLAN_PRO,
+    "msp": RAZORPAY_PLAN_MSP,
 }
+
+
+def get_razorpay_client() -> razorpay.Client:
+    return razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
 
 PLAN_ACCOUNT_LIMITS = {
     "free": 1,
@@ -642,40 +645,24 @@ def find_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     return dict(row) if row else None
 
 
-def stripe_value(obj: Any, key: str, default: Any = None) -> Any:
-    try:
-        if obj is None:
-            return default
-        if isinstance(obj, dict):
-            return obj.get(key, default)
-        if hasattr(obj, key):
-            return getattr(obj, key)
-        if hasattr(obj, "get"):
-            return obj.get(key, default)
-        return default
-    except Exception:
-        return default
-
-
-def stripe_metadata_dict(obj: Any) -> Dict[str, Any]:
-    meta = stripe_value(obj, "metadata", {})
-    try:
-        if meta is None:
-            return {}
-        if isinstance(meta, dict):
-            return dict(meta)
-        if hasattr(meta, "to_dict"):
-            return dict(meta.to_dict())
-        return dict(meta)
-    except Exception:
-        return {}
-
-
-def resolve_plan_from_price_id(price_id: str) -> str:
-    for plan, pid in PLAN_PRICE_IDS.items():
-        if pid and pid == price_id:
+def resolve_plan_from_plan_id(plan_id: str) -> str:
+    for plan, pid in RAZORPAY_PLAN_IDS.items():
+        if pid and pid == plan_id:
             return plan
     return "free"
+
+
+def verify_razorpay_payment_signature(payment_id: str, subscription_id: str, signature: str) -> bool:
+    body = f"{payment_id}|{subscription_id}".encode()
+    expected = hmac.new(RAZORPAY_KEY_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+
+def verify_razorpay_webhook_signature(payload: bytes, signature: str) -> bool:
+    if not RAZORPAY_WEBHOOK_SECRET:
+        return False
+    expected = hmac.new(RAZORPAY_WEBHOOK_SECRET.encode(), payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
 
 
 def assume_account_credentials(account_row: Dict[str, Any]) -> Dict[str, Any]:
@@ -748,66 +735,33 @@ def require_account_linked_scan_access(user: Dict[str, Any]) -> None:
         )
 
 
-def stripe_mode() -> str:
-    if not STRIPE_SECRET_KEY:
-        return "disabled"
-    if STRIPE_SECRET_KEY.startswith("sk_live_"):
-        return "live"
-    if STRIPE_SECRET_KEY.startswith("sk_test_"):
-        return "test"
-    return "unknown"
+def razorpay_config_summary() -> Dict[str, Any]:
+    plan_info: Dict[str, Dict[str, Any]] = {}
+    checkout_ready = bool(RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET)
 
-
-def price_matches_mode(price_id: str) -> bool:
-    if not price_id:
-        return False
-    mode = stripe_mode()
-    if mode in {"live", "test"}:
-        return price_id.startswith("price_")
-    return False
-
-
-def stripe_config_summary() -> Dict[str, Any]:
-    mode = stripe_mode()
-    price_info: Dict[str, Dict[str, Any]] = {}
-
-    checkout_ready = bool(STRIPE_SECRET_KEY)
-    for plan, price_id in PLAN_PRICE_IDS.items():
-        configured = bool(price_id)
-        matches = price_matches_mode(price_id) if configured else False
-        price_info[plan] = {
-            "configured": configured,
-            "matches_mode": matches,
-            "price_id": price_id,
-        }
-        if not configured or not matches:
+    for plan, plan_id in RAZORPAY_PLAN_IDS.items():
+        configured = bool(plan_id)
+        plan_info[plan] = {"configured": configured, "plan_id": plan_id}
+        if not configured:
             checkout_ready = False
 
     return {
-        "configured": bool(STRIPE_SECRET_KEY),
-        "mode": mode,
-        "webhook_configured": bool(STRIPE_WEBHOOK_SECRET),
+        "configured": bool(RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET),
+        "webhook_configured": bool(RAZORPAY_WEBHOOK_SECRET),
         "checkout_ready": checkout_ready,
-        "portal_ready": bool(STRIPE_SECRET_KEY),
-        "prices": price_info,
+        "plans": plan_info,
     }
 
 
 def ensure_checkout_ready(plan: str) -> None:
-    info = stripe_config_summary()
+    info = razorpay_config_summary()
 
     if not info["configured"]:
-        raise HTTPException(status_code=500, detail="Stripe is not configured")
+        raise HTTPException(status_code=500, detail="Razorpay is not configured")
 
-    plan_info = info["prices"].get(plan)
+    plan_info = info["plans"].get(plan)
     if not plan_info or not plan_info["configured"]:
-        raise HTTPException(status_code=400, detail=f"Price ID is not configured for plan '{plan}'")
-
-    if not plan_info["matches_mode"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Stripe price for plan '{plan}' does not match the current Stripe mode",
-        )
+        raise HTTPException(status_code=400, detail=f"Razorpay plan ID is not configured for plan '{plan}'")
 
 
 def safe_return_url(url: Optional[str]) -> str:
@@ -1016,19 +970,17 @@ def startup() -> None:
 
 @app.get("/health")
 def health():
-    stripe_info = stripe_config_summary()
+    rz_info = razorpay_config_summary()
     return {
         "ok": True,
         "app_env": APP_ENV,
         "frontend_url": FRONTEND_URL,
         "cookie_secure": COOKIE_SECURE,
         "cors_origins": CORS_ORIGINS,
-        "stripe": {
-            "configured": stripe_info["configured"],
-            "mode": stripe_info["mode"],
-            "webhook_configured": stripe_info["webhook_configured"],
-            "checkout_ready": stripe_info["checkout_ready"],
-            "portal_ready": stripe_info["portal_ready"],
+        "razorpay": {
+            "configured": rz_info["configured"],
+            "webhook_configured": rz_info["webhook_configured"],
+            "checkout_ready": rz_info["checkout_ready"],
         },
     }
 
@@ -1211,8 +1163,7 @@ def billing_me(
 
     return {
         "subscription_status": user.get("subscription_status", "free"),
-        "stripe_customer_id": user.get("stripe_customer_id", ""),
-        "stripe_subscription_id": user.get("stripe_subscription_id", ""),
+        "razorpay_subscription_id": user.get("stripe_subscription_id", ""),
         "account_limit": capabilities["account_limit"],
         "connected_accounts_used": connected_accounts_used,
         "capabilities": {
@@ -1220,11 +1171,11 @@ def billing_me(
             "exports": capabilities["exports"],
         },
         "plans": [
-            {"key": "starter", "label": "Starter", "price_id": STRIPE_PRICE_STARTER},
-            {"key": "pro", "label": "Pro", "price_id": STRIPE_PRICE_PRO},
-            {"key": "msp", "label": "MSP", "price_id": STRIPE_PRICE_MSP},
+            {"key": "starter", "label": "Starter", "plan_id": RAZORPAY_PLAN_STARTER},
+            {"key": "pro", "label": "Pro", "plan_id": RAZORPAY_PLAN_PRO},
+            {"key": "msp", "label": "MSP", "plan_id": RAZORPAY_PLAN_MSP},
         ],
-        "stripe": stripe_config_summary(),
+        "razorpay": razorpay_config_summary(),
     }
 
 
@@ -1239,95 +1190,41 @@ def billing_sync(
 
     user = get_current_user(session_cookie, authorization)
 
-    if not STRIPE_SECRET_KEY:
-        capabilities = get_plan_capabilities(user.get("subscription_status", "free"))
-        return {
-            "subscription_status": user.get("subscription_status", "free"),
-            "stripe_customer_id": user.get("stripe_customer_id", ""),
-            "stripe_subscription_id": user.get("stripe_subscription_id", ""),
-            "account_limit": capabilities["account_limit"],
-            "connected_accounts_used": count_connected_accounts(),
-            "capabilities": {
-                "account_linked_scans": capabilities["account_linked_scans"],
-                "exports": capabilities["exports"],
-            },
-            "stripe": stripe_config_summary(),
-            "synced": False,
-        }
-
-    customer_id = user.get("stripe_customer_id") or ""
     subscription_id = user.get("stripe_subscription_id") or ""
-
     final_plan = user.get("subscription_status", "free")
-    final_subscription_id = subscription_id
+    synced = False
 
-    try:
-        if subscription_id:
-            sub = stripe.Subscription.retrieve(subscription_id)
-            status = str(stripe_value(sub, "status", "") or "").lower()
-
-            items = stripe_value(sub, "items", {})
-            items_data = stripe_value(items, "data", []) or []
-            price_id = ""
-            if items_data:
-                first_item = items_data[0]
-                price_obj = stripe_value(first_item, "price", {})
-                price_id = stripe_value(price_obj, "id", "") or ""
-
-            mapped_plan = resolve_plan_from_price_id(price_id)
-            final_plan = mapped_plan if status in ("active", "trialing") else "free"
-            final_subscription_id = stripe_value(sub, "id", "") or final_subscription_id
-
-        elif customer_id:
-            subs = stripe.Subscription.list(customer=customer_id, limit=10)
-            subs_data = stripe_value(subs, "data", []) or []
-
-            active_sub = None
-            for sub in subs_data:
-                status = str(stripe_value(sub, "status", "") or "").lower()
-                if status in ("active", "trialing"):
-                    active_sub = sub
-                    break
-
-            if active_sub:
-                items = stripe_value(active_sub, "items", {})
-                items_data = stripe_value(items, "data", []) or []
-                price_id = ""
-                if items_data:
-                    first_item = items_data[0]
-                    price_obj = stripe_value(first_item, "price", {})
-                    price_id = stripe_value(price_obj, "id", "") or ""
-
-                final_plan = resolve_plan_from_price_id(price_id)
-                final_subscription_id = stripe_value(active_sub, "id", "") or ""
-            else:
-                final_plan = "free"
-                final_subscription_id = ""
-
-        upsert_user_billing(
-            user_id=user["id"],
-            subscription_status=final_plan,
-            stripe_subscription_id=final_subscription_id,
-        )
-
-    except Exception:
-        pass
+    if subscription_id and RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET:
+        try:
+            client = get_razorpay_client()
+            sub = client.subscription.fetch(subscription_id)
+            status = (sub.get("status") or "").lower()
+            plan_id = sub.get("plan_id") or ""
+            mapped_plan = resolve_plan_from_plan_id(plan_id)
+            final_plan = mapped_plan if status in ("active", "authenticated") else "free"
+            upsert_user_billing(
+                user_id=user["id"],
+                subscription_status=final_plan,
+                stripe_subscription_id=subscription_id,
+            )
+            synced = True
+        except Exception:
+            pass
 
     refreshed_user = find_user_by_id(user["id"]) or user
     capabilities = get_plan_capabilities(refreshed_user.get("subscription_status", "free"))
 
     return {
         "subscription_status": refreshed_user.get("subscription_status", "free"),
-        "stripe_customer_id": refreshed_user.get("stripe_customer_id", ""),
-        "stripe_subscription_id": refreshed_user.get("stripe_subscription_id", ""),
+        "razorpay_subscription_id": refreshed_user.get("stripe_subscription_id", ""),
         "account_limit": capabilities["account_limit"],
-        "connected_accounts_used": count_connected_accounts(),
+        "connected_accounts_used": count_connected_accounts(user_id=user["id"]),
         "capabilities": {
             "account_linked_scans": capabilities["account_linked_scans"],
             "exports": capabilities["exports"],
         },
-        "stripe": stripe_config_summary(),
-        "synced": True,
+        "razorpay": razorpay_config_summary(),
+        "synced": synced,
     }
 
 
@@ -1346,44 +1243,28 @@ def create_checkout_session(
     ensure_checkout_ready(plan)
 
     try:
-        stripe_customer_id = user.get("stripe_customer_id") or ""
-
-        if not stripe_customer_id:
-            customer = stripe.Customer.create(
-                email=user["email"],
-                name=user["name"],
-                metadata={"user_id": str(user["id"])},
-            )
-            stripe_customer_id = customer["id"]
-            upsert_user_billing(user["id"], stripe_customer_id=stripe_customer_id)
-
-        session = stripe.checkout.Session.create(
-            mode="subscription",
-            customer=stripe_customer_id,
-            line_items=[{"price": PLAN_PRICE_IDS[plan], "quantity": 1}],
-            success_url=f"{FRONTEND_URL}/plans?checkout=success",
-            cancel_url=f"{FRONTEND_URL}/plans?checkout=cancelled",
-            metadata={
+        client = get_razorpay_client()
+        sub = client.subscription.create({
+            "plan_id": RAZORPAY_PLAN_IDS[plan],
+            "customer_notify": 1,
+            "total_count": 12,
+            "notes": {
                 "user_id": str(user["id"]),
                 "plan": plan,
-                "app_env": APP_ENV,
+                "email": user["email"],
             },
-            allow_promotion_codes=True,
-        )
-
-        return {"url": session.url}
-
-    except stripe.error.StripeError as e:
-        msg = getattr(e, "user_message", None) or str(e)
-        raise HTTPException(status_code=400, detail=f"Stripe error: {msg}")
-
+        })
+        return {
+            "subscription_id": sub["id"],
+            "key_id": RAZORPAY_KEY_ID,
+            "plan": plan,
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Checkout session failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Checkout failed: {str(e)}")
 
 
-@app.post("/billing/portal")
-def create_billing_portal(
-    payload: BillingPortalIn,
+@app.post("/billing/cancel-subscription")
+def cancel_subscription(
     request: Request,
     session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     authorization: Optional[str] = Header(default=None),
@@ -1392,19 +1273,52 @@ def create_billing_portal(
     enforce_rate_limit(f"portal:{ip}", BILLING_RATE_LIMIT[0], BILLING_RATE_LIMIT[1])
 
     user = get_current_user(session_cookie, authorization)
+    subscription_id = user.get("stripe_subscription_id") or ""
 
-    if not STRIPE_SECRET_KEY:
-        raise HTTPException(status_code=500, detail="Stripe is not configured")
+    if not subscription_id:
+        raise HTTPException(status_code=400, detail="No active subscription found")
 
-    customer_id = user.get("stripe_customer_id") or ""
-    if not customer_id:
-        raise HTTPException(status_code=400, detail="No Stripe customer found for this user")
+    try:
+        client = get_razorpay_client()
+        client.subscription.cancel(subscription_id, {"cancel_at_cycle_end": 1})
+        upsert_user_billing(user_id=user["id"], subscription_status="free", stripe_subscription_id="")
+        return {"status": "cancelled"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cancellation failed: {str(e)}")
 
-    portal = stripe.billing_portal.Session.create(
-        customer=customer_id,
-        return_url=safe_return_url(payload.return_url),
+
+@app.post("/billing/verify-payment")
+def verify_payment(
+    payload: Dict[str, Any] = Body(...),
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+
+    payment_id = str(payload.get("razorpay_payment_id") or "")
+    subscription_id = str(payload.get("razorpay_subscription_id") or "")
+    signature = str(payload.get("razorpay_signature") or "")
+    plan = str(payload.get("plan") or "starter").lower()
+
+    if not (payment_id and subscription_id and signature):
+        raise HTTPException(status_code=400, detail="Missing payment verification fields")
+
+    if not verify_razorpay_payment_signature(payment_id, subscription_id, signature):
+        raise HTTPException(status_code=400, detail="Payment signature verification failed")
+
+    plan = sanitize_plan(plan)
+    upsert_user_billing(
+        user_id=user["id"],
+        subscription_status=plan,
+        stripe_subscription_id=subscription_id,
     )
-    return {"url": portal.url}
+
+    capabilities = get_plan_capabilities(plan)
+    return {
+        "status": "ok",
+        "subscription_status": plan,
+        "account_limit": capabilities["account_limit"],
+    }
 
 
 @app.post("/billing/webhook")
@@ -1412,137 +1326,83 @@ async def billing_webhook(request: Request):
     ip = client_ip(request)
     enforce_rate_limit(f"webhook:{ip}", WEBHOOK_RATE_LIMIT[0], WEBHOOK_RATE_LIMIT[1])
 
-    if not STRIPE_WEBHOOK_SECRET:
-        raise HTTPException(status_code=500, detail="Stripe webhook secret not configured")
-
     payload = await request.body()
-    sig_header = request.headers.get("stripe-signature")
+    sig_header = request.headers.get("x-razorpay-signature", "")
+
+    if RAZORPAY_WEBHOOK_SECRET:
+        if not verify_razorpay_webhook_signature(payload, sig_header):
+            raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     try:
-        event = stripe.Webhook.construct_event(
-            payload=payload,
-            sig_header=sig_header,
-            secret=STRIPE_WEBHOOK_SECRET,
+        event = json.loads(payload)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    event_id = str(event.get("id") or "")
+    event_type = str(event.get("event") or "")
+    entity = (event.get("payload") or {}).get("subscription", {}).get("entity") or {}
+    livemode = not bool(event.get("contains", [None])[0] == "test" if event.get("contains") else False)
+
+    subscription_id = str(entity.get("id") or "")
+    plan_id = str(entity.get("plan_id") or "")
+
+    if event_id and webhook_event_exists(event_id):
+        return {"received": True, "duplicate": True}
+
+    if event_id:
+        webhook_event_insert(
+            event_id=event_id,
+            event_type=event_type,
+            livemode=livemode,
+            customer_id="",
+            subscription_id=subscription_id,
+            payload_json=payload.decode("utf-8", errors="ignore"),
         )
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError:
-        raise HTTPException(status_code=400, detail="Invalid signature")
-
-    event_id = str(stripe_value(event, "id", "") or "")
-    event_type = str(stripe_value(event, "type", "") or "")
-    event_data = stripe_value(event, "data", {})
-    data = stripe_value(event_data, "object", None)
-    livemode = bool(stripe_value(event, "livemode", False))
-
-    if not event_id:
-        raise HTTPException(status_code=400, detail="Webhook event id missing")
-
-    if webhook_event_exists(event_id):
-        return {"received": True, "duplicate": True, "event_id": event_id, "type": event_type}
-
-    customer_id = str(stripe_value(data, "customer", "") or "")
-    subscription_id = str(
-        stripe_value(data, "subscription", "") or stripe_value(data, "id", "") or ""
-    )
-
-    webhook_event_insert(
-        event_id=event_id,
-        event_type=event_type,
-        livemode=livemode,
-        customer_id=customer_id,
-        subscription_id=subscription_id,
-        payload_json=payload.decode("utf-8", errors="ignore"),
-    )
 
     try:
-        if event_type == "checkout.session.completed":
-            metadata = stripe_metadata_dict(data)
-            plan = str(metadata.get("plan", "starter")).lower()
-            user_id_raw = metadata.get("user_id")
+        if event_type in ("subscription.activated", "subscription.charged"):
+            notes = entity.get("notes") or {}
+            user_id_raw = notes.get("user_id") if isinstance(notes, dict) else None
+            mapped_plan = resolve_plan_from_plan_id(plan_id)
 
             user = None
-            if customer_id:
-                user = find_user_by_stripe_customer(customer_id)
-
-            if not user and user_id_raw:
+            if user_id_raw:
                 try:
                     user = find_user_by_id(int(user_id_raw))
                 except Exception:
-                    user = None
+                    pass
 
             if user:
                 upsert_user_billing(
                     user_id=user["id"],
-                    stripe_customer_id=customer_id or user.get("stripe_customer_id", ""),
-                    stripe_subscription_id=str(stripe_value(data, "subscription", "") or ""),
-                    subscription_status=plan,
+                    subscription_status=mapped_plan,
+                    stripe_subscription_id=subscription_id,
                 )
 
-        elif event_type in (
-            "customer.subscription.created",
-            "customer.subscription.updated",
-            "invoice.paid",
-        ):
-            sub_obj = data
+        elif event_type in ("subscription.cancelled", "subscription.completed", "subscription.expired"):
+            notes = entity.get("notes") or {}
+            user_id_raw = notes.get("user_id") if isinstance(notes, dict) else None
 
-            if event_type == "invoice.paid":
-                subscription_from_invoice = stripe_value(data, "subscription", "")
-                if subscription_from_invoice:
-                    sub_obj = stripe.Subscription.retrieve(subscription_from_invoice)
+            if user_id_raw:
+                try:
+                    user = find_user_by_id(int(user_id_raw))
+                    if user:
+                        upsert_user_billing(
+                            user_id=user["id"],
+                            subscription_status="free",
+                            stripe_subscription_id="",
+                        )
+                except Exception:
+                    pass
 
-            customer_id = str(stripe_value(sub_obj, "customer", "") or customer_id)
-            subscription_id = str(stripe_value(sub_obj, "id", "") or subscription_id)
-            status = str(stripe_value(sub_obj, "status", "") or "").lower()
-
-            price_id = ""
-            items = stripe_value(sub_obj, "items", {})
-            items_data = stripe_value(items, "data", []) or []
-
-            if items_data:
-                first_item = items_data[0]
-                price_obj = stripe_value(first_item, "price", {})
-                price_id = str(stripe_value(price_obj, "id", "") or "")
-
-            mapped_plan = resolve_plan_from_price_id(price_id)
-
-            if customer_id:
-                user = find_user_by_stripe_customer(customer_id)
-                if user:
-                    final_status = mapped_plan if status in ("active", "trialing") else "free"
-                    upsert_user_billing(
-                        user_id=user["id"],
-                        stripe_customer_id=customer_id,
-                        stripe_subscription_id=subscription_id,
-                        subscription_status=final_status,
-                    )
-
-        elif event_type in (
-            "customer.subscription.deleted",
-            "customer.subscription.paused",
-            "invoice.payment_failed",
-        ):
-            if customer_id:
-                user = find_user_by_stripe_customer(customer_id)
-                if user:
-                    upsert_user_billing(
-                        user_id=user["id"],
-                        stripe_customer_id=customer_id,
-                        stripe_subscription_id=stripe_value(data, "id", "") or "",
-                        subscription_status="free",
-                    )
-
-        webhook_event_mark_processed(event_id)
-        return {"received": True, "event_id": event_id, "type": event_type}
+        if event_id:
+            webhook_event_mark_processed(event_id)
+        return {"received": True, "event": event_type}
 
     except Exception as e:
-        webhook_event_mark_failed(event_id, str(e))
-        return {
-            "received": True,
-            "event_id": event_id,
-            "type": event_type,
-            "warning": str(e),
-        }
+        if event_id:
+            webhook_event_mark_failed(event_id, str(e))
+        return {"received": True, "warning": str(e)}
 
 
 @app.get("/fix-guidance/{check_id}", response_model=FixGuidanceOut)
@@ -1865,6 +1725,52 @@ def scans_list_endpoint(
     rows = list_scans(50, account_id=account_id, user_id=user["id"])
     normalized = [dict(r) for r in rows]
     return {"scans": enrich_scans(normalized)}
+
+
+@app.get("/findings")
+def all_findings_endpoint(
+    severity: Optional[str] = Query(default=None),
+    service: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=1000),
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    scans = list_scans(20, user_id=user["id"])
+
+    aggregated: List[Dict[str, Any]] = []
+    for scan in scans:
+        scan_id = scan["scan_id"] if isinstance(scan, dict) else scan.get("scan_id", "")
+        if not scan_id:
+            continue
+        account = get_scan_account_link(scan_id)
+        for f in get_findings(scan_id):
+            row = dict(f)
+            row["scan_id"] = scan_id
+            row["account_id"] = account.get("account_id") if account else None
+            row["customer_name"] = account.get("customer_name") if account else None
+            row["account_name"] = account.get("account_name") if account else None
+            row["aws_account_id"] = account.get("aws_account_id") if account else None
+            row["region"] = account.get("region") if account else None
+            aggregated.append(row)
+
+    if severity:
+        aggregated = [f for f in aggregated if f.get("severity", "").upper() == severity.upper()]
+    if service:
+        aggregated = [f for f in aggregated if f.get("service", "").upper() == service.upper()]
+    if status:
+        aggregated = [f for f in aggregated if f.get("status", "").upper() == status.upper()]
+
+    aggregated.sort(
+        key=lambda f: (
+            {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}.get(f.get("severity", "LOW"), 4),
+            f.get("created_at", "") or "",
+        ),
+        reverse=False,
+    )
+
+    return {"findings": aggregated[:limit], "total": len(aggregated)}
 
 
 @app.get("/finding-actions/{scan_id}")

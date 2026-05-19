@@ -49,8 +49,11 @@ def run_scan(region: str = "us-east-1") -> Dict[str, Any]:
     checks = [
         "worker.src.checks.s3_public",
         "worker.src.checks.iam_admin_access",
+        "worker.src.checks.iam_mfa",
         "worker.src.checks.ec2_security_groups",
         "worker.src.checks.ec2_ebs_encryption",
+        "worker.src.checks.cloudtrail_logging",
+        "worker.src.checks.rds_encryption",
     ]
 
     all_findings: List[Dict[str, Any]] = []

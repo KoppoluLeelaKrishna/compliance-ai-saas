@@ -1,539 +1,402 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { api } from "@/lib/api";
+import { AuthMe } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+type Step = 1 | 2 | 3 | 4;
 
-type Account = {
-  id: number;
-  customer_name: string;
-  account_name: string;
-  aws_account_id: string;
-  region: string;
-  status: string;
-  is_active: boolean;
-};
-
-type AuthMe = {
-  authenticated: boolean;
-  user?: {
-    id: number;
-    email: string;
-    name: string;
-    role: string;
-    subscription_status?: string;
-  };
-};
-
-type BillingMe = {
-  subscription_status: string;
-  account_limit: number;
-  connected_accounts_used: number;
-  stripe?: {
-    configured: boolean;
-    mode: string;
-    webhook_configured: boolean;
-    checkout_ready: boolean;
-  };
-};
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data?.detail || `Request failed: ${res.status}`);
-  }
-
-  return data;
-}
+const STEPS = [
+  { num: 1, label: "Welcome" },
+  { num: 2, label: "Connect AWS" },
+  { num: 3, label: "Run Scan" },
+  { num: 4, label: "See Results" },
+];
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const [step, setStep] = useState<Step>(1);
+  const [userName, setUserName] = useState("there");
+  const [loading, setLoading] = useState(true);
 
-  const [authenticated, setAuthenticated] = useState(false);
-  const [userName, setUserName] = useState("User");
-  const [userEmail, setUserEmail] = useState("");
-  const [plan, setPlan] = useState("free");
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [billing, setBilling] = useState<BillingMe | null>(null);
+  // Step 2 — connect account form
+  const [customerName, setCustomerName] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [awsAccountId, setAwsAccountId] = useState("");
+  const [roleArn, setRoleArn] = useState("");
+  const [region, setRegion] = useState("us-east-1");
+  const [connecting, setConnecting] = useState(false);
+  const [connectedAccountId, setConnectedAccountId] = useState<number | null>(null);
+  const [connectError, setConnectError] = useState("");
 
-  const [loadingPage, setLoadingPage] = useState(true);
-  const [loggingIn, setLoggingIn] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  async function loadPageState() {
-    setLoadingPage(true);
-    try {
-      const auth = await api<AuthMe>("/auth/me");
-
-      if (auth.authenticated && auth.user) {
-        setAuthenticated(true);
-        setUserName(auth.user.name || "User");
-        setUserEmail(auth.user.email || "");
-        setPlan(auth.user.subscription_status || "free");
-
-        const [accountsData, billingData] = await Promise.all([
-          api<{ accounts: Account[] }>("/accounts"),
-          api<BillingMe>("/billing/me"),
-        ]);
-
-        setAccounts(accountsData.accounts || []);
-        setBilling(billingData);
-      } else {
-        setAuthenticated(false);
-        setUserName("User");
-        setUserEmail("");
-        setPlan("free");
-        setAccounts([]);
-        setBilling(null);
-      }
-    } catch {
-      setAuthenticated(false);
-      setUserName("User");
-      setUserEmail("");
-      setPlan("free");
-      setAccounts([]);
-      setBilling(null);
-    } finally {
-      setLoadingPage(false);
-    }
-  }
+  // Step 3 — scan
+  const [scanning, setScanning] = useState(false);
+  const [scanId, setScanId] = useState("");
+  const [scanCount, setScanCount] = useState(0);
+  const [scanError, setScanError] = useState("");
 
   useEffect(() => {
-    loadPageState();
+    (async () => {
+      try {
+        const auth = await api<AuthMe>("/auth/me");
+        if (!auth.authenticated) {
+          router.push("/signin");
+          return;
+        }
+        setUserName(auth.user?.name?.split(" ")[0] || "there");
+      } catch {
+        router.push("/signin");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
-  const activeAccounts = useMemo(
-    () => accounts.filter((a) => a.is_active).length,
-    [accounts]
-  );
-
-  const accountUsage = billing
-    ? `${billing.connected_accounts_used}/${billing.account_limit}`
-    : "-";
-
-  async function handleLogin(e: FormEvent) {
+  async function handleConnect(e: FormEvent) {
     e.preventDefault();
-    setError("");
-    setMessage("");
-    setLoggingIn(true);
-
+    setConnecting(true);
+    setConnectError("");
     try {
-      await api("/auth/login", {
+      const data = await api<{ account: { id: number } }>("/accounts", {
         method: "POST",
         body: JSON.stringify({
-          email,
-          password,
+          customer_name: customerName,
+          account_name: accountName,
+          aws_account_id: awsAccountId,
+          role_arn: roleArn,
+          region,
+          is_active: true,
         }),
       });
-
-      setMessage("Login successful. Redirecting to workspace...");
-      await loadPageState();
-
-      setTimeout(() => {
-        router.push("/scans");
-      }, 700);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setConnectedAccountId(data.account.id);
+      setStep(3);
+    } catch (e) {
+      setConnectError(e instanceof Error ? e.message : "Failed to connect account");
     } finally {
-      setLoggingIn(false);
+      setConnecting(false);
     }
   }
 
-  async function handleLogout() {
-    setLoggingOut(true);
-    setError("");
-    setMessage("");
-
+  async function handleScan() {
+    setScanning(true);
+    setScanError("");
     try {
-      await api("/auth/logout", {
+      const data = await api<{ scan_id: string; count: number }>("/scans/run", {
         method: "POST",
+        body: JSON.stringify({ account_id: connectedAccountId }),
       });
-
-      setAuthenticated(false);
-      setUserName("User");
-      setUserEmail("");
-      setPlan("free");
-      setAccounts([]);
-      setBilling(null);
-      setEmail("");
-      setPassword("");
-      setMessage("Logged out successfully.");
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Logout failed");
+      setScanId(data.scan_id);
+      setScanCount(data.count);
+      setStep(4);
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : "Scan failed");
     } finally {
-      setLoggingOut(false);
+      setScanning(false);
     }
+  }
+
+  const inputClass =
+    "w-full rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-sm text-white placeholder-neutral-500 focus:border-emerald-500/50 focus:outline-none";
+
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="animate-pulse text-neutral-500">Loading...</div>
+      </div>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-black text-white">
-      <section className="border-b border-white/10 px-6 py-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-            <div>
-              <div className="mb-5 inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
-                Secure workspace access
-              </div>
-
-              <h1 className="max-w-4xl text-5xl font-bold leading-tight tracking-tight md:text-6xl">
-                {authenticated
-                  ? "You are signed in and ready to continue."
-                  : "Sign in to manage scans, accounts, billing, and launch workflows."}
-              </h1>
-
-              <p className="mt-6 max-w-3xl text-lg leading-8 text-neutral-300">
-                This access page supports the full product workflow: login, open
-                the workspace, manage connected AWS accounts, review findings,
-                handle billing access, and sign out cleanly when needed.
-              </p>
-
-              <div className="mt-6 flex flex-wrap gap-2 text-xs text-neutral-300">
-                {[
-                  "Session-based auth",
-                  "Stripe-ready app",
-                  "Account-linked scans",
-                  "Guidance + actions",
-                  "JSON / CSV exports",
-                  "Launch prep workflow",
-                ].map((item) => (
-                  <span
-                    key={item}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                {authenticated ? (
-                  <>
-                    <Link
-                      href="/scans"
-                      className="rounded-2xl bg-white px-6 py-3 font-medium text-black"
-                    >
-                      Open Workspace
-                    </Link>
-                    <button
-                      onClick={handleLogout}
-                      disabled={loggingOut}
-                      className="rounded-2xl border border-white/10 px-6 py-3 hover:bg-white/5 disabled:opacity-60"
-                    >
-                      {loggingOut ? "Logging out..." : "Logout"}
-                    </button>
-                  </>
-                ) : (
-                  <a
-                    href="#auth"
-                    className="rounded-2xl bg-white px-6 py-3 font-medium text-black"
-                  >
-                    Get Started
-                  </a>
-                )}
-              </div>
-
-              <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4">
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                  <div className="text-sm text-neutral-400">Current Plan</div>
-                  <div className="mt-2 text-4xl font-bold uppercase">
-                    {loadingPage ? "..." : plan}
-                  </div>
-                </div>
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                  <div className="text-sm text-neutral-400">
-                    Connected Accounts
-                  </div>
-                  <div className="mt-2 text-4xl font-bold">
-                    {loadingPage ? "..." : accounts.length}
-                  </div>
-                </div>
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                  <div className="text-sm text-neutral-400">Active Accounts</div>
-                  <div className="mt-2 text-4xl font-bold">
-                    {loadingPage ? "..." : activeAccounts}
-                  </div>
-                </div>
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                  <div className="text-sm text-neutral-400">Account Usage</div>
-                  <div className="mt-2 text-4xl font-bold">
-                    {loadingPage ? "..." : accountUsage}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-2xl shadow-emerald-950/10">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-neutral-400">Workspace Access</div>
-                  <div className="text-2xl font-semibold">
-                    {authenticated ? "Account Session" : "Sign In"}
-                  </div>
-                </div>
+    <main className="mx-auto max-w-2xl py-10 pb-20">
+      {/* Progress bar */}
+      <div className="mb-10">
+        <div className="mb-4 flex items-center justify-between">
+          {STEPS.map((s, i) => (
+            <div key={s.num} className="flex items-center">
+              <div className="flex flex-col items-center gap-1">
                 <div
-                  className={`rounded-full border px-3 py-1 text-xs ${
-                    authenticated
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                      : "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+                    step > s.num
+                      ? "bg-emerald-500 text-black"
+                      : step === s.num
+                      ? "border-2 border-emerald-500 text-emerald-400"
+                      : "border border-white/20 text-neutral-600"
                   }`}
                 >
-                  {authenticated ? "Authenticated" : "Not signed in"}
+                  {step > s.num ? "✓" : s.num}
                 </div>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-black/40 p-5">
-                {authenticated ? (
-                  <>
-                    <div className="text-sm text-neutral-400">Logged in as</div>
-                    <div className="mt-2 text-3xl font-bold">{userName}</div>
-                    <div className="mt-2 text-sm text-neutral-400">
-                      {userEmail || "-"}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-sm text-neutral-400">
-                      Workspace sign-in
-                    </div>
-                    <div className="mt-2 text-xl font-semibold">
-                      Use your assigned credentials
-                    </div>
-                    <div className="mt-2 text-sm text-neutral-400">
-                      Sign in with your workspace email and password.
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                <div className="rounded-3xl border border-white/10 bg-black/40 p-5">
-                  <div className="text-sm text-neutral-400">Billing</div>
-                  <div className="mt-2 text-3xl font-bold">Stripe</div>
-                </div>
-                <div className="rounded-3xl border border-white/10 bg-black/40 p-5">
-                  <div className="text-sm text-neutral-400">Exports</div>
-                  <div className="mt-2 text-3xl font-bold">JSON / CSV</div>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-3xl border border-white/10 bg-black/40 p-5">
-                <div className="mb-3 text-sm text-neutral-400">
-                  What this login unlocks
-                </div>
-                <ul className="space-y-2 text-sm text-neutral-300">
-                  <li>• account onboarding and test connection</li>
-                  <li>• scan runs and findings review</li>
-                  <li>• fix guidance and remediation notes</li>
-                  <li>• export downloads</li>
-                  <li>• pricing and launch workflows</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="auth" className="scroll-mt-24 border-b border-white/10 px-6 py-16">
-        <div className="mx-auto max-w-7xl">
-          {message ? (
-            <div className="mb-6 rounded-2xl border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-200">
-              {message}
-            </div>
-          ) : null}
-
-          {error ? (
-            <div className="mb-6 rounded-2xl border border-red-800 bg-red-950 px-4 py-3 text-sm text-red-200">
-              {error}
-            </div>
-          ) : null}
-
-          {authenticated ? (
-            <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-              <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-                <div className="mb-4 text-xs uppercase tracking-[0.25em] text-neutral-500">
-                  Session active
-                </div>
-                <h2 className="text-4xl font-bold">
-                  You are already logged in
-                </h2>
-                <p className="mt-4 text-lg text-neutral-300">
-                  Your session is active. You can continue directly into the
-                  product or sign out and test login again.
-                </p>
-
-                <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-                  Current user: {userName} {userEmail ? `(${userEmail})` : ""}
-                </div>
-
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Link
-                    href="/scans"
-                    className="rounded-2xl bg-white px-5 py-4 text-center font-medium text-black"
-                  >
-                    Open Workspace
-                  </Link>
-                  <Link
-                    href="/accounts"
-                    className="rounded-2xl border border-white/10 px-5 py-4 text-center hover:bg-white/5"
-                  >
-                    Manage Accounts
-                  </Link>
-                  <Link
-                    href="/launch"
-                    className="rounded-2xl border border-white/10 px-5 py-4 text-center hover:bg-white/5"
-                  >
-                    Launch Prep
-                  </Link>
-                </div>
-              </div>
-
-              <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-                <div className="mb-4 text-xs uppercase tracking-[0.25em] text-neutral-500">
-                  Account actions
-                </div>
-                <h2 className="text-4xl font-bold">Logout and login again</h2>
-                <p className="mt-4 text-lg text-neutral-300">
-                  Use logout here whenever you want to test the full auth flow
-                  again.
-                </p>
-
-                <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-5">
-                  <div className="text-sm text-neutral-400">Status</div>
-                  <div className="mt-2 text-2xl font-bold text-emerald-300">
-                    Authenticated
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="mt-6 w-full rounded-2xl bg-white px-5 py-4 font-medium text-black disabled:cursor-not-allowed disabled:opacity-60"
+                <span
+                  className={`text-xs ${
+                    step === s.num ? "text-emerald-400" : "text-neutral-600"
+                  }`}
                 >
-                  {loggingOut ? "Logging out..." : "Logout"}
-                </button>
+                  {s.label}
+                </span>
               </div>
+              {i < STEPS.length - 1 && (
+                <div
+                  className={`mx-2 mb-4 h-px w-16 transition-colors ${
+                    step > s.num ? "bg-emerald-500" : "bg-white/10"
+                  }`}
+                />
+              )}
             </div>
-          ) : (
-            <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-              <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-                <div className="mb-4 text-xs uppercase tracking-[0.25em] text-neutral-500">
-                  Sign in
-                </div>
-                <h2 className="text-4xl font-bold">Welcome back</h2>
-                <p className="mt-4 text-lg text-neutral-300">
-                  Sign in to continue to your workspace and manage scans,
-                  accounts, billing, and launch workflows.
-                </p>
+          ))}
+        </div>
+      </div>
 
-                <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-neutral-300">
-                  Use your workspace email and password to continue.
+      {/* Step 1 — Welcome */}
+      {step === 1 && (
+        <div className="space-y-6">
+          <div>
+            <div className="mb-2 inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
+              Welcome to VigiliCloud
+            </div>
+            <h1 className="text-4xl font-bold">Hey {userName}, let's secure your AWS.</h1>
+            <p className="mt-4 text-lg text-neutral-400">
+              In the next 5 minutes you'll connect your AWS account, run your first security scan,
+              and see every misconfiguration — with exact steps to fix each one.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {[
+              { num: "01", title: "Connect your AWS account", desc: "Give VigiliCloud read-only access via an IAM role. We never touch your data." },
+              { num: "02", title: "Run a security scan", desc: "We check 10 security areas — S3, IAM, EC2, RDS, CloudTrail, VPC, KMS and more." },
+              { num: "03", title: "Fix what's wrong", desc: "Every finding comes with AWS console steps, CLI commands, and remediation notes." },
+            ].map((item) => (
+              <div key={item.num} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex gap-4">
+                  <div className="text-xs font-bold text-emerald-500">{item.num}</div>
+                  <div>
+                    <div className="font-semibold">{item.title}</div>
+                    <div className="mt-1 text-sm text-neutral-400">{item.desc}</div>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
 
-              <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-                <div className="mb-4 text-xs uppercase tracking-[0.25em] text-neutral-500">
-                  Login form
-                </div>
-                <h2 className="text-4xl font-bold">
-                  Secure access to your workspace
-                </h2>
-                <p className="mt-4 text-lg text-neutral-300">
-                  Enter your credentials below. After successful login, you will
-                  be redirected to the scans workspace.
-                </p>
+          <button
+            type="button"
+            onClick={() => setStep(2)}
+            className="w-full rounded-2xl bg-emerald-500 py-4 font-bold text-black hover:bg-emerald-400 transition-colors"
+          >
+            Get Started →
+          </button>
 
-                <form onSubmit={handleLogin} className="mt-6 space-y-4">
-                  <div>
-                    <label className="mb-2 block text-sm text-neutral-300">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your email"
-                      className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 outline-none focus:border-neutral-500"
-                      required
-                    />
-                  </div>
+          <p className="text-center text-sm text-neutral-600">
+            Already set up?{" "}
+            <Link href="/scans" className="text-emerald-400 hover:underline">
+              Go to workspace
+            </Link>
+          </p>
+        </div>
+      )}
 
-                  <div>
-                    <label className="mb-2 block text-sm text-neutral-300">
-                      Password
-                    </label>
-                    <div className="flex gap-3">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter password"
-                        className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 outline-none focus:border-neutral-500"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        className="rounded-2xl border border-white/10 px-4 py-3 text-sm hover:bg-white/5"
-                      >
-                        {showPassword ? "Hide" : "Show"}
-                      </button>
-                    </div>
-                  </div>
+      {/* Step 2 — Connect AWS */}
+      {step === 2 && (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-4xl font-bold">Connect your AWS account</h1>
+            <p className="mt-3 text-neutral-400">
+              VigiliCloud uses an IAM role with read-only access. Create the role in AWS, then paste the ARN below.
+            </p>
+          </div>
 
-                  <button
-                    type="submit"
-                    disabled={loggingIn || loadingPage}
-                    className="w-full rounded-2xl bg-white px-5 py-4 font-medium text-black disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {loggingIn ? "Logging in..." : "Login and Open Workspace"}
-                  </button>
-                </form>
+          {/* IAM setup instructions */}
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 text-sm">
+            <div className="mb-3 font-semibold text-emerald-300">Create the IAM role first (2 minutes)</div>
+            <ol className="space-y-2 text-neutral-300">
+              <li>1. Open <strong>AWS Console → IAM → Roles → Create role</strong></li>
+              <li>2. Select <strong>AWS account</strong> as trusted entity</li>
+              <li>3. Enter Account ID: <code className="rounded bg-white/10 px-1">your own account ID</code></li>
+              <li>4. Attach policy: <strong>SecurityAudit</strong> (read-only)</li>
+              <li>5. Name it: <code className="rounded bg-white/10 px-1">VigiliCloudRole</code></li>
+              <li>6. Copy the <strong>Role ARN</strong> from the role details page</li>
+            </ol>
+          </div>
 
-                <div className="mt-6 grid gap-3 md:grid-cols-3">
-                  <Link
-                    href="/plans"
-                    className="rounded-2xl border border-white/10 px-4 py-3 text-center text-sm hover:bg-white/5"
-                  >
-                    View Plans
-                  </Link>
-                  <Link
-                    href="/accounts"
-                    className="rounded-2xl border border-white/10 px-4 py-3 text-center text-sm hover:bg-white/5"
-                  >
-                    Accounts
-                  </Link>
-                  <Link
-                    href="/launch"
-                    className="rounded-2xl border border-white/10 px-4 py-3 text-center text-sm hover:bg-white/5"
-                  >
-                    Launch Prep
-                  </Link>
-                </div>
-              </div>
+          {connectError && (
+            <div className="rounded-2xl border border-red-800/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+              {connectError}
             </div>
           )}
+
+          <form onSubmit={handleConnect} className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm text-neutral-400">Your name / company</label>
+              <input
+                className={inputClass}
+                placeholder="e.g. Acme Corp"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm text-neutral-400">Account label</label>
+              <input
+                className={inputClass}
+                placeholder="e.g. Production Account"
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm text-neutral-400">AWS Account ID (12 digits)</label>
+              <input
+                className={inputClass}
+                placeholder="123456789012"
+                value={awsAccountId}
+                onChange={(e) => setAwsAccountId(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm text-neutral-400">IAM Role ARN</label>
+              <input
+                className={inputClass}
+                placeholder="arn:aws:iam::123456789012:role/VigiliCloudRole"
+                value={roleArn}
+                onChange={(e) => setRoleArn(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm text-neutral-400">AWS Region</label>
+              <select
+                className={inputClass}
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                title="AWS Region"
+                aria-label="AWS Region"
+              >
+                {[
+                  "us-east-1", "us-east-2", "us-west-1", "us-west-2",
+                  "ap-south-1", "ap-southeast-1", "ap-southeast-2",
+                  "ap-northeast-1", "eu-west-1", "eu-central-1",
+                ].map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="flex-1 rounded-2xl border border-white/10 py-3 text-sm hover:bg-white/5 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={connecting}
+                className="flex-[2] rounded-2xl bg-emerald-500 py-3 font-bold text-black hover:bg-emerald-400 disabled:opacity-50 transition-colors"
+              >
+                {connecting ? "Connecting..." : "Connect Account →"}
+              </button>
+            </div>
+          </form>
         </div>
-      </section>
+      )}
+
+      {/* Step 3 — Run Scan */}
+      {step === 3 && (
+        <div className="space-y-6 text-center">
+          <div>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-2xl">
+              ✓
+            </div>
+            <h1 className="text-4xl font-bold">Account connected!</h1>
+            <p className="mt-3 text-neutral-400">
+              Now let's run your first security scan. This takes about 30-60 seconds.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-left">
+            <div className="mb-3 text-sm font-semibold text-neutral-400">What we'll check</div>
+            <div className="grid grid-cols-2 gap-2 text-sm text-neutral-300">
+              {[
+                "S3 public access", "IAM permissions", "IAM MFA", "Root access keys",
+                "Security groups", "EBS encryption", "CloudTrail", "RDS encryption",
+                "VPC flow logs", "KMS rotation",
+              ].map((check) => (
+                <div key={check} className="flex items-center gap-2">
+                  <span className="text-emerald-500">•</span> {check}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {scanError && (
+            <div className="rounded-2xl border border-red-800/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+              {scanError}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleScan}
+            disabled={scanning}
+            className="w-full rounded-2xl bg-emerald-500 py-4 font-bold text-black hover:bg-emerald-400 disabled:opacity-50 transition-colors"
+          >
+            {scanning ? "Scanning your AWS account..." : "Run First Scan →"}
+          </button>
+
+          {scanning && (
+            <p className="text-sm text-neutral-500 animate-pulse">
+              Checking 10 security areas — this usually takes 30-60 seconds
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Step 4 — Results */}
+      {step === 4 && (
+        <div className="space-y-6 text-center">
+          <div>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-3xl">
+              🎯
+            </div>
+            <h1 className="text-4xl font-bold">Scan complete!</h1>
+            <p className="mt-3 text-neutral-400">
+              Found <span className="font-bold text-white">{scanCount} findings</span> in your AWS account.
+              Each one has exact fix steps.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 text-sm text-emerald-200">
+            Your first scan is done. Review findings, mark them as fixed as you remediate,
+            and export evidence for audits or customer reviews.
+          </div>
+
+          <div className="space-y-3">
+            <Link
+              href="/scans"
+              className="block w-full rounded-2xl bg-emerald-500 py-4 font-bold text-black hover:bg-emerald-400 transition-colors"
+            >
+              View Findings →
+            </Link>
+            <Link
+              href="/findings"
+              className="block w-full rounded-2xl border border-white/10 py-3 text-sm hover:bg-white/5 transition-colors"
+            >
+              All Findings Dashboard
+            </Link>
+            <Link
+              href="/plans"
+              className="block w-full rounded-2xl border border-white/10 py-3 text-sm hover:bg-white/5 transition-colors"
+            >
+              Upgrade Plan for More Accounts
+            </Link>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

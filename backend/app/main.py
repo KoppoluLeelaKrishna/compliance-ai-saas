@@ -173,7 +173,7 @@ def startup() -> None:
 # Core routes
 # ---------------------------------------------------------------------------
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     rz_info = razorpay_config_summary()
     return {

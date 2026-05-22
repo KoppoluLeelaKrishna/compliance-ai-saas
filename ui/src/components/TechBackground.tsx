@@ -51,14 +51,20 @@ export default function TechBackground() {
         });
       }
 
-      // 50 emerald network dots
-      for (let i = 0; i < 50; i++) {
+      // 60 emerald network dots — distributed across visible height bands
+      const vh = window.innerHeight;
+      for (let i = 0; i < 60; i++) {
+        // Spread across repeating viewport-height bands so there's always a cluster visible
+        const band = Math.floor(i / 15); // group into bands of 15
+        const yMin = band * vh * 0.9;
+        const yMax = yMin + vh;
         stars.push({
-          x: Math.random() * w, y: Math.random() * h,
+          x: Math.random() * w,
+          y: yMin + Math.random() * (yMax - yMin),
           vx: (Math.random() - 0.5) * 0.5,
           vy: (Math.random() - 0.5) * 0.5,
           size: Math.random() * 2.5 + 1.5,
-          opacity: Math.random() * 0.45 + 0.45,
+          opacity: Math.random() * 0.4 + 0.5,
           pulse: Math.random() * Math.PI * 2,
           pulseSpeed: Math.random() * 0.025 + 0.012,
           type: "emerald",
@@ -120,18 +126,23 @@ export default function TechBackground() {
 
       // Emerald network connections
       const emeralds = stars.filter(s => s.type === "emerald");
+      const CDIST = 220;
       for (let i = 0; i < emeralds.length; i++) {
         for (let j = i + 1; j < emeralds.length; j++) {
           const dx = emeralds[i].x - emeralds[j].x;
           const dy = emeralds[i].y - emeralds[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 170) {
-            const a = (1 - dist / 170) * 0.2;
+          if (dist < CDIST) {
+            const a = (1 - dist / CDIST) * 0.55;
+            const grad = ctx.createLinearGradient(emeralds[i].x, emeralds[i].y, emeralds[j].x, emeralds[j].y);
+            grad.addColorStop(0, `rgba(16,185,129,${a})`);
+            grad.addColorStop(0.5, `rgba(16,185,129,${a * 1.3})`);
+            grad.addColorStop(1, `rgba(16,185,129,${a})`);
             ctx.beginPath();
             ctx.moveTo(emeralds[i].x, emeralds[i].y);
             ctx.lineTo(emeralds[j].x, emeralds[j].y);
-            ctx.strokeStyle = `rgba(16,185,129,${a})`;
-            ctx.lineWidth = 0.6;
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = 1.2;
             ctx.stroke();
           }
         }

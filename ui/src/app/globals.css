@@ -93,6 +93,11 @@ body {
     0 0 60px rgba(16,185,129,0.06);
 }
 
+/* ── Critical card shadow ───────────────────────────────────── */
+.shadow-critical {
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.08);
+}
+
 /* ── Glow badge ─────────────────────────────────────────────── */
 .glow-badge {
   box-shadow:

@@ -165,30 +165,75 @@ export default function HomePage() {
             <p className="mx-auto mt-4 max-w-xl text-neutral-400">Every check comes with fix guidance, console path, and CLI commands.</p>
           </div>
 
-          <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f, i) => (
-              <div
-                key={f.title}
-                className={`reveal delay-${Math.min((i % 3 + 1) * 100, 300)} group rounded-2xl border border-white/10 bg-black p-6 hover:border-emerald-500/40 hover:bg-emerald-500/[0.04] transition-all`}
-              >
-                <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{f.icon}</div>
-                <h3 className="font-bold">{f.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-neutral-400">{f.desc}</p>
+          {/* Bento grid */}
+          <div className="mt-16 grid grid-cols-2 gap-4 md:grid-cols-4">
+
+            {/* CRITICAL — large cards spanning 2 cols */}
+            {[
+              { icon: "🪣", title: "S3 Public Access",   desc: "Detects open buckets, public ACLs, and exposed bucket policies before attackers find them.", sev: "CRITICAL", col: "red" },
+              { icon: "🔑", title: "Root Access Keys",   desc: "Alerts immediately if your root account has active access keys — the most dangerous misconfiguration.", sev: "CRITICAL", col: "red" },
+            ].map((f, i) => (
+              <div key={f.title} className={`reveal-zoom delay-${(i+1)*100} group col-span-2 rounded-3xl border border-red-500/20 bg-gradient-to-br from-red-500/10 via-black to-black p-8 transition-all hover:border-red-500/40 hover:from-red-500/15 shadow-critical`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-red-500/10 text-3xl border border-red-500/20">
+                    {f.icon}
+                  </div>
+                  <span className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-bold text-red-400">{f.sev}</span>
+                </div>
+                <h3 className="mt-4 text-xl font-black">{f.title}</h3>
+                <p className="mt-2 leading-6 text-neutral-400">{f.desc}</p>
               </div>
             ))}
+
+            {/* HIGH — medium cards */}
+            {[
+              { icon: "🔐", title: "IAM Permissions",    desc: "Flags over-permissioned roles and users with unnecessary admin access.", sev: "HIGH", col: "orange" },
+              { icon: "📱", title: "MFA Enforcement",    desc: "Checks every IAM user and root account for missing multi-factor authentication.", sev: "HIGH", col: "orange" },
+              { icon: "🛡️", title: "Security Groups",   desc: "Finds EC2 security groups with ports open to the entire internet.", sev: "HIGH", col: "orange" },
+              { icon: "🗄️", title: "RDS Encryption",    desc: "Checks RDS instances for unencrypted storage and public accessibility.", sev: "HIGH", col: "orange" },
+            ].map((f, i) => (
+              <div key={f.title} className={`reveal delay-${(i+1)*100} group rounded-3xl border border-orange-500/15 bg-gradient-to-b from-orange-500/8 to-black p-6 transition-all hover:border-orange-500/30`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-xl border border-orange-500/20">{f.icon}</div>
+                  <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-400">{f.sev}</span>
+                </div>
+                <h3 className="font-bold">{f.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-neutral-500">{f.desc}</p>
+              </div>
+            ))}
+
+            {/* MEDIUM — smaller cards */}
+            {[
+              { icon: "💾", title: "EBS Encryption",     desc: "Identifies unencrypted EBS volumes and missing default encryption settings.", sev: "MEDIUM" },
+              { icon: "📋", title: "CloudTrail Logging", desc: "Verifies CloudTrail is active, multi-region, and has log validation enabled.", sev: "MEDIUM" },
+              { icon: "🌐", title: "VPC Flow Logs",      desc: "Ensures network traffic is being logged for security monitoring and forensics.", sev: "MEDIUM" },
+              { icon: "🔄", title: "KMS Key Rotation",   desc: "Checks that customer-managed KMS keys have automatic rotation enabled.", sev: "MEDIUM" },
+            ].map((f, i) => (
+              <div key={f.title} className={`reveal delay-${(i+1)*100} group rounded-2xl border border-yellow-500/10 bg-black p-5 transition-all hover:border-yellow-500/25 hover:bg-yellow-500/[0.03]`}>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-xl">{f.icon}</span>
+                  <span className="rounded-full border border-yellow-500/20 bg-yellow-500/8 px-2 py-0.5 text-[10px] font-bold text-yellow-500">{f.sev}</span>
+                </div>
+                <h3 className="text-sm font-bold">{f.title}</h3>
+                <p className="mt-1.5 text-xs leading-5 text-neutral-600">{f.desc}</p>
+              </div>
+            ))}
+
           </div>
 
-          {/* Extra features */}
+          {/* Power features strip */}
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             {[
-              { icon: "🤖", title: "AI Security Analysis",  desc: "Claude AI summarizes findings and prioritizes what to fix first." },
-              { icon: "📧", title: "Email Alerts",          desc: "Get notified immediately when critical issues are found." },
-              { icon: "📁", title: "Compliance Exports",    desc: "Export as CSV or JSON for SOC2, ISO 27001, and audit evidence." },
+              { icon: "🤖", title: "AI Security Analysis", desc: "Claude AI summarizes findings and prioritizes what to fix first.", color: "emerald" },
+              { icon: "📧", title: "Email Alerts",          desc: "Get notified immediately when critical issues are found.", color: "emerald" },
+              { icon: "📁", title: "Compliance Exports",    desc: "Export as CSV or JSON for SOC2, ISO 27001, and audit evidence.", color: "emerald" },
             ].map((f, i) => (
-              <div key={f.title} className={`reveal-zoom delay-${(i + 1) * 100} rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6`}>
-                <div className="mb-3 text-3xl">{f.icon}</div>
-                <h3 className="font-bold text-emerald-300">{f.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-neutral-400">{f.desc}</p>
+              <div key={f.title} className={`reveal-zoom glow-border delay-${(i+1)*100} flex items-start gap-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6`}>
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-xl border border-emerald-500/25">{f.icon}</div>
+                <div>
+                  <h3 className="font-bold text-emerald-300">{f.title}</h3>
+                  <p className="mt-1 text-sm leading-6 text-neutral-400">{f.desc}</p>
+                </div>
               </div>
             ))}
           </div>

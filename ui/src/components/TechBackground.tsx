@@ -2,16 +2,25 @@
 
 import { useEffect, useRef } from "react";
 
-interface Star {
+interface Dot {
   x: number; y: number;
   vx: number; vy: number;
   size: number;
   opacity: number;
   pulse: number;
   pulseSpeed: number;
-  type: "star" | "planet" | "emerald";
-  color: string;
 }
+
+interface Flow {
+  from: number;
+  to: number;
+  progress: number;
+  speed: number;
+}
+
+const DOT_COUNT = 80;
+const CONNECT_DIST = 200;
+const R = 16; const G = 185; const B = 129;
 
 export default function TechBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,7 +32,8 @@ export default function TechBackground() {
     if (!ctx) return;
 
     let animId: number;
-    const stars: Star[] = [];
+    const dots: Dot[] = [];
+    const flows: Flow[] = [];
 
     function resize() {
       if (!canvas) return;
@@ -32,63 +42,35 @@ export default function TechBackground() {
     }
 
     function init() {
-      stars.length = 0;
+      dots.length = 0;
+      flows.length = 0;
       const w = canvas?.width ?? window.innerWidth;
-      const h = canvas?.height ?? window.innerHeight;
-
-      // 150 white/blue stars
-      for (let i = 0; i < 150; i++) {
-        stars.push({
-          x: Math.random() * w, y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.12,
-          vy: (Math.random() - 0.5) * 0.12,
-          size: Math.random() * 1.8 + 0.5,
-          opacity: Math.random() * 0.55 + 0.35,
-          pulse: Math.random() * Math.PI * 2,
-          pulseSpeed: Math.random() * 0.03 + 0.008,
-          type: "star",
-          color: Math.random() > 0.5 ? `255,255,255` : `180,210,255`,
-        });
-      }
-
-      // 60 emerald network dots — distributed across visible height bands
       const vh = window.innerHeight;
-      for (let i = 0; i < 60; i++) {
-        // Spread across repeating viewport-height bands so there's always a cluster visible
-        const band = Math.floor(i / 15); // group into bands of 15
-        const yMin = band * vh * 0.9;
+
+      // Distribute dots in bands so every viewport has a cluster
+      for (let i = 0; i < DOT_COUNT; i++) {
+        const band = Math.floor(i / 20);
+        const yMin = band * vh * 0.85;
         const yMax = yMin + vh;
-        stars.push({
+        dots.push({
           x: Math.random() * w,
           y: yMin + Math.random() * (yMax - yMin),
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: (Math.random() - 0.5) * 0.5,
-          size: Math.random() * 2.5 + 1.5,
-          opacity: Math.random() * 0.4 + 0.5,
+          vx: (Math.random() - 0.5) * 0.6,
+          vy: (Math.random() - 0.5) * 0.6,
+          size: Math.random() * 2.5 + 1.2,
+          opacity: Math.random() * 0.35 + 0.5,
           pulse: Math.random() * Math.PI * 2,
-          pulseSpeed: Math.random() * 0.025 + 0.012,
-          type: "emerald",
-          color: `16,185,129`,
+          pulseSpeed: Math.random() * 0.025 + 0.01,
         });
       }
 
-      // 10 large planet dots
-      const planetColors = [
-        `16,185,129`,`100,210,170`,`70,130,220`,
-        `150,100,230`,`210,150,60`,`16,185,129`,
-        `80,190,230`,`190,80,190`,`16,185,129`,`60,200,160`,
-      ];
-      for (let i = 0; i < 10; i++) {
-        stars.push({
-          x: Math.random() * w, y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.15,
-          vy: (Math.random() - 0.5) * 0.15,
-          size: Math.random() * 4 + 4,
-          opacity: Math.random() * 0.3 + 0.55,
-          pulse: Math.random() * Math.PI * 2,
-          pulseSpeed: Math.random() * 0.012 + 0.005,
-          type: "planet",
-          color: planetColors[i],
+      // Seed some initial flow particles
+      for (let k = 0; k < 15; k++) {
+        flows.push({
+          from: Math.floor(Math.random() * DOT_COUNT),
+          to: Math.floor(Math.random() * DOT_COUNT),
+          progress: Math.random(),
+          speed: Math.random() * 0.008 + 0.005,
         });
       }
     }
@@ -97,118 +79,137 @@ export default function TechBackground() {
       if (!canvas || !ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Nebula glow blobs (static, painted once per frame cheaply)
-      const nebulaData: [number, number, number, string, number][] = [
-        [canvas.width * 0.15, canvas.height * 0.18, 280, "16,185,129", 0.025],
-        [canvas.width * 0.82, canvas.height * 0.35, 220, "60,100,200", 0.02],
-        [canvas.width * 0.5,  canvas.height * 0.65, 300, "16,185,129", 0.018],
-        [canvas.width * 0.1,  canvas.height * 0.75, 180, "100,60,200", 0.015],
+      // Subtle nebula glow blobs
+      const nebulas: [number, number, number, number][] = [
+        [canvas.width * 0.15, canvas.height * 0.15, 300, 0.03],
+        [canvas.width * 0.8,  canvas.height * 0.4,  250, 0.025],
+        [canvas.width * 0.5,  canvas.height * 0.65, 320, 0.02],
+        [canvas.width * 0.1,  canvas.height * 0.8,  200, 0.025],
       ];
-      for (const [nx, ny, nr, nc, no] of nebulaData) {
+      for (const [nx, ny, nr, no] of nebulas) {
         const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, nr);
-        g.addColorStop(0,   `rgba(${nc},${no})`);
-        g.addColorStop(0.5, `rgba(${nc},${no * 0.4})`);
-        g.addColorStop(1,   `rgba(${nc},0)`);
+        g.addColorStop(0, `rgba(${R},${G},${B},${no})`);
+        g.addColorStop(1, `rgba(${R},${G},${B},0)`);
         ctx.beginPath();
         ctx.arc(nx, ny, nr, 0, Math.PI * 2);
         ctx.fillStyle = g;
         ctx.fill();
       }
 
-      // Move all objects
-      for (const s of stars) {
-        s.x += s.vx;
-        s.y += s.vy;
-        s.pulse += s.pulseSpeed;
-        if (s.x < 0 || s.x > canvas.width)  s.vx *= -1;
-        if (s.y < 0 || s.y > canvas.height) s.vy *= -1;
+      // Move dots
+      for (const d of dots) {
+        d.x += d.vx;
+        d.y += d.vy;
+        d.pulse += d.pulseSpeed;
+        if (d.x < 0 || d.x > canvas.width)  d.vx *= -1;
+        if (d.y < 0 || d.y > canvas.height) d.vy *= -1;
       }
 
-      // Emerald network connections
-      const emeralds = stars.filter(s => s.type === "emerald");
-      const CDIST = 220;
-      for (let i = 0; i < emeralds.length; i++) {
-        for (let j = i + 1; j < emeralds.length; j++) {
-          const dx = emeralds[i].x - emeralds[j].x;
-          const dy = emeralds[i].y - emeralds[j].y;
+      // Find active connections this frame
+      const active: [number, number, number][] = []; // [i, j, dist]
+      for (let i = 0; i < dots.length; i++) {
+        for (let j = i + 1; j < dots.length; j++) {
+          const dx = dots[i].x - dots[j].x;
+          const dy = dots[i].y - dots[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < CDIST) {
-            const a = (1 - dist / CDIST) * 0.55;
-            const grad = ctx.createLinearGradient(emeralds[i].x, emeralds[i].y, emeralds[j].x, emeralds[j].y);
-            grad.addColorStop(0, `rgba(16,185,129,${a})`);
-            grad.addColorStop(0.5, `rgba(16,185,129,${a * 1.3})`);
-            grad.addColorStop(1, `rgba(16,185,129,${a})`);
-            ctx.beginPath();
-            ctx.moveTo(emeralds[i].x, emeralds[i].y);
-            ctx.lineTo(emeralds[j].x, emeralds[j].y);
-            ctx.strokeStyle = grad;
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
+          if (dist < CONNECT_DIST) {
+            active.push([i, j, dist]);
           }
         }
       }
 
-      // Draw all stars/planets
-      for (const s of stars) {
-        const pulse = 0.85 + Math.sin(s.pulse) * 0.15;
-        const op = s.opacity * pulse;
-        const sz = s.size * pulse;
+      // Draw connection lines
+      for (const [i, j, dist] of active) {
+        const alpha = (1 - dist / CONNECT_DIST) * 0.45;
+        const grad = ctx.createLinearGradient(dots[i].x, dots[i].y, dots[j].x, dots[j].y);
+        grad.addColorStop(0,   `rgba(${R},${G},${B},${alpha * 0.5})`);
+        grad.addColorStop(0.5, `rgba(${R},${G},${B},${alpha})`);
+        grad.addColorStop(1,   `rgba(${R},${G},${B},${alpha * 0.5})`);
+        ctx.beginPath();
+        ctx.moveTo(dots[i].x, dots[i].y);
+        ctx.lineTo(dots[j].x, dots[j].y);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
 
-        if (s.type === "star") {
-          // Simple twinkling star
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, sz, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${s.color},${op})`;
-          ctx.fill();
-          // cross sparkle on brighter stars
-          if (sz > 1.0 && op > 0.55) {
-            ctx.strokeStyle = `rgba(${s.color},${op * 0.4})`;
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(s.x - sz * 2.5, s.y);
-            ctx.lineTo(s.x + sz * 2.5, s.y);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(s.x, s.y - sz * 2.5);
-            ctx.lineTo(s.x, s.y + sz * 2.5);
-            ctx.stroke();
-          }
-        } else if (s.type === "emerald") {
-          // Glow halo
-          const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, sz * 5);
-          g.addColorStop(0, `rgba(${s.color},${op * 0.5})`);
-          g.addColorStop(0.5, `rgba(${s.color},${op * 0.15})`);
-          g.addColorStop(1, `rgba(${s.color},0)`);
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, sz * 5, 0, Math.PI * 2);
-          ctx.fillStyle = g;
-          ctx.fill();
-          // Core
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, sz, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${s.color},${op})`;
-          ctx.fill();
-        } else {
-          // Planet — larger with colored glow ring
-          const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, sz * 6);
-          g.addColorStop(0, `rgba(${s.color},${op * 0.6})`);
-          g.addColorStop(0.4, `rgba(${s.color},${op * 0.2})`);
-          g.addColorStop(1, `rgba(${s.color},0)`);
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, sz * 6, 0, Math.PI * 2);
-          ctx.fillStyle = g;
-          ctx.fill();
-          // Core
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, sz, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${s.color},${op})`;
-          ctx.fill();
-          // Highlight
-          ctx.beginPath();
-          ctx.arc(s.x - sz * 0.3, s.y - sz * 0.3, sz * 0.4, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255,255,255,${op * 0.6})`;
-          ctx.fill();
+      // Spawn new flow particles along active connections
+      if (active.length > 0 && Math.random() < 0.12) {
+        const [ri, rj] = active[Math.floor(Math.random() * active.length)];
+        flows.push({
+          from: ri, to: rj,
+          progress: 0,
+          speed: Math.random() * 0.012 + 0.006,
+        });
+        if (flows.length > 40) flows.splice(0, 1);
+      }
+
+      // Draw and advance flow particles (traveling dots along lines)
+      for (let f = flows.length - 1; f >= 0; f--) {
+        const flow = flows[f];
+        flow.progress += flow.speed;
+        if (flow.progress > 1) { flows.splice(f, 1); continue; }
+
+        const from = dots[flow.from];
+        const to   = dots[flow.to];
+        if (!from || !to) { flows.splice(f, 1); continue; }
+
+        // Check still connected
+        const dx = from.x - to.x;
+        const dy = from.y - to.y;
+        if (Math.sqrt(dx * dx + dy * dy) > CONNECT_DIST + 20) {
+          flows.splice(f, 1); continue;
         }
+
+        const fx = from.x + (to.x - from.x) * flow.progress;
+        const fy = from.y + (to.y - from.y) * flow.progress;
+        const fade = Math.sin(flow.progress * Math.PI); // peak at midpoint
+
+        // Glow halo
+        const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, 8);
+        glow.addColorStop(0, `rgba(${R},${G},${B},${fade * 0.5})`);
+        glow.addColorStop(1, `rgba(${R},${G},${B},0)`);
+        ctx.beginPath(); ctx.arc(fx, fy, 8, 0, Math.PI * 2);
+        ctx.fillStyle = glow; ctx.fill();
+
+        // Bright core
+        ctx.beginPath();
+        ctx.arc(fx, fy, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${fade * 0.9})`;
+        ctx.fill();
+
+        // Emerald ring
+        ctx.beginPath();
+        ctx.arc(fx, fy, 4, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${R},${G},${B},${fade * 0.7})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // Draw dots
+      for (const d of dots) {
+        const pulse = 0.85 + Math.sin(d.pulse) * 0.15;
+        const op = d.opacity * pulse;
+        const sz = d.size * pulse;
+
+        // Outer glow
+        const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, sz * 5);
+        g.addColorStop(0, `rgba(${R},${G},${B},${op * 0.45})`);
+        g.addColorStop(0.5, `rgba(${R},${G},${B},${op * 0.15})`);
+        g.addColorStop(1, `rgba(${R},${G},${B},0)`);
+        ctx.beginPath(); ctx.arc(d.x, d.y, sz * 5, 0, Math.PI * 2);
+        ctx.fillStyle = g; ctx.fill();
+
+        // Core dot
+        ctx.beginPath(); ctx.arc(d.x, d.y, sz, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${R},${G},${B},${op})`;
+        ctx.fill();
+
+        // White highlight
+        ctx.beginPath();
+        ctx.arc(d.x - sz * 0.25, d.y - sz * 0.25, sz * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${op * 0.6})`;
+        ctx.fill();
       }
 
       animId = requestAnimationFrame(draw);

@@ -120,16 +120,15 @@ body {
   100% { transform: scale(1); opacity: 0; }
 }
 
+/* ripple-card: NO overflow-hidden so scale zoom works on all cards */
 .ripple-card {
   position: relative;
-  overflow: hidden;
 }
 
 /* Press-down on click */
 .ripple-card:active {
   transform: scale(0.97) translateY(0px) !important;
   transition: transform 0.08s ease !important;
-  box-shadow: 0 0 20px rgba(16,185,129,0.15) !important;
 }
 
 /* ── Zoom card on hover ─────────────────────────────────────── */

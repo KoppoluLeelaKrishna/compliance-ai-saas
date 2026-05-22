@@ -283,10 +283,10 @@ export default function HomePage() {
             {PLANS.map((plan, i) => (
               <div
                 key={plan.key}
-                className={`ripple-card hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal-zoom delay-${(i+1)*100} relative rounded-3xl border p-8 ${
+                className={`ripple-card hover:scale-[1.04] hover:-translate-y-3 hover:shadow-2xl transition-all duration-300 reveal-zoom delay-${(i+1)*100} relative rounded-3xl border p-8 ${
                   plan.hot
-                    ? "glow-border-strong border-emerald-500/50 bg-gradient-to-b from-emerald-500/10 via-emerald-500/[0.03] to-black"
-                    : "border-white/10 bg-gradient-to-b from-white/[0.05] to-black"
+                    ? "glow-border-strong border-emerald-500/50 bg-gradient-to-b from-emerald-500/10 via-emerald-500/[0.03] to-black hover:shadow-emerald-500/20"
+                    : "border-white/10 bg-gradient-to-b from-white/[0.05] to-black hover:border-white/25"
                 }`}
               >
                 {/* background plan name watermark */}

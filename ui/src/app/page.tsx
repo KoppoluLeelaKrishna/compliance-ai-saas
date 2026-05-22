@@ -149,16 +149,24 @@ export default function HomePage() {
             <p className="mx-auto mt-4 max-w-xl text-neutral-400">No agents, no installations, no complex setup.</p>
           </div>
 
-          <div className="mt-16 grid gap-8 md:grid-cols-3">
+          <div className="mt-16 grid gap-6 md:grid-cols-3">
             {STEPS.map((step, i) => (
               <div
                 key={step.num}
-                className={`reveal-zoom glow-card delay-${(i + 1) * 100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-transparent p-8`}
+                className={`zoom-card reveal-zoom delay-${(i+1)*100} relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
               >
-                <div className="mb-4 text-6xl font-black text-emerald-500/20">{step.num}</div>
-                <h3 className="text-xl font-bold">{step.title}</h3>
+                {/* giant number background */}
+                <div className="pointer-events-none absolute -right-4 -top-4 select-none text-[9rem] font-black leading-none text-emerald-500/5">{step.num}</div>
+                {/* step badge */}
+                <div className="mb-6 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm font-black text-emerald-400">
+                  {parseInt(step.num)}
+                </div>
+                <h3 className="text-xl font-black">{step.title}</h3>
                 <p className="mt-3 leading-7 text-neutral-400">{step.desc}</p>
-                <p className="mt-4 text-sm font-medium text-emerald-400">{step.detail}</p>
+                <div className="mt-5 inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 text-xs font-semibold text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  {step.detail}
+                </div>
               </div>
             ))}
           </div>
@@ -182,7 +190,7 @@ export default function HomePage() {
               { icon: "🪣", title: "S3 Public Access",   desc: "Detects open buckets, public ACLs, and exposed bucket policies before attackers find them.", sev: "CRITICAL", col: "red" },
               { icon: "🔑", title: "Root Access Keys",   desc: "Alerts immediately if your root account has active access keys — the most dangerous misconfiguration.", sev: "CRITICAL", col: "red" },
             ].map((f, i) => (
-              <div key={f.title} className={`reveal-zoom delay-${(i+1)*100} group col-span-2 rounded-3xl border border-red-500/20 bg-gradient-to-br from-red-500/10 via-black to-black p-8 transition-all hover:border-red-500/40 hover:from-red-500/15 shadow-critical`}>
+              <div key={f.title} className={`zoom-card reveal-zoom delay-${(i+1)*100} group col-span-2 rounded-3xl border border-red-500/20 bg-gradient-to-br from-red-500/10 via-black to-black p-8 shadow-critical`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-red-500/10 text-3xl border border-red-500/20">
                     {f.icon}
@@ -201,7 +209,7 @@ export default function HomePage() {
               { icon: "🛡️", title: "Security Groups",   desc: "Finds EC2 security groups with ports open to the entire internet.", sev: "HIGH", col: "orange" },
               { icon: "🗄️", title: "RDS Encryption",    desc: "Checks RDS instances for unencrypted storage and public accessibility.", sev: "HIGH", col: "orange" },
             ].map((f, i) => (
-              <div key={f.title} className={`reveal delay-${(i+1)*100} group rounded-3xl border border-orange-500/15 bg-gradient-to-b from-orange-500/8 to-black p-6 transition-all hover:border-orange-500/30`}>
+              <div key={f.title} className={`zoom-card reveal delay-${(i+1)*100} group rounded-3xl border border-orange-500/15 bg-gradient-to-b from-orange-500/8 to-black p-6`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-xl border border-orange-500/20">{f.icon}</div>
                   <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-400">{f.sev}</span>
@@ -218,7 +226,7 @@ export default function HomePage() {
               { icon: "🌐", title: "VPC Flow Logs",      desc: "Ensures network traffic is being logged for security monitoring and forensics.", sev: "MEDIUM" },
               { icon: "🔄", title: "KMS Key Rotation",   desc: "Checks that customer-managed KMS keys have automatic rotation enabled.", sev: "MEDIUM" },
             ].map((f, i) => (
-              <div key={f.title} className={`reveal delay-${(i+1)*100} group rounded-2xl border border-yellow-500/10 bg-black p-5 transition-all hover:border-yellow-500/25 hover:bg-yellow-500/[0.03]`}>
+              <div key={f.title} className={`zoom-card reveal delay-${(i+1)*100} group rounded-2xl border border-yellow-500/10 bg-black p-5`}>
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-xl">{f.icon}</span>
                   <span className="rounded-full border border-yellow-500/20 bg-yellow-500/8 px-2 py-0.5 text-[10px] font-bold text-yellow-500">{f.sev}</span>
@@ -264,33 +272,44 @@ export default function HomePage() {
             {PLANS.map((plan, i) => (
               <div
                 key={plan.key}
-                className={`reveal-zoom delay-${(i + 1) * 100} relative rounded-3xl border p-8 transition-all ${
-                  plan.hot ? "glow-border-strong border-emerald-500/50 bg-gradient-to-b from-emerald-500/10 to-transparent" : "glow-card border-white/10 bg-white/5 hover:border-white/20"
+                className={`zoom-card reveal-zoom delay-${(i+1)*100} relative overflow-hidden rounded-3xl border p-8 ${
+                  plan.hot
+                    ? "glow-border-strong border-emerald-500/50 bg-gradient-to-b from-emerald-500/10 via-emerald-500/[0.03] to-black"
+                    : "border-white/10 bg-gradient-to-b from-white/[0.05] to-black"
                 }`}
               >
+                {/* background plan name watermark */}
+                <div className="pointer-events-none absolute -bottom-4 -right-2 select-none text-[5rem] font-black leading-none text-white/[0.02]">{plan.name}</div>
+
                 {plan.hot && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-4 py-1 text-xs font-bold text-black shadow-lg shadow-emerald-500/30">
-                    Most Popular
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-4 py-1 text-xs font-bold text-black shadow-lg shadow-emerald-500/40">
+                    ✦ Most Popular
                   </div>
                 )}
-                <div className="text-sm font-semibold text-neutral-400">{plan.name}</div>
-                <div className="mt-2 flex items-end gap-1">
-                  <span className="text-4xl font-black">{plan.usd}</span>
-                  <span className="mb-1 text-neutral-500">{plan.period}</span>
+
+                <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-neutral-500">{plan.name}</div>
+                <div className="flex items-end gap-1">
+                  <span className={`text-5xl font-black ${plan.hot ? "text-emerald-400" : ""}`}>{plan.usd}</span>
+                  <span className="mb-1.5 text-neutral-500">{plan.period}</span>
                 </div>
-                <div className="text-xs text-neutral-600">{plan.inr}/mo · billed in INR · approx.</div>
-                <p className="mt-4 text-sm text-neutral-400">{plan.desc}</p>
-                <ul className="mt-6 space-y-2.5">
+                <div className="mt-1 text-xs text-neutral-700">{plan.inr}/mo · INR · approx.</div>
+                <p className="mt-4 text-sm text-neutral-500">{plan.desc}</p>
+
+                <hr className="my-5 border-white/10" />
+
+                <ul className="space-y-3">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-neutral-300">
-                      <span className="mt-0.5 text-emerald-400">✓</span>{f}
+                    <li key={f} className="flex items-center gap-2.5 text-sm text-neutral-300">
+                      <span className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] ${plan.hot ? "bg-emerald-500/20 text-emerald-400" : "bg-white/10 text-neutral-400"}`}>✓</span>
+                      {f}
                     </li>
                   ))}
                 </ul>
+
                 <Link
                   href={plan.key === "msp" ? "#contact" : "/signup"}
-                  className={`mt-8 block w-full rounded-2xl py-3 text-center font-bold transition-all ${
-                    plan.hot ? "bg-emerald-500 text-black hover:bg-emerald-400 shadow-lg shadow-emerald-500/20" : "border border-white/20 hover:bg-white/10"
+                  className={`glow-btn mt-8 block w-full rounded-2xl py-3.5 text-center font-bold transition-all ${
+                    plan.hot ? "bg-emerald-500 text-black hover:bg-emerald-400" : "border border-white/15 hover:bg-white/10"
                   }`}
                 >
                   {plan.cta}
@@ -313,14 +332,24 @@ export default function HomePage() {
             {TESTIMONIALS.map((t, i) => (
               <div
                 key={t.name}
-                className={`reveal delay-${(i + 1) * 100} rounded-3xl border border-white/10 bg-black p-8 hover:border-white/20 transition-colors`}
+                className={`zoom-card reveal delay-${(i+1)*100} relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
               >
-                <div className="mb-4 text-3xl text-emerald-500">"</div>
-                <p className="italic leading-7 text-neutral-300">"{t.quote}"</p>
-                <div className="mt-6 border-t border-white/10 pt-4">
-                  <div className="font-bold">{t.name}</div>
-                  <div className="text-sm text-neutral-500">{t.role}</div>
-                  <div className="mt-0.5 text-xs text-neutral-600">{t.loc}</div>
+                {/* big quote watermark */}
+                <div className="pointer-events-none absolute -right-3 -top-5 select-none text-[8rem] font-black leading-none text-emerald-500/5">"</div>
+
+                {/* stars */}
+                <div className="mb-4 flex gap-1">
+                  {[...Array(5)].map((_, s) => (
+                    <span key={s} className="text-sm text-emerald-400">★</span>
+                  ))}
+                </div>
+
+                <p className="leading-7 text-neutral-300">"{t.quote}"</p>
+
+                <div className="mt-6 flex items-center gap-3 border-t border-white/10 pt-5">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-sm font-black text-emerald-400">
+                    {t.name.charAt(0)}
+                  </div>
                 </div>
               </div>
             ))}

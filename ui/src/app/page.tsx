@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { AuthMe } from "@/types";
+import TechBackground from "@/components/TechBackground";
 
 /* ── Scroll-reveal hook ─────────────────────────────────── */
 function useReveal() {
@@ -69,10 +70,11 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-black text-white">
+    <div className="relative min-h-screen overflow-x-hidden bg-black text-white">
+      <TechBackground />
 
       {/* ── HERO ──────────────────────────────────────────── */}
-      <section className="relative overflow-hidden px-6 pb-28 pt-20 text-center">
+      <section className="relative z-10 overflow-hidden px-6 pb-28 pt-20 text-center">
         {/* animated background glow */}
         <div className="hero-glow pointer-events-none absolute left-1/2 top-0 h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-emerald-500 blur-[120px]" />
 
@@ -148,7 +150,7 @@ export default function HomePage() {
       </div>
 
       {/* ── HOW IT WORKS ──────────────────────────────────── */}
-      <section id="how-it-works" className="scroll-mt-8 border-t border-white/10 px-6 py-28">
+      <section id="how-it-works" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">How It Works</div>
@@ -181,7 +183,7 @@ export default function HomePage() {
       </section>
 
       {/* ── FEATURES ──────────────────────────────────────── */}
-      <section id="features" className="scroll-mt-8 border-t border-white/10 bg-white/[0.02] px-6 py-28">
+      <section id="features" className="relative z-10 scroll-mt-8 border-t border-white/10 bg-white/[0.02] px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Security Checks</div>
@@ -265,7 +267,7 @@ export default function HomePage() {
       </section>
 
       {/* ── PRICING ───────────────────────────────────────── */}
-      <section id="pricing" className="scroll-mt-8 border-t border-white/10 px-6 py-28">
+      <section id="pricing" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Pricing</div>
@@ -328,7 +330,7 @@ export default function HomePage() {
       </section>
 
       {/* ── TESTIMONIALS ──────────────────────────────────── */}
-      <section id="testimonials" className="scroll-mt-8 border-t border-white/10 bg-white/[0.02] px-6 py-28">
+      <section id="testimonials" className="relative z-10 scroll-mt-8 border-t border-white/10 bg-white/[0.02] px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Testimonials</div>
@@ -369,7 +371,7 @@ export default function HomePage() {
       </section>
 
       {/* ── CONTACT ───────────────────────────────────────── */}
-      <section id="contact" className="scroll-mt-8 border-t border-white/10 px-6 py-28">
+      <section id="contact" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-2xl">
           <div className="reveal text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Contact</div>
@@ -415,7 +417,7 @@ export default function HomePage() {
       </section>
 
       {/* ── BOOK A DEMO ───────────────────────────────────── */}
-      <section id="demo" className="scroll-mt-8 border-t border-white/10 px-6 py-28">
+      <section id="demo" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal grid gap-12 md:grid-cols-2 md:items-center">
 

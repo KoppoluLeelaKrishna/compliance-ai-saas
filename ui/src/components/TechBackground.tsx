@@ -2,24 +2,31 @@
 
 import { useEffect, useRef } from "react";
 
-interface Dot {
+interface ServiceNode {
   x: number; y: number;
   vx: number; vy: number;
-  size: number;
+  label: string;
   opacity: number;
   pulse: number;
   pulseSpeed: number;
+  size: number;
 }
 
 interface Flow {
-  from: number;
-  to: number;
-  progress: number;
-  speed: number;
+  from: number; to: number;
+  progress: number; speed: number;
 }
 
-const DOT_COUNT = 80;
-const CONNECT_DIST = 200;
+const AWS_SERVICES = [
+  "S3","IAM","EC2","RDS","VPC","KMS","EBS","MFA",
+  "CloudTrail","Lambda","STS","SNS","SQS","WAF","EKS",
+  "S3","IAM","EC2","RDS","VPC","KMS","EBS","MFA",
+  "CloudTrail","EC2","S3","IAM","RDS","VPC","Lambda",
+  "CloudTrail","KMS","EBS","WAF","SNS","SQS","EKS","MFA",
+  "S3","IAM","EC2","RDS","VPC",
+];
+
+const CONNECT_DIST = 190;
 const R = 16; const G = 185; const B = 129;
 
 export default function TechBackground() {
@@ -32,45 +39,44 @@ export default function TechBackground() {
     if (!ctx) return;
 
     let animId: number;
-    const dots: Dot[] = [];
+    const nodes: ServiceNode[] = [];
     const flows: Flow[] = [];
 
     function resize() {
       if (!canvas) return;
-      canvas.width = window.innerWidth;
+      canvas.width  = window.innerWidth;
       canvas.height = Math.max(document.documentElement.scrollHeight, window.innerHeight);
     }
 
     function init() {
-      dots.length = 0;
-      flows.length = 0;
-      const w = canvas?.width ?? window.innerWidth;
+      nodes.length = 0; flows.length = 0;
+      const w  = canvas?.width  ?? window.innerWidth;
       const vh = window.innerHeight;
+      const total = AWS_SERVICES.length;
 
-      // Distribute dots in bands so every viewport has a cluster
-      for (let i = 0; i < DOT_COUNT; i++) {
-        const band = Math.floor(i / 20);
-        const yMin = band * vh * 0.85;
+      for (let i = 0; i < total; i++) {
+        const band = Math.floor(i / 10);
+        const yMin = band * vh * 0.8;
         const yMax = yMin + vh;
-        dots.push({
+        nodes.push({
           x: Math.random() * w,
           y: yMin + Math.random() * (yMax - yMin),
-          vx: (Math.random() - 0.5) * 0.6,
-          vy: (Math.random() - 0.5) * 0.6,
-          size: Math.random() * 2.5 + 1.2,
-          opacity: Math.random() * 0.35 + 0.5,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: (Math.random() - 0.5) * 0.5,
+          label: AWS_SERVICES[i],
+          opacity: Math.random() * 0.3 + 0.35,
           pulse: Math.random() * Math.PI * 2,
-          pulseSpeed: Math.random() * 0.025 + 0.01,
+          pulseSpeed: Math.random() * 0.02 + 0.008,
+          size: AWS_SERVICES[i].length > 3 ? 9 : 11,
         });
       }
 
-      // Seed some initial flow particles
-      for (let k = 0; k < 15; k++) {
+      for (let k = 0; k < 12; k++) {
         flows.push({
-          from: Math.floor(Math.random() * DOT_COUNT),
-          to: Math.floor(Math.random() * DOT_COUNT),
+          from: Math.floor(Math.random() * nodes.length),
+          to:   Math.floor(Math.random() * nodes.length),
           progress: Math.random(),
-          speed: Math.random() * 0.008 + 0.005,
+          speed: Math.random() * 0.01 + 0.005,
         });
       }
     }
@@ -79,159 +85,150 @@ export default function TechBackground() {
       if (!canvas || !ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Subtle nebula glow blobs
+      // Nebula blobs
       const nebulas: [number, number, number, number][] = [
-        [canvas.width * 0.15, canvas.height * 0.15, 300, 0.03],
-        [canvas.width * 0.8,  canvas.height * 0.4,  250, 0.025],
-        [canvas.width * 0.5,  canvas.height * 0.65, 320, 0.02],
-        [canvas.width * 0.1,  canvas.height * 0.8,  200, 0.025],
+        [canvas.width * 0.12, canvas.height * 0.12, 280, 0.035],
+        [canvas.width * 0.82, canvas.height * 0.38, 240, 0.028],
+        [canvas.width * 0.5,  canvas.height * 0.62, 300, 0.022],
+        [canvas.width * 0.08, canvas.height * 0.78, 200, 0.03],
       ];
       for (const [nx, ny, nr, no] of nebulas) {
         const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, nr);
         g.addColorStop(0, `rgba(${R},${G},${B},${no})`);
         g.addColorStop(1, `rgba(${R},${G},${B},0)`);
-        ctx.beginPath();
-        ctx.arc(nx, ny, nr, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(nx, ny, nr, 0, Math.PI * 2);
+        ctx.fillStyle = g; ctx.fill();
       }
 
-      // Move dots
-      for (const d of dots) {
-        d.x += d.vx;
-        d.y += d.vy;
-        d.pulse += d.pulseSpeed;
-        if (d.x < 0 || d.x > canvas.width)  d.vx *= -1;
-        if (d.y < 0 || d.y > canvas.height) d.vy *= -1;
+      // Move nodes
+      for (const n of nodes) {
+        n.x += n.vx; n.y += n.vy;
+        n.pulse += n.pulseSpeed;
+        if (n.x < 0 || n.x > canvas.width)  n.vx *= -1;
+        if (n.y < 0 || n.y > canvas.height) n.vy *= -1;
       }
 
-      // Find active connections this frame
-      const active: [number, number, number][] = []; // [i, j, dist]
-      for (let i = 0; i < dots.length; i++) {
-        for (let j = i + 1; j < dots.length; j++) {
-          const dx = dots[i].x - dots[j].x;
-          const dy = dots[i].y - dots[j].y;
+      // Find active connections
+      const active: [number, number, number][] = [];
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < CONNECT_DIST) {
-            active.push([i, j, dist]);
-          }
+          if (dist < CONNECT_DIST) active.push([i, j, dist]);
         }
       }
 
       // Draw connection lines
       for (const [i, j, dist] of active) {
-        const alpha = (1 - dist / CONNECT_DIST) * 0.45;
-        const grad = ctx.createLinearGradient(dots[i].x, dots[i].y, dots[j].x, dots[j].y);
+        const alpha = (1 - dist / CONNECT_DIST) * 0.4;
+        const grad = ctx.createLinearGradient(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
         grad.addColorStop(0,   `rgba(${R},${G},${B},${alpha * 0.5})`);
         grad.addColorStop(0.5, `rgba(${R},${G},${B},${alpha})`);
         grad.addColorStop(1,   `rgba(${R},${G},${B},${alpha * 0.5})`);
         ctx.beginPath();
-        ctx.moveTo(dots[i].x, dots[i].y);
-        ctx.lineTo(dots[j].x, dots[j].y);
+        ctx.moveTo(nodes[i].x, nodes[i].y);
+        ctx.lineTo(nodes[j].x, nodes[j].y);
         ctx.strokeStyle = grad;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 0.9;
         ctx.stroke();
       }
 
-      // Spawn new flow particles along active connections
-      if (active.length > 0 && Math.random() < 0.12) {
-        const [ri, rj] = active[Math.floor(Math.random() * active.length)];
-        flows.push({
-          from: ri, to: rj,
-          progress: 0,
-          speed: Math.random() * 0.012 + 0.006,
-        });
-        if (flows.length > 40) flows.splice(0, 1);
+      // Spawn flow particles
+      if (active.length > 0 && Math.random() < 0.1) {
+        const [fi, fj] = active[Math.floor(Math.random() * active.length)];
+        flows.push({ from: fi, to: fj, progress: 0, speed: Math.random() * 0.012 + 0.006 });
+        if (flows.length > 35) flows.splice(0, 1);
       }
 
-      // Draw and advance flow particles (traveling dots along lines)
+      // Draw flow particles
       for (let f = flows.length - 1; f >= 0; f--) {
-        const flow = flows[f];
-        flow.progress += flow.speed;
-        if (flow.progress > 1) { flows.splice(f, 1); continue; }
+        const fl = flows[f];
+        fl.progress += fl.speed;
+        if (fl.progress > 1) { flows.splice(f, 1); continue; }
 
-        const from = dots[flow.from];
-        const to   = dots[flow.to];
-        if (!from || !to) { flows.splice(f, 1); continue; }
+        const fn = nodes[fl.from]; const tn = nodes[fl.to];
+        if (!fn || !tn) { flows.splice(f, 1); continue; }
 
-        // Check still connected
-        const dx = from.x - to.x;
-        const dy = from.y - to.y;
-        if (Math.sqrt(dx * dx + dy * dy) > CONNECT_DIST + 20) {
-          flows.splice(f, 1); continue;
-        }
+        const dx = fn.x - tn.x; const dy = fn.y - tn.y;
+        if (Math.sqrt(dx * dx + dy * dy) > CONNECT_DIST + 20) { flows.splice(f, 1); continue; }
 
-        const fx = from.x + (to.x - from.x) * flow.progress;
-        const fy = from.y + (to.y - from.y) * flow.progress;
-        const fade = Math.sin(flow.progress * Math.PI); // peak at midpoint
+        const fx = fn.x + (tn.x - fn.x) * fl.progress;
+        const fy = fn.y + (tn.y - fn.y) * fl.progress;
+        const fade = Math.sin(fl.progress * Math.PI);
 
-        // Glow halo
-        const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, 8);
-        glow.addColorStop(0, `rgba(${R},${G},${B},${fade * 0.5})`);
+        const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, 7);
+        glow.addColorStop(0, `rgba(${R},${G},${B},${fade * 0.55})`);
         glow.addColorStop(1, `rgba(${R},${G},${B},0)`);
-        ctx.beginPath(); ctx.arc(fx, fy, 8, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.arc(fx, fy, 7, 0, Math.PI * 2);
         ctx.fillStyle = glow; ctx.fill();
 
-        // Bright core
-        ctx.beginPath();
-        ctx.arc(fx, fy, 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${fade * 0.9})`;
+        ctx.beginPath(); ctx.arc(fx, fy, 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${fade * 0.85})`;
         ctx.fill();
-
-        // Emerald ring
-        ctx.beginPath();
-        ctx.arc(fx, fy, 4, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${R},${G},${B},${fade * 0.7})`;
-        ctx.lineWidth = 1;
-        ctx.stroke();
       }
 
-      // Draw dots
-      for (const d of dots) {
-        const pulse = 0.85 + Math.sin(d.pulse) * 0.15;
-        const op = d.opacity * pulse;
-        const sz = d.size * pulse;
+      // Draw AWS service label nodes
+      for (const n of nodes) {
+        const pulse  = 0.85 + Math.sin(n.pulse) * 0.15;
+        const op     = n.opacity * pulse;
+        const fsize  = n.size;
+        const label  = n.label;
+
+        // Measure label
+        ctx.font = `bold ${fsize}px monospace`;
+        const tw = ctx.measureText(label).width;
+        const th = fsize;
+        const pad = 5;
+        const bw  = tw + pad * 2;
+        const bh  = th + pad * 1.5;
 
         // Outer glow
-        const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, sz * 5);
-        g.addColorStop(0, `rgba(${R},${G},${B},${op * 0.45})`);
-        g.addColorStop(0.5, `rgba(${R},${G},${B},${op * 0.15})`);
-        g.addColorStop(1, `rgba(${R},${G},${B},0)`);
-        ctx.beginPath(); ctx.arc(d.x, d.y, sz * 5, 0, Math.PI * 2);
-        ctx.fillStyle = g; ctx.fill();
+        const glowR = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, bw);
+        glowR.addColorStop(0, `rgba(${R},${G},${B},${op * 0.3})`);
+        glowR.addColorStop(1, `rgba(${R},${G},${B},0)`);
+        ctx.beginPath(); ctx.arc(n.x, n.y, bw, 0, Math.PI * 2);
+        ctx.fillStyle = glowR; ctx.fill();
 
-        // Core dot
-        ctx.beginPath(); ctx.arc(d.x, d.y, sz, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${R},${G},${B},${op})`;
-        ctx.fill();
-
-        // White highlight
+        // Rounded box background
+        const bx = n.x - bw / 2; const by = n.y - bh / 2;
+        const cr = 4;
         ctx.beginPath();
-        ctx.arc(d.x - sz * 0.25, d.y - sz * 0.25, sz * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${op * 0.6})`;
+        ctx.moveTo(bx + cr, by);
+        ctx.lineTo(bx + bw - cr, by);
+        ctx.arcTo(bx + bw, by, bx + bw, by + cr, cr);
+        ctx.lineTo(bx + bw, by + bh - cr);
+        ctx.arcTo(bx + bw, by + bh, bx + bw - cr, by + bh, cr);
+        ctx.lineTo(bx + cr, by + bh);
+        ctx.arcTo(bx, by + bh, bx, by + bh - cr, cr);
+        ctx.lineTo(bx, by + cr);
+        ctx.arcTo(bx, by, bx + cr, by, cr);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(${R},${G},${B},${op * 0.1})`;
         ctx.fill();
+        ctx.strokeStyle = `rgba(${R},${G},${B},${op * 0.55})`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+
+        // Label text
+        ctx.fillStyle = `rgba(${R},${G},${B},${op})`;
+        ctx.font = `bold ${fsize}px monospace`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, n.x, n.y);
       }
 
       animId = requestAnimationFrame(draw);
     }
 
-    resize();
-    init();
-    draw();
+    resize(); init(); draw();
 
     const onResize = () => { resize(); init(); };
     window.addEventListener("resize", onResize);
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", onResize);
-    };
+    return () => { cancelAnimationFrame(animId); window.removeEventListener("resize", onResize); };
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="pointer-events-none fixed inset-0 z-0"
-      aria-hidden="true"
-    />
+    <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-0" aria-hidden="true" />
   );
 }

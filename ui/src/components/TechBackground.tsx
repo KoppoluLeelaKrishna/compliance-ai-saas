@@ -36,53 +36,51 @@ export default function TechBackground() {
       const w = canvas?.width ?? window.innerWidth;
       const h = canvas?.height ?? window.innerHeight;
 
-      // 120 tiny white/blue stars (background field)
-      for (let i = 0; i < 120; i++) {
+      // 150 white/blue stars
+      for (let i = 0; i < 150; i++) {
         stars.push({
           x: Math.random() * w, y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.08,
-          vy: (Math.random() - 0.5) * 0.08,
-          size: Math.random() * 1.2 + 0.3,
-          opacity: Math.random() * 0.5 + 0.2,
+          vx: (Math.random() - 0.5) * 0.12,
+          vy: (Math.random() - 0.5) * 0.12,
+          size: Math.random() * 1.8 + 0.5,
+          opacity: Math.random() * 0.55 + 0.35,
           pulse: Math.random() * Math.PI * 2,
-          pulseSpeed: Math.random() * 0.025 + 0.005,
+          pulseSpeed: Math.random() * 0.03 + 0.008,
           type: "star",
-          color: Math.random() > 0.5
-            ? `255,255,255`
-            : `180,200,255`,
+          color: Math.random() > 0.5 ? `255,255,255` : `180,210,255`,
         });
       }
 
-      // 40 medium emerald network dots (brand color, move faster, connect with lines)
-      for (let i = 0; i < 40; i++) {
+      // 50 emerald network dots
+      for (let i = 0; i < 50; i++) {
         stars.push({
           x: Math.random() * w, y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.45,
-          vy: (Math.random() - 0.5) * 0.45,
-          size: Math.random() * 1.8 + 1,
-          opacity: Math.random() * 0.4 + 0.3,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: (Math.random() - 0.5) * 0.5,
+          size: Math.random() * 2.5 + 1.5,
+          opacity: Math.random() * 0.45 + 0.45,
           pulse: Math.random() * Math.PI * 2,
-          pulseSpeed: Math.random() * 0.02 + 0.01,
+          pulseSpeed: Math.random() * 0.025 + 0.012,
           type: "emerald",
           color: `16,185,129`,
         });
       }
 
-      // 8 large "planet" dots
+      // 10 large planet dots
       const planetColors = [
-        `16,185,129`, `100,200,160`, `60,120,200`,
-        `140,100,220`, `200,140,60`, `16,185,129`,
-        `80,180,220`, `180,80,180`,
+        `16,185,129`,`100,210,170`,`70,130,220`,
+        `150,100,230`,`210,150,60`,`16,185,129`,
+        `80,190,230`,`190,80,190`,`16,185,129`,`60,200,160`,
       ];
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 10; i++) {
         stars.push({
           x: Math.random() * w, y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.12,
-          vy: (Math.random() - 0.5) * 0.12,
-          size: Math.random() * 3.5 + 3,
-          opacity: Math.random() * 0.35 + 0.4,
+          vx: (Math.random() - 0.5) * 0.15,
+          vy: (Math.random() - 0.5) * 0.15,
+          size: Math.random() * 4 + 4,
+          opacity: Math.random() * 0.3 + 0.55,
           pulse: Math.random() * Math.PI * 2,
-          pulseSpeed: Math.random() * 0.01 + 0.004,
+          pulseSpeed: Math.random() * 0.012 + 0.005,
           type: "planet",
           color: planetColors[i],
         });

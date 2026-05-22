@@ -71,7 +71,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-black text-white">
+    <div className="relative min-h-screen overflow-x-hidden text-white">
       <TechBackground />
       <RippleEffect />
 
@@ -185,7 +185,7 @@ export default function HomePage() {
       </section>
 
       {/* ── FEATURES ──────────────────────────────────────── */}
-      <section id="features" className="relative z-10 scroll-mt-8 border-t border-white/10 bg-white/[0.02] px-6 py-28">
+      <section id="features" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Security Checks</div>
@@ -332,7 +332,7 @@ export default function HomePage() {
       </section>
 
       {/* ── TESTIMONIALS ──────────────────────────────────── */}
-      <section id="testimonials" className="relative z-10 scroll-mt-8 border-t border-white/10 bg-white/[0.02] px-6 py-28">
+      <section id="testimonials" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Testimonials</div>
@@ -502,7 +502,7 @@ export default function HomePage() {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────── */}
-      <footer className="border-t border-white/10 bg-black px-6 py-16">
+      <footer className="border-t border-white/10 px-6 py-16">
         <div className="mx-auto max-w-5xl">
           <div className="grid gap-10 md:grid-cols-[2fr_1fr_1fr]">
             {/* Brand */}

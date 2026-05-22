@@ -77,7 +77,7 @@ export default function HomePage() {
         <div className="hero-glow pointer-events-none absolute left-1/2 top-0 h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-emerald-500 blur-[120px]" />
 
         <div className="relative mx-auto max-w-5xl">
-          <div className="reveal mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-sm text-emerald-300">
+          <div className="reveal glow-badge mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-sm text-emerald-300">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
             Now live — 10 AWS security checks, zero setup
           </div>
@@ -85,7 +85,7 @@ export default function HomePage() {
           <h1 className="reveal delay-100 mx-auto max-w-4xl text-5xl font-black leading-tight tracking-tight md:text-7xl">
             Find AWS misconfigurations
             <br />
-            <span className="text-emerald-400">before hackers do</span>
+            <span className="glow-text text-emerald-400">before hackers do</span>
           </h1>
 
           <p className="reveal delay-200 mx-auto mt-6 max-w-2xl text-lg leading-8 text-neutral-400">
@@ -95,7 +95,7 @@ export default function HomePage() {
           <div className="reveal delay-300 mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link
               href={authenticated ? "/scans" : "/signup"}
-              className="rounded-2xl bg-emerald-500 px-8 py-4 text-lg font-bold text-black shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 hover:shadow-emerald-400/30 transition-all"
+              className="glow-btn rounded-2xl bg-emerald-500 px-8 py-4 text-lg font-bold text-black transition-all hover:bg-emerald-400"
             >
               {loading ? "Get Started Free →" : authenticated ? "Go to Dashboard →" : "Start Free Trial →"}
             </Link>
@@ -117,6 +117,9 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── GLOW DIVIDER ──────────────────────────────────── */}
+      <div className="px-6"><hr className="glow-line" /></div>
+
       {/* ── TICKER ────────────────────────────────────────── */}
       <div className="border-y border-white/10 bg-white/[0.02] py-4 overflow-hidden">
         <div className="marquee-track flex gap-8 whitespace-nowrap w-max">
@@ -132,7 +135,7 @@ export default function HomePage() {
       <section id="how-it-works" className="scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">How It Works</div>
+            <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">How It Works</div>
             <h2 className="text-4xl font-black md:text-5xl">Up and running in 5 minutes</h2>
             <p className="mx-auto mt-4 max-w-xl text-neutral-400">No agents, no installations, no complex setup.</p>
           </div>
@@ -141,7 +144,7 @@ export default function HomePage() {
             {STEPS.map((step, i) => (
               <div
                 key={step.num}
-                className={`reveal-zoom delay-${(i + 1) * 100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-transparent p-8`}
+                className={`reveal-zoom glow-card delay-${(i + 1) * 100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-transparent p-8`}
               >
                 <div className="mb-4 text-6xl font-black text-emerald-500/20">{step.num}</div>
                 <h3 className="text-xl font-bold">{step.title}</h3>
@@ -157,7 +160,7 @@ export default function HomePage() {
       <section id="features" className="scroll-mt-8 border-t border-white/10 bg-white/[0.02] px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Security Checks</div>
+            <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Security Checks</div>
             <h2 className="text-4xl font-black md:text-5xl">10 checks across your entire AWS account</h2>
             <p className="mx-auto mt-4 max-w-xl text-neutral-400">Every check comes with fix guidance, console path, and CLI commands.</p>
           </div>
@@ -196,7 +199,7 @@ export default function HomePage() {
       <section id="pricing" className="scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Pricing</div>
+            <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Pricing</div>
             <h2 className="text-4xl font-black md:text-5xl">Simple, transparent pricing</h2>
             <p className="mx-auto mt-4 max-w-xl text-neutral-400">
               2-week free trial on all plans. Billed in INR · USD shown for reference.
@@ -208,7 +211,7 @@ export default function HomePage() {
               <div
                 key={plan.key}
                 className={`reveal-zoom delay-${(i + 1) * 100} relative rounded-3xl border p-8 transition-all ${
-                  plan.hot ? "border-emerald-500/50 bg-gradient-to-b from-emerald-500/10 to-transparent shadow-xl shadow-emerald-500/10" : "border-white/10 bg-white/5 hover:border-white/20"
+                  plan.hot ? "glow-border-strong border-emerald-500/50 bg-gradient-to-b from-emerald-500/10 to-transparent" : "glow-card border-white/10 bg-white/5 hover:border-white/20"
                 }`}
               >
                 {plan.hot && (
@@ -248,7 +251,7 @@ export default function HomePage() {
       <section id="testimonials" className="scroll-mt-8 border-t border-white/10 bg-white/[0.02] px-6 py-28">
         <div className="mx-auto max-w-5xl">
           <div className="reveal text-center">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Testimonials</div>
+            <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Testimonials</div>
             <h2 className="text-4xl font-black md:text-5xl">Trusted by AWS teams worldwide</h2>
           </div>
 
@@ -275,7 +278,7 @@ export default function HomePage() {
       <section id="contact" className="scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-2xl">
           <div className="reveal text-center">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Contact</div>
+            <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Contact</div>
             <h2 className="text-4xl font-black md:text-5xl">Get in touch</h2>
             <p className="mt-4 text-neutral-400">Questions, demo requests, or custom plans — we reply within 24 hours.</p>
           </div>
@@ -325,7 +328,7 @@ export default function HomePage() {
           <p className="mt-4 text-neutral-400">Free 2-week trial · No credit card · Setup in 5 minutes</p>
           <Link
             href="/signup"
-            className="mt-8 inline-block rounded-2xl bg-emerald-500 px-10 py-4 text-lg font-bold text-black shadow-xl shadow-emerald-500/20 hover:bg-emerald-400 transition-all"
+            className="glow-btn mt-8 inline-block rounded-2xl bg-emerald-500 px-10 py-4 text-lg font-bold text-black transition-all hover:bg-emerald-400"
           >
             Start Free Trial →
           </Link>

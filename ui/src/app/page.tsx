@@ -130,10 +130,17 @@ export default function HomePage() {
         {/* right fade */}
         <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-24 bg-gradient-to-l from-black to-transparent" />
 
-        <div className="marquee-track inline-flex gap-12 whitespace-nowrap">
+        <div
+          style={{
+            display: "inline-flex",
+            gap: "3rem",
+            whiteSpace: "nowrap",
+            animation: "ticker-scroll 30s linear infinite",
+          }}
+        >
           {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
-            <span key={i} className="inline-flex items-center gap-2 text-sm font-semibold text-white/80">
-              <span className="glow-text-sm text-emerald-400">✦</span>
+            <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }} className="text-sm font-semibold text-white/80">
+              <span className="text-emerald-400">✦</span>
               {item}
             </span>
           ))}
@@ -153,7 +160,7 @@ export default function HomePage() {
             {STEPS.map((step, i) => (
               <div
                 key={step.num}
-                className={`zoom-card reveal-zoom delay-${(i+1)*100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
+                className={`hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal-zoom delay-${(i+1)*100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
               >
                 {/* giant number background */}
                 <div className="pointer-events-none absolute -right-4 -top-4 select-none text-[9rem] font-black leading-none text-emerald-500/5">{step.num}</div>
@@ -190,7 +197,7 @@ export default function HomePage() {
               { icon: "🪣", title: "S3 Public Access",   desc: "Detects open buckets, public ACLs, and exposed bucket policies before attackers find them.", sev: "CRITICAL", col: "red" },
               { icon: "🔑", title: "Root Access Keys",   desc: "Alerts immediately if your root account has active access keys — the most dangerous misconfiguration.", sev: "CRITICAL", col: "red" },
             ].map((f, i) => (
-              <div key={f.title} className={`zoom-card reveal-zoom delay-${(i+1)*100} group col-span-2 rounded-3xl border border-red-500/20 bg-gradient-to-br from-red-500/10 via-black to-black p-8 shadow-critical`}>
+              <div key={f.title} className={`hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal-zoom delay-${(i+1)*100} group col-span-2 rounded-3xl border border-red-500/20 bg-gradient-to-br from-red-500/10 via-black to-black p-8 shadow-critical`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-red-500/10 text-3xl border border-red-500/20">
                     {f.icon}
@@ -209,7 +216,7 @@ export default function HomePage() {
               { icon: "🛡️", title: "Security Groups",   desc: "Finds EC2 security groups with ports open to the entire internet.", sev: "HIGH", col: "orange" },
               { icon: "🗄️", title: "RDS Encryption",    desc: "Checks RDS instances for unencrypted storage and public accessibility.", sev: "HIGH", col: "orange" },
             ].map((f, i) => (
-              <div key={f.title} className={`zoom-card reveal delay-${(i+1)*100} group rounded-3xl border border-orange-500/15 bg-gradient-to-b from-orange-500/8 to-black p-6`}>
+              <div key={f.title} className={`hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal delay-${(i+1)*100} group rounded-3xl border border-orange-500/15 bg-gradient-to-b from-orange-500/8 to-black p-6`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-xl border border-orange-500/20">{f.icon}</div>
                   <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-400">{f.sev}</span>
@@ -226,7 +233,7 @@ export default function HomePage() {
               { icon: "🌐", title: "VPC Flow Logs",      desc: "Ensures network traffic is being logged for security monitoring and forensics.", sev: "MEDIUM" },
               { icon: "🔄", title: "KMS Key Rotation",   desc: "Checks that customer-managed KMS keys have automatic rotation enabled.", sev: "MEDIUM" },
             ].map((f, i) => (
-              <div key={f.title} className={`zoom-card reveal delay-${(i+1)*100} group rounded-2xl border border-yellow-500/10 bg-black p-5`}>
+              <div key={f.title} className={`hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal delay-${(i+1)*100} group rounded-2xl border border-yellow-500/10 bg-black p-5`}>
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-xl">{f.icon}</span>
                   <span className="rounded-full border border-yellow-500/20 bg-yellow-500/8 px-2 py-0.5 text-[10px] font-bold text-yellow-500">{f.sev}</span>
@@ -272,7 +279,7 @@ export default function HomePage() {
             {PLANS.map((plan, i) => (
               <div
                 key={plan.key}
-                className={`zoom-card reveal-zoom delay-${(i+1)*100} relative rounded-3xl border p-8 ${
+                className={`hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal-zoom delay-${(i+1)*100} relative rounded-3xl border p-8 ${
                   plan.hot
                     ? "glow-border-strong border-emerald-500/50 bg-gradient-to-b from-emerald-500/10 via-emerald-500/[0.03] to-black"
                     : "border-white/10 bg-gradient-to-b from-white/[0.05] to-black"
@@ -332,7 +339,7 @@ export default function HomePage() {
             {TESTIMONIALS.map((t, i) => (
               <div
                 key={t.name}
-                className={`zoom-card reveal delay-${(i+1)*100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
+                className={`hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal delay-${(i+1)*100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
               >
                 {/* big quote watermark */}
                 <div className="pointer-events-none absolute -right-3 -top-5 select-none text-[8rem] font-black leading-none text-emerald-500/5">"</div>

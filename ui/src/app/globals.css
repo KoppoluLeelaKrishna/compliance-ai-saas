@@ -182,18 +182,12 @@ body {
 }
 
 /* ── Ticker / marquee ──────────────────────────────────────── */
-@keyframes marquee {
+@keyframes ticker-scroll {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
 
-.marquee-track {
-  display: inline-flex;
-  animation: marquee 30s linear infinite;
-  will-change: transform;
-}
-
-.ticker-wrapper:hover .marquee-track {
+.ticker-wrapper:hover > div {
   animation-play-state: paused;
 }
 

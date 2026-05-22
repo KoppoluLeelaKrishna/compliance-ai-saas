@@ -170,14 +170,15 @@ body {
 /* ── Ticker / marquee ──────────────────────────────────────── */
 @keyframes marquee {
   from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+  to   { transform: translateX(-33.333%); }
 }
 
 .marquee-track {
-  animation: marquee 20s linear infinite;
+  animation: marquee 25s linear infinite;
+  will-change: transform;
 }
 
-.marquee-track:hover {
+.ticker-wrapper:hover .marquee-track {
   animation-play-state: paused;
 }
 

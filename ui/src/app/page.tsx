@@ -124,11 +124,17 @@ export default function HomePage() {
       <div className="px-6"><hr className="glow-line" /></div>
 
       {/* ── TICKER ────────────────────────────────────────── */}
-      <div className="border-y border-white/10 bg-white/[0.02] py-4 overflow-hidden">
-        <div className="marquee-track flex gap-8 whitespace-nowrap w-max">
-          {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
-            <span key={i} className="text-sm font-medium text-neutral-500 flex items-center gap-2">
-              <span className="text-emerald-500">✓</span> {item}
+      <div className="ticker-wrapper relative overflow-hidden border-y border-emerald-500/20 bg-emerald-500/[0.04] py-3">
+        {/* left fade */}
+        <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-24 bg-gradient-to-r from-black to-transparent" />
+        {/* right fade */}
+        <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-24 bg-gradient-to-l from-black to-transparent" />
+
+        <div className="marquee-track flex gap-12 whitespace-nowrap w-max">
+          {[...TICKER_ITEMS, ...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
+            <span key={i} className="flex items-center gap-2 text-sm font-semibold text-white/80">
+              <span className="glow-text-sm text-emerald-400">✦</span>
+              {item}
             </span>
           ))}
         </div>

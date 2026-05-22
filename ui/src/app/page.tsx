@@ -160,7 +160,7 @@ export default function HomePage() {
             {STEPS.map((step, i) => (
               <div
                 key={step.num}
-                className={`hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal-zoom delay-${(i+1)*100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
+                className={`step-card hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal-zoom delay-${(i+1)*100} relative rounded-3xl border border-emerald-500/20 bg-gradient-to-b from-emerald-500/[0.08] to-black p-8`}
               >
                 {/* giant number background */}
                 <div className="pointer-events-none absolute -right-4 -top-4 select-none text-[9rem] font-black leading-none text-emerald-500/5">{step.num}</div>

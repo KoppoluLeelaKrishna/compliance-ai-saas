@@ -67,7 +67,8 @@ export default function TechBackground() {
       }
     }
 
-    function drawPipeline(x1: number, y1: number, x2: number, y2: number, alpha: number) {
+    function drawPipeline(x1: number, y1: number, x2: number, y2: number, alpha: number, c: CanvasRenderingContext2D) {
+      const ctx = c;
       // Outer dark casing
       ctx.beginPath();
       ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
@@ -136,7 +137,7 @@ export default function TechBackground() {
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < CONNECT) {
             const alpha = (1 - dist / CONNECT);
-            drawPipeline(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y, alpha);
+            drawPipeline(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y, alpha, ctx);
           }
         }
       }

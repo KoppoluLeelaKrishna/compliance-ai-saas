@@ -102,6 +102,9 @@ export default function HomePage() {
             <a href="#how-it-works" className="rounded-2xl border border-white/15 px-8 py-4 text-lg font-medium hover:bg-white/5 transition-colors">
               See How It Works
             </a>
+            <a href="#demo" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-8 py-4 text-lg font-medium text-emerald-300 hover:bg-emerald-500/10 transition-colors">
+              Book a Demo
+            </a>
           </div>
           <p className="reveal delay-400 mt-4 text-sm text-neutral-600">Free 2-week trial · No credit card · Setup in 5 minutes</p>
 
@@ -365,6 +368,74 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── BOOK A DEMO ───────────────────────────────────── */}
+      <section id="demo" className="scroll-mt-8 border-t border-white/10 px-6 py-28">
+        <div className="mx-auto max-w-5xl">
+          <div className="reveal grid gap-12 md:grid-cols-2 md:items-center">
+
+            {/* Left — text */}
+            <div>
+              <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Book a Demo</div>
+              <h2 className="text-4xl font-black md:text-5xl">See VigiliCloud live in 25 minutes</h2>
+              <p className="mt-5 text-lg leading-8 text-neutral-400">
+                Book a free personal demo and I'll walk you through connecting your AWS account, running a live scan, and reviewing your findings in real time.
+              </p>
+              <ul className="mt-6 space-y-3">
+                {[
+                  "Live AWS scan on your account",
+                  "Walk through every critical finding",
+                  "Show you how to fix each issue",
+                  "Answer all your questions",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-3 text-neutral-300">
+                    <span className="glow-text-sm flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs text-emerald-400 border border-emerald-500/20">✓</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-6 flex flex-wrap gap-4 text-sm text-neutral-500">
+                <span className="flex items-center gap-1.5">📅 Mon–Fri</span>
+                <span className="flex items-center gap-1.5">🕘 9am–12pm CST</span>
+                <span className="flex items-center gap-1.5">⏱ 25 minutes</span>
+                <span className="flex items-center gap-1.5">📹 Google Meet</span>
+              </div>
+            </div>
+
+            {/* Right — booking card */}
+            <div className="reveal-zoom glow-border-strong rounded-3xl border border-emerald-500/30 bg-gradient-to-b from-emerald-500/10 to-black p-8 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-3xl">
+                📅
+              </div>
+              <h3 className="text-2xl font-black">VigiliCloud Demo</h3>
+              <p className="mt-2 text-neutral-400">Free · 25 min · Google Meet</p>
+
+              <div className="my-6 grid grid-cols-3 gap-3 text-xs">
+                {["Mon","Tue","Wed","Thu","Fri"].slice(0,3).map((d) => (
+                  <div key={d} className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 py-2 text-emerald-300 font-semibold">{d}</div>
+                ))}
+                {["Thu","Fri"].map((d) => (
+                  <div key={d} className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 py-2 text-emerald-300 font-semibold">{d}</div>
+                ))}
+                <div className="rounded-xl border border-white/5 bg-white/5 py-2 text-neutral-600 font-semibold">Sat</div>
+              </div>
+
+              <p className="mb-6 text-sm text-neutral-500">Available 9:00 AM – 12:00 PM CST</p>
+
+              <a
+                href="https://calendly.com/leelakrishnakoppolu/vigilicloud-demo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="glow-btn block w-full rounded-2xl bg-emerald-500 py-4 text-center font-bold text-black hover:bg-emerald-400 transition-all"
+              >
+                Book Free Demo →
+              </a>
+              <p className="mt-3 text-xs text-neutral-600">No credit card · No obligation · Instant confirmation</p>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
       {/* ── CTA BANNER ────────────────────────────────────── */}
       <section className="relative overflow-hidden border-t border-white/10 px-6 py-24 text-center">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(16,185,129,0.07)_0%,_transparent_60%)]" />
@@ -404,7 +475,7 @@ export default function HomePage() {
               <ul className="space-y-3 text-sm text-neutral-400">
                 <li><a href="#features"      className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#pricing"       className="hover:text-white transition-colors">Pricing</a></li>
-                <li><Link href="/scans"      className="hover:text-white transition-colors">Dashboard</Link></li>
+                <li><a href="#demo"          className="hover:text-white transition-colors">Book a Demo</a></li>
                 <li><Link href="/onboarding" className="hover:text-white transition-colors">Get Started</Link></li>
               </ul>
             </div>

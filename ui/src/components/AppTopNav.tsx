@@ -68,9 +68,6 @@ export default function AppTopNav() {
         </div>
         <div>
           <div className="text-lg font-black tracking-tight leading-none">VigiliCloud</div>
-          <div className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">
-            AWS Compliance
-          </div>
         </div>
       </Link>
 

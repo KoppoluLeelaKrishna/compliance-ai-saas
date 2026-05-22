@@ -390,7 +390,6 @@ export default function HomePage() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-base font-black text-emerald-400">V</div>
                 <div>
                   <div className="text-lg font-black tracking-tight leading-none">VigiliCloud</div>
-                  <div className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">AWS Compliance</div>
                 </div>
               </Link>
               <p className="mt-4 max-w-xs text-sm leading-6 text-neutral-600">

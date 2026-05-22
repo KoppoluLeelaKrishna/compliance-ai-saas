@@ -130,9 +130,9 @@ export default function HomePage() {
         {/* right fade */}
         <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-24 bg-gradient-to-l from-black to-transparent" />
 
-        <div className="marquee-track flex gap-12 whitespace-nowrap w-max">
-          {[...TICKER_ITEMS, ...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
-            <span key={i} className="flex items-center gap-2 text-sm font-semibold text-white/80">
+        <div className="marquee-track inline-flex gap-12 whitespace-nowrap">
+          {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
+            <span key={i} className="inline-flex items-center gap-2 text-sm font-semibold text-white/80">
               <span className="glow-text-sm text-emerald-400">✦</span>
               {item}
             </span>
@@ -153,7 +153,7 @@ export default function HomePage() {
             {STEPS.map((step, i) => (
               <div
                 key={step.num}
-                className={`zoom-card reveal-zoom delay-${(i+1)*100} relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
+                className={`zoom-card reveal-zoom delay-${(i+1)*100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
               >
                 {/* giant number background */}
                 <div className="pointer-events-none absolute -right-4 -top-4 select-none text-[9rem] font-black leading-none text-emerald-500/5">{step.num}</div>
@@ -272,7 +272,7 @@ export default function HomePage() {
             {PLANS.map((plan, i) => (
               <div
                 key={plan.key}
-                className={`zoom-card reveal-zoom delay-${(i+1)*100} relative overflow-hidden rounded-3xl border p-8 ${
+                className={`zoom-card reveal-zoom delay-${(i+1)*100} relative rounded-3xl border p-8 ${
                   plan.hot
                     ? "glow-border-strong border-emerald-500/50 bg-gradient-to-b from-emerald-500/10 via-emerald-500/[0.03] to-black"
                     : "border-white/10 bg-gradient-to-b from-white/[0.05] to-black"
@@ -332,7 +332,7 @@ export default function HomePage() {
             {TESTIMONIALS.map((t, i) => (
               <div
                 key={t.name}
-                className={`zoom-card reveal delay-${(i+1)*100} relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
+                className={`zoom-card reveal delay-${(i+1)*100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
               >
                 {/* big quote watermark */}
                 <div className="pointer-events-none absolute -right-3 -top-5 select-none text-[8rem] font-black leading-none text-emerald-500/5">"</div>
@@ -349,6 +349,10 @@ export default function HomePage() {
                 <div className="mt-6 flex items-center gap-3 border-t border-white/10 pt-5">
                   <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-sm font-black text-emerald-400">
                     {t.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="font-bold text-white">{t.name}</div>
+                    <div className="text-xs text-neutral-500">{t.role} · {t.loc}</div>
                   </div>
                 </div>
               </div>

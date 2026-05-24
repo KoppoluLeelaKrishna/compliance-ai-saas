@@ -19,7 +19,9 @@ from app.deps import (
     get_account_limit_for_user,
     get_connected_account,
     get_current_user,
+    get_findings,
     list_connected_accounts,
+    list_scans,
     normalize_account_row,
     sanitize_aws_account_id,
     sanitize_external_id,
@@ -148,6 +150,71 @@ def delete_account(
         raise HTTPException(status_code=404, detail="account not found")
 
     return {"status": "ok", "deleted": True, "account_id": account_id}
+
+
+@router.get("/dashboard")
+def get_dashboard(
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    accounts = [normalize_account_row(r) for r in list_connected_accounts(user_id=user["id"])]
+
+    result_accounts = []
+    total_critical = 0
+    total_high = 0
+    total_medium = 0
+    total_low = 0
+
+    for account in accounts:
+        if not account:
+            continue
+        account_id = account["id"]
+        scans = list_scans(limit=1, account_id=account_id, user_id=user["id"])
+
+        latest_scan = None
+        summary = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0, "total": 0, "pass": 0, "fail": 0, "pass_rate": 0}
+
+        if scans:
+            s = dict(scans[0])
+            latest_scan = {
+                "scan_id": s.get("scan_id"),
+                "created_at": s.get("created_at"),
+                "status": s.get("status"),
+            }
+            for f in get_findings(s["scan_id"]):
+                sev = (f.get("severity") or "LOW").upper()
+                summary["total"] += 1
+                if (f.get("status") or "").upper() == "FAIL":
+                    summary["fail"] += 1
+                    if sev in summary:
+                        summary[sev] += 1
+                else:
+                    summary["pass"] += 1
+            if summary["total"] > 0:
+                summary["pass_rate"] = round(summary["pass"] / summary["total"] * 100)
+
+        total_critical += summary["CRITICAL"]
+        total_high += summary["HIGH"]
+        total_medium += summary["MEDIUM"]
+        total_low += summary["LOW"]
+
+        result_accounts.append({
+            **account,
+            "latest_scan": latest_scan,
+            "findings_summary": summary,
+        })
+
+    return {
+        "accounts": result_accounts,
+        "totals": {
+            "accounts": len(result_accounts),
+            "critical": total_critical,
+            "high": total_high,
+            "medium": total_medium,
+            "low": total_low,
+        },
+    }
 
 
 @router.post("/accounts/test-connection/{account_id}")

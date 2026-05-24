@@ -52,6 +52,7 @@ export default function AppTopNav() {
   }
 
   const appLinks = [
+    { href: "/dashboard", label: "Dashboard" },
     { href: "/scans", label: "Scans" },
     { href: "/findings", label: "Findings" },
     { href: "/accounts", label: "Accounts" },
@@ -90,6 +91,7 @@ export default function AppTopNav() {
               {userName}
             </span>
             <button
+              type="button"
               onClick={handleLogout}
               disabled={loggingOut}
               className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-400 hover:bg-white/5 hover:text-white disabled:opacity-50 transition-colors"

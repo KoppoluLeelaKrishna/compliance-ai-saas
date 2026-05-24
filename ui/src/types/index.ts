@@ -141,6 +141,45 @@ export type FixGuidance = {
   updated_at: string;
 };
 
+export type DashboardFindingsSummary = {
+  CRITICAL: number;
+  HIGH: number;
+  MEDIUM: number;
+  LOW: number;
+  INFO: number;
+  total: number;
+  pass: number;
+  fail: number;
+  pass_rate: number;
+};
+
+export type DashboardAccount = {
+  id: number;
+  customer_name: string;
+  account_name: string;
+  aws_account_id: string;
+  region: string;
+  status: string;
+  is_active: boolean;
+  latest_scan: {
+    scan_id: string;
+    created_at: string;
+    status: string;
+  } | null;
+  findings_summary: DashboardFindingsSummary;
+};
+
+export type DashboardResponse = {
+  accounts: DashboardAccount[];
+  totals: {
+    accounts: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+};
+
 export type HealthResponse = {
   ok: boolean;
   app_env: string;

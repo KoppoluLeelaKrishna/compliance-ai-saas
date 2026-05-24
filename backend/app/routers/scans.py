@@ -358,18 +358,24 @@ def ai_analysis(
             max_tokens=1024,
             system=(
                 "You are an AWS security expert reviewing compliance scan findings. "
-                "Give concise, actionable analysis. Use bullet points. Be direct."
+                "Give concise, actionable analysis. Be direct. "
+                "IMPORTANT: Output plain text only. No markdown, no # headings, no ** bold, no __ underline. "
+                "Use plain numbered sections and dashes for bullets."
             ),
             messages=[
                 {
                     "role": "user",
                     "content": (
                         f"Here are the findings from an AWS compliance scan:\n\n{findings_summary}\n\n"
-                        "Provide:\n"
-                        "1. A 2-sentence executive summary of the security posture.\n"
-                        "2. The top 3 most critical issues to fix first and why.\n"
-                        "3. Quick wins (issues easy to fix immediately).\n"
-                        "4. Estimated remediation priority order."
+                        "Provide a plain-text response with these four sections:\n\n"
+                        "EXECUTIVE SUMMARY\n"
+                        "2 sentences on overall security posture.\n\n"
+                        "TOP ISSUES\n"
+                        "The 3 most critical issues to fix first and why.\n\n"
+                        "QUICK WINS\n"
+                        "Issues that are easy to fix immediately.\n\n"
+                        "REMEDIATION PRIORITY\n"
+                        "Suggested order to address all findings."
                     ),
                 }
             ],

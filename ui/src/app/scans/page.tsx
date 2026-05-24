@@ -517,7 +517,14 @@ export default function ScansPage() {
               Dismiss
             </button>
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-7 text-neutral-300">{aiAnalysis}</p>
+          <div className="space-y-1 text-sm leading-7 text-neutral-300">
+            {aiAnalysis.split("\n").map((line, i) => {
+              const isHeader = /^[A-Z][A-Z\s]{3,}$/.test(line.trim()) && line.trim().length < 40;
+              return isHeader
+                ? <p key={i} className="mt-3 font-bold text-emerald-400 tracking-wide text-xs uppercase">{line}</p>
+                : <p key={i} className={line.trim() === "" ? "mt-1" : ""}>{line}</p>;
+            })}
+          </div>
         </div>
       )}
 

@@ -331,89 +331,156 @@ export default function ScansPage() {
     return counts;
   }, [filteredFindings]);
 
+  function renderFormattedText(text: string) {
+    if (!text) return null;
+    const lines = text.split("\n");
+    return lines.map((line, i) => {
+      const trimmed = line.trim();
+      if (!trimmed) return <div key={i} className="h-2" />;
+      const parts = trimmed.split(/(\*\*[^*]+\*\*)/g);
+      const isHeading = parts.length === 1 && trimmed.startsWith("**") && trimmed.endsWith("**");
+      if (isHeading) {
+        return (
+          <div key={i} className="mt-4 mb-1 text-sm font-semibold text-white">
+            {trimmed.slice(2, -2)}
+          </div>
+        );
+      }
+      return (
+        <p key={i} className="text-sm leading-6 text-neutral-400">
+          {parts.map((part, j) =>
+            part.startsWith("**") && part.endsWith("**") ? (
+              <span key={j} className="font-semibold text-neutral-200">{part.slice(2, -2)}</span>
+            ) : part
+          )}
+        </p>
+      );
+    });
+  }
+
+  const SEV_CONFIG = {
+    CRITICAL: { border: "border-red-500/20", from: "from-red-500/[0.08]", text: "text-red-400", bar: "bg-red-500" },
+    HIGH:     { border: "border-orange-500/20", from: "from-orange-500/[0.08]", text: "text-orange-400", bar: "bg-orange-500" },
+    MEDIUM:   { border: "border-yellow-500/20", from: "from-yellow-500/[0.08]", text: "text-yellow-400", bar: "bg-yellow-500" },
+    LOW:      { border: "border-blue-500/20", from: "from-blue-500/[0.08]", text: "text-blue-400", bar: "bg-blue-500" },
+  } as const;
+
+  const failCount = findings.filter(f => f.status === "FAIL").length;
+  const passCount = findings.filter(f => f.status === "PASS").length;
+  const sevTotal = Object.values(severityCounts).reduce((a, b) => a + b, 0);
+
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
-        <div className="text-xl font-bold animate-pulse text-neutral-500">Loading VigiliCloud Workspace...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+          <div className="text-sm text-neutral-500">Loading workspace…</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <main className="space-y-8 pb-20">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-4xl font-bold">Scans & Findings</h1>
-          <p className="mt-2 text-neutral-400">
-            Analyze your AWS posture, track remediation, and export compliance evidence.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => window.open(`${API_BASE}/scans/${selectedScanId}/export.csv`, "_blank")}
-            disabled={!selectedScanId}
-            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium hover:bg-white/5 disabled:opacity-50 transition-colors"
-          >
-            Export CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => window.open(`${API_BASE}/scans/${selectedScanId}/export.pdf`, "_blank")}
-            disabled={!selectedScanId}
-            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium hover:bg-white/5 disabled:opacity-50 transition-colors"
-          >
-            Export PDF
-          </button>
-          <button
-            type="button"
-            onClick={() => window.open(`${API_BASE}/scans/${selectedScanId}/export.json`, "_blank")}
-            disabled={!selectedScanId}
-            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium hover:bg-white/5 disabled:opacity-50 transition-colors"
-          >
-            Export JSON
-          </button>
-          <button
-            type="button"
-            onClick={handleAiAnalysis}
-            disabled={!selectedScanId || loadingAi}
-            className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
-          >
-            {loadingAi ? "Analyzing..." : "✦ AI Analysis"}
-          </button>
-          <button
-            type="button"
-            onClick={handleRunScan}
-            disabled={running}
-            className="rounded-xl bg-emerald-500 px-5 py-2 text-sm font-bold text-black hover:bg-emerald-400 disabled:opacity-50 transition-colors"
-          >
-            {running ? "Scanning..." : "Run Scan"}
-          </button>
+    <main className="space-y-5 pb-24">
+
+      {/* ── Header card ─────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] via-transparent to-emerald-500/[0.02] p-6">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-emerald-500/[0.06] blur-3xl" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+
+          {/* Title + stats */}
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/25 bg-emerald-500/10">
+              <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 010 12c0 3.182 1.24 6.078 3.268 8.22" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Security Dashboard</h1>
+              <p className="mt-0.5 text-sm text-neutral-500">AWS posture · compliance evidence · remediation tracking</p>
+              {selectedScanId && !loadingFindings && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                  <span className="text-neutral-500">{findings.length} total findings</span>
+                  <span className="font-medium text-red-400">{failCount} failing</span>
+                  <span className="font-medium text-emerald-400">{passCount} passing</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-2.5 sm:items-end">
+            <div className="flex items-center divide-x divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
+              {[
+                { label: "CSV", href: `${API_BASE}/scans/${selectedScanId}/export.csv` },
+                { label: "PDF", href: `${API_BASE}/scans/${selectedScanId}/export.pdf` },
+                { label: "JSON", href: `${API_BASE}/scans/${selectedScanId}/export.json` },
+              ].map(({ label, href }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => window.open(href, "_blank")}
+                  disabled={!selectedScanId}
+                  className="px-3.5 py-2 text-xs font-medium text-neutral-400 hover:bg-white/[0.06] hover:text-white disabled:opacity-40 transition-colors"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleAiAnalysis}
+                disabled={!selectedScanId || loadingAi}
+                className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 transition-colors"
+              >
+                {loadingAi ? "Analyzing…" : "✦ AI Analysis"}
+              </button>
+              <button
+                type="button"
+                onClick={handleRunScan}
+                disabled={running}
+                className="rounded-xl bg-emerald-500 px-5 py-2 text-xs font-bold text-black hover:bg-emerald-400 disabled:opacity-50 transition-all active:scale-95"
+              >
+                {running ? "Scanning…" : "Run Scan"}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* ── Status message ─────────────────────────────────────────────── */}
       {(message || error) && (
-        <div className={`rounded-2xl border p-4 text-sm ${error ? "border-red-500/30 bg-red-500/10 text-red-300" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"}`}>
-          {error || message}
+        <div className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${
+          error
+            ? "border-red-500/20 bg-red-500/[0.07] text-red-300"
+            : "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-300"
+        }`}>
+          <span className="mt-0.5 text-base">{error ? "✕" : "✓"}</span>
+          <span>{error || message}</span>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((sev) => (
-          <Card key={sev} className="py-4 px-5">
-            <div className="text-xs font-semibold text-neutral-500">{sev}</div>
-            <div className={`mt-1 text-3xl font-bold ${
-              sev === 'CRITICAL' ? 'text-red-500' : 
-              sev === 'HIGH' ? 'text-orange-500' : 
-              sev === 'MEDIUM' ? 'text-yellow-500' : 
-              'text-blue-500'
-            }`}>
-              {severityCounts[sev] || 0}
+      {/* ── Severity tiles ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((sev) => {
+          const cfg = SEV_CONFIG[sev];
+          const count = severityCounts[sev] || 0;
+          const pct = sevTotal > 0 ? Math.round((count / sevTotal) * 100) : 0;
+          return (
+            <div key={sev} className={`relative overflow-hidden rounded-2xl border ${cfg.border} bg-gradient-to-br ${cfg.from} to-transparent p-5`}>
+              <div className="text-[10px] font-bold tracking-widest text-neutral-500">{sev}</div>
+              <div className={`mt-1 text-4xl font-bold ${cfg.text}`}>{count}</div>
+              <div className="mt-3 h-[2px] rounded-full bg-white/5">
+                <div className={`h-[2px] rounded-full ${cfg.bar} transition-all duration-700`} style={{ '--w': `${pct}%`, width: 'var(--w)' } as React.CSSProperties} />
+              </div>
+              <div className="mt-1.5 text-[10px] text-neutral-600">{pct}% of findings</div>
             </div>
-          </Card>
-        ))}
+          );
+        })}
       </div>
 
+      {/* ── Filters ─────────────────────────────────────────────────────── */}
       <ScanFilters
         accounts={accounts}
         scans={scans}
@@ -439,112 +506,113 @@ export default function ScansPage() {
         }}
       />
 
+      {/* ── AI Analysis ─────────────────────────────────────────────────── */}
       {aiAnalysis && (
-        <Card className="p-5">
+        <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-5">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
-              <span>✦</span>
-              <span>AI Security Analysis</span>
+              <span>✦</span><span>AI Security Analysis</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setAiAnalysis("")}
-              className="text-xs text-neutral-500 hover:text-white transition-colors"
-            >
+            <button type="button" onClick={() => setAiAnalysis("")} className="text-xs text-neutral-600 hover:text-neutral-400 transition-colors">
               Dismiss
             </button>
           </div>
           <p className="whitespace-pre-wrap text-sm leading-7 text-neutral-300">{aiAnalysis}</p>
-        </Card>
+        </div>
       )}
 
-      {/* Questionnaire autofill panel */}
-      <Card className="p-5">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* ── Security Questionnaire ──────────────────────────────────────── */}
+      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-sm font-semibold text-purple-300">
-              <span>◈</span>
-              <span>Security Questionnaire Autofill</span>
+            <div className="flex items-center gap-2 text-sm font-semibold text-violet-300">
+              <span>◈</span><span>Security Questionnaire Autofill</span>
             </div>
-            <p className="mt-1 text-xs text-neutral-500">
-              AI generates audit-ready answers based on your scan evidence.
-            </p>
+            <p className="mt-0.5 text-xs text-neutral-600">AI generates audit-ready answers from your scan evidence.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {(["soc2", "iso27001", "pci"] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => { setQuestionnaireFramework(f); setQuestionnaire(""); }}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  questionnaireFramework === f
-                    ? "border-purple-500/50 bg-purple-500/20 text-purple-300"
-                    : "border-white/10 text-neutral-400 hover:bg-white/5"
-                }`}
-              >
-                {f === "soc2" ? "SOC 2" : f === "iso27001" ? "ISO 27001" : "PCI DSS"}
-              </button>
-            ))}
+            <div className="flex items-center divide-x divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
+              {(["soc2", "iso27001", "pci"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => { setQuestionnaireFramework(f); setQuestionnaire(""); }}
+                  className={`px-3.5 py-2 text-xs font-semibold transition-colors ${
+                    questionnaireFramework === f
+                      ? "bg-violet-500/20 text-violet-300"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  }`}
+                >
+                  {f === "soc2" ? "SOC 2" : f === "iso27001" ? "ISO 27001" : "PCI DSS"}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={handleGenerateQuestionnaire}
               disabled={!selectedScanId || loadingQuestionnaire}
-              className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-1.5 text-sm font-semibold text-purple-300 hover:bg-purple-500/20 disabled:opacity-50 transition-colors"
+              className="rounded-xl border border-violet-500/25 bg-violet-500/10 px-4 py-2 text-xs font-semibold text-violet-300 hover:bg-violet-500/20 disabled:opacity-40 transition-colors"
             >
-              {loadingQuestionnaire ? "Generating..." : "Generate"}
+              {loadingQuestionnaire ? "Generating…" : "Generate"}
             </button>
           </div>
         </div>
+
         {questionnaire && (
-          <>
+          <div className="mt-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-neutral-500">Ready to paste into your questionnaire</span>
+              <span className="text-xs text-neutral-600">Ready to paste into your questionnaire</span>
               <button
                 type="button"
                 onClick={copyQuestionnaire}
-                className="rounded-lg border border-white/10 px-3 py-1 text-xs font-semibold hover:bg-white/5 transition-colors"
+                className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-1 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
               >
-                {questionnaireCopied ? "Copied!" : "Copy"}
+                {questionnaireCopied ? "Copied ✓" : "Copy"}
               </button>
             </div>
-            <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/40 p-4 text-xs leading-6 text-neutral-300">
-              {questionnaire}
-            </pre>
-          </>
+            <div className="max-h-80 overflow-y-auto rounded-xl border border-white/[0.06] bg-black/30 p-5">
+              {renderFormattedText(questionnaire)}
+            </div>
+          </div>
         )}
-      </Card>
+      </div>
 
-      {drift?.has_baseline && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* ── Drift banner ─────────────────────────────────────────────────── */}
+      {drift && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="font-semibold text-neutral-300">Drift since last scan</span>
-            {drift.summary.new > 0 && (
-              <span className="rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-xs font-bold text-cyan-400 border border-cyan-500/30">
-                +{drift.summary.new} NEW
-              </span>
-            )}
-            {drift.summary.remediated > 0 && (
-              <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-bold text-emerald-400 border border-emerald-500/30">
-                -{drift.summary.remediated} FIXED
-              </span>
-            )}
-            {drift.summary.new === 0 && drift.summary.remediated === 0 && (
-              <span className="text-neutral-500 text-xs">No changes detected</span>
+            <span className="font-medium text-neutral-300">Drift since last scan</span>
+            {drift.has_baseline ? (
+              <>
+                {drift.summary.new > 0 && (
+                  <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-bold text-cyan-400">
+                    +{drift.summary.new} NEW
+                  </span>
+                )}
+                {drift.summary.remediated > 0 && (
+                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-400">
+                    -{drift.summary.remediated} FIXED
+                  </span>
+                )}
+                {drift.summary.new === 0 && drift.summary.remediated === 0 && (
+                  <span className="text-xs text-neutral-600">No changes detected</span>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-neutral-600">No baseline — run another scan to enable drift tracking</span>
             )}
             {drift.previous_scan_date && (
-              <span className="text-neutral-600 text-xs">
-                vs {new Date(drift.previous_scan_date).toLocaleDateString()}
-              </span>
+              <span className="text-xs text-neutral-700">vs {new Date(drift.previous_scan_date).toLocaleDateString()}</span>
             )}
           </div>
-          {drift.summary.new > 0 && (
+          {drift.has_baseline && drift.summary.new > 0 && (
             <button
               type="button"
               onClick={() => setDriftFilter((v) => !v)}
-              className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
                 driftFilter
-                  ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-300"
-                  : "border-white/10 text-neutral-400 hover:bg-white/5"
+                  ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-300"
+                  : "border-white/[0.07] text-neutral-500 hover:text-neutral-300"
               }`}
             >
               {driftFilter ? "Show all" : "New issues only"}
@@ -553,12 +621,10 @@ export default function ScansPage() {
         </div>
       )}
 
-      <FindingsTable
-        findings={filteredFindings}
-        onOpenFinding={openFinding}
-        loading={loadingFindings}
-      />
+      {/* ── Findings table ───────────────────────────────────────────────── */}
+      <FindingsTable findings={filteredFindings} onOpenFinding={openFinding} loading={loadingFindings} />
 
+      {/* ── Finding detail panel ─────────────────────────────────────────── */}
       {selectedFinding && (
         <FindingDetail
           finding={selectedFinding}

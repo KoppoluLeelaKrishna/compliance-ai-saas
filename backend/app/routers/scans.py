@@ -867,12 +867,21 @@ def generate_questionnaire(
             messages=[{
                 "role": "user",
                 "content": (
-                    f"Answer the following {framework.upper()} questionnaire based on our AWS compliance scan:\n\n"
+                    f"Answer the following {framework.upper()} questionnaire based on our AWS compliance scan.\n\n"
                     f"FAILING CONTROLS ({len(fail_findings)}):\n{fail_summary}\n\n"
                     f"PASSING CONTROLS ({len(pass_findings)}):\n{pass_summary}\n\n"
                     f"{framework_questions[framework]}\n\n"
-                    "For each item: 2-3 sentences, cite specific scan evidence, acknowledge gaps honestly.\n"
-                    "Format: **[Control ID]: [Question summary]**\n[Answer]\n\n"
+                    "Rules:\n"
+                    "- Do NOT use # or ## markdown headings\n"
+                    "- Do NOT use horizontal rules (---)\n"
+                    "- For each control: bold the control ID+title on its own line, then the answer paragraph below\n"
+                    "- 2-3 sentences per answer, cite specific check IDs as evidence\n"
+                    "- Acknowledge gaps honestly, note remediation is in progress\n"
+                    "Format exactly like this:\n"
+                    "**CC6.1: Logical Access Controls**\n"
+                    "Answer text here citing evidence...\n\n"
+                    "**CC6.6: Network Security**\n"
+                    "Answer text here...\n\n"
                 ),
             }],
         )

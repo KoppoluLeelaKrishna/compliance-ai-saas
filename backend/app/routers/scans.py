@@ -478,6 +478,312 @@ def ticket_draft(
     return {"scan_id": scan_id, "check_id": check_id, "resource_id": resource_id, "format": fmt, "ticket": ticket_text}
 
 
+@router.get("/scans/{scan_id}/export.pdf")
+def export_scan_pdf(
+    scan_id: str,
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    require_export_access(user)
+    s = require_scan_owner(scan_id, user["id"])
+
+    rows = _export_rows(scan_id)
+    account = get_scan_account_link(scan_id)
+    scan_data = enrich_scan(dict(s))
+
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        raise HTTPException(status_code=503, detail="PDF export not available (fpdf2 not installed).")
+
+    SEV_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+    SEV_COLORS = {
+        "CRITICAL": (220, 38, 38),
+        "HIGH": (234, 88, 12),
+        "MEDIUM": (202, 138, 4),
+        "LOW": (37, 99, 235),
+    }
+
+    fail_rows = [r for r in rows if r.get("status") == "FAIL"]
+    pass_rows = [r for r in rows if r.get("status") == "PASS"]
+    counts: Dict[str, int] = {}
+    for r in fail_rows:
+        sev = r.get("severity", "LOW")
+        counts[sev] = counts.get(sev, 0) + 1
+
+    scan_date = (scan_data.get("created_at") or "")[:10]
+    acct_name = account.get("account_name", "") if account else ""
+    aws_id = account.get("aws_account_id", "") if account else ""
+    region = account.get("region", "") if account else ""
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # ── Cover page ──────────────────────────────────────────────────────────
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 28)
+    pdf.set_text_color(16, 185, 129)
+    pdf.ln(20)
+    pdf.cell(0, 14, "VigiliCloud", align="C")
+    pdf.ln(14)
+    pdf.set_font("Helvetica", "", 14)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 10, "AWS Compliance Evidence Pack", align="C")
+    pdf.ln(20)
+
+    pdf.set_draw_color(40, 40, 40)
+    pdf.set_line_width(0.3)
+    pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+    pdf.ln(10)
+
+    def meta_row(label: str, value: str) -> None:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(80, 80, 80)
+        pdf.cell(55, 8, label)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.set_text_color(30, 30, 30)
+        pdf.cell(0, 8, value[:80])
+        pdf.ln(8)
+
+    meta_row("Scan ID:", scan_id)
+    meta_row("Generated:", scan_date)
+    if acct_name:
+        meta_row("Account:", f"{acct_name}  ({aws_id})")
+    if region:
+        meta_row("Region:", region)
+    meta_row("Total Findings:", str(len(rows)))
+    meta_row("Failing Controls:", str(len(fail_rows)))
+    meta_row("Passing Controls:", str(len(pass_rows)))
+    meta_row("Framework:", "CIS AWS Foundations Benchmark v1.4")
+
+    pdf.ln(10)
+    pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+    pdf.ln(10)
+
+    # Severity summary boxes
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(30, 30, 30)
+    pdf.cell(0, 8, "Severity Breakdown")
+    pdf.ln(10)
+
+    box_w = 38
+    for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+        count = counts.get(sev, 0)
+        r, g, b = SEV_COLORS.get(sev, (80, 80, 80))
+        pdf.set_fill_color(r, g, b)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(box_w, 7, sev, border=0, fill=True, align="C")
+        pdf.set_font("Helvetica", "B", 18)
+        pdf.ln(7)
+        pdf.set_fill_color(r + 30 if r + 30 <= 255 else 255, g + 30 if g + 30 <= 255 else 255, b + 30 if b + 30 <= 255 else 255)
+        pdf.set_x(pdf.get_x())
+        # reposition to right column
+    # draw them side by side
+    pdf.set_y(pdf.get_y() - 7)
+    x_start = 20
+    for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+        count = counts.get(sev, 0)
+        r, g, b = SEV_COLORS.get(sev, (80, 80, 80))
+        pdf.set_x(x_start)
+        pdf.set_fill_color(r, g, b)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(box_w - 2, 6, sev, border=0, fill=True, align="C")
+        x_start += box_w
+    pdf.ln(6)
+    x_start = 20
+    for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+        count = counts.get(sev, 0)
+        r, g, b = SEV_COLORS.get(sev, (80, 80, 80))
+        pdf.set_x(x_start)
+        pdf.set_fill_color(r + 20 if r + 20 <= 255 else 255, g + 20 if g + 20 <= 255 else 255, b + 20 if b + 20 <= 255 else 255)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 20)
+        pdf.cell(box_w - 2, 14, str(count), border=0, fill=True, align="C")
+        x_start += box_w
+    pdf.ln(20)
+
+    # ── Findings table ────────────────────────────────────────────────────
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.set_text_color(30, 30, 30)
+    pdf.cell(0, 10, "Findings Detail (FAIL)")
+    pdf.ln(12)
+
+    col_w = [22, 20, 52, 72, 14]
+    headers = ["Severity", "Service", "Check ID", "Resource", "Status"]
+
+    pdf.set_fill_color(30, 30, 30)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 8)
+    for i, h in enumerate(headers):
+        pdf.cell(col_w[i], 7, h, border=1, fill=True, align="C")
+    pdf.ln(7)
+
+    sorted_fail = sorted(fail_rows, key=lambda r: SEV_ORDER.get(r.get("severity", "LOW"), 4))
+    pdf.set_font("Helvetica", "", 7)
+
+    for row in sorted_fail:
+        sev = str(row.get("severity", ""))
+        r, g, b = SEV_COLORS.get(sev, (80, 80, 80))
+        pdf.set_text_color(r, g, b)
+        pdf.set_font("Helvetica", "B", 7)
+        pdf.cell(col_w[0], 6, sev[:20], border=1)
+        pdf.set_text_color(30, 30, 30)
+        pdf.set_font("Helvetica", "", 7)
+        pdf.cell(col_w[1], 6, str(row.get("service", ""))[:18], border=1)
+        pdf.cell(col_w[2], 6, str(row.get("check_id", ""))[:38], border=1)
+        res = str(row.get("resource_id", ""))
+        pdf.cell(col_w[3], 6, res[:55] if len(res) <= 55 else res[:52] + "...", border=1)
+        pdf.set_text_color(220, 38, 38)
+        pdf.set_font("Helvetica", "B", 7)
+        pdf.cell(col_w[4], 6, "FAIL", border=1, align="C")
+        pdf.set_text_color(30, 30, 30)
+        pdf.set_font("Helvetica", "", 7)
+        pdf.ln(6)
+
+    # Passing controls
+    if pass_rows:
+        pdf.ln(6)
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_text_color(30, 30, 30)
+        pdf.cell(0, 10, "Passing Controls")
+        pdf.ln(12)
+
+        pdf.set_fill_color(30, 30, 30)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 8)
+        pass_cols = [20, 52, 100]
+        for h, w in zip(["Service", "Check ID", "Resource"], pass_cols):
+            pdf.cell(w, 7, h, border=1, fill=True, align="C")
+        pdf.ln(7)
+
+        pdf.set_font("Helvetica", "", 7)
+        for row in pass_rows:
+            pdf.set_text_color(16, 185, 129)
+            pdf.cell(pass_cols[0], 6, str(row.get("service", ""))[:18], border=1)
+            pdf.set_text_color(30, 30, 30)
+            pdf.cell(pass_cols[1], 6, str(row.get("check_id", ""))[:38], border=1)
+            res = str(row.get("resource_id", ""))
+            pdf.cell(pass_cols[2], 6, res[:70] if len(res) <= 70 else res[:67] + "...", border=1)
+            pdf.ln(6)
+
+    # Footer
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(150, 150, 150)
+    pdf.cell(0, 5, f"Generated by VigiliCloud | {scan_date} | CIS AWS Foundations Benchmark v1.4", align="C")
+
+    pdf_bytes = bytes(pdf.output())
+    filename = f"vigilicloud-evidence-{scan_id[:8]}.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/scans/{scan_id}/questionnaire")
+def generate_questionnaire(
+    scan_id: str,
+    framework: str = Query(default="soc2"),
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
+
+    if framework not in ("soc2", "iso27001", "pci"):
+        raise HTTPException(status_code=400, detail="framework must be soc2, iso27001, or pci")
+
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not anthropic_key:
+        raise HTTPException(status_code=503, detail="Questionnaire generation is not configured.")
+
+    rows = _export_rows(scan_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Scan not found or has no findings.")
+
+    fail_findings = [r for r in rows if r.get("status") == "FAIL"]
+    pass_findings = [r for r in rows if r.get("status") == "PASS"]
+
+    fail_summary = "\n".join(
+        f"FAIL [{r.get('severity')}] {r.get('service')}: {r.get('check_id')} on {r.get('resource_id', '')[:60]}"
+        for r in fail_findings[:30]
+    )
+    pass_summary = "\n".join(
+        f"PASS {r.get('service')}: {r.get('check_id')}"
+        for r in pass_findings[:20]
+    )
+
+    framework_questions: Dict[str, str] = {
+        "soc2": (
+            "SOC 2 Trust Services Criteria — answer each:\n"
+            "CC6.1: How does the organization implement logical access controls?\n"
+            "CC6.6: How does the organization manage network security?\n"
+            "CC6.7: How does the organization protect data in transit and at rest?\n"
+            "CC7.2: How does the organization monitor for security incidents?\n"
+            "A1.2: How does the organization protect system availability?\n"
+            "C1.1: How does the organization protect the confidentiality of information?"
+        ),
+        "iso27001": (
+            "ISO 27001:2022 Annex A — answer each:\n"
+            "A.5.15: How does the organization control access to information assets?\n"
+            "A.8.3: How does the organization protect information access rights?\n"
+            "A.8.20: How does the organization implement network security controls?\n"
+            "A.8.24: How does the organization apply cryptographic controls?\n"
+            "A.8.15: How does the organization implement logging and monitoring?\n"
+            "A.5.33: How does the organization protect records and audit evidence?"
+        ),
+        "pci": (
+            "PCI DSS v4.0 Requirements — answer each:\n"
+            "Req 1: How does the organization install and maintain network security controls?\n"
+            "Req 2: How are secure configurations applied to all system components?\n"
+            "Req 3: How does the organization protect stored account data (encryption)?\n"
+            "Req 7: How is access to system components restricted by least privilege?\n"
+            "Req 8: How are users identified and authenticated to system components?\n"
+            "Req 10: How is all access to system components logged and monitored?"
+        ),
+    }
+
+    try:
+        import anthropic as _anthropic
+        client = _anthropic.Anthropic(api_key=anthropic_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=2000,
+            system=(
+                "You are a compliance expert helping organizations answer security questionnaires. "
+                "Generate honest, specific answers based on AWS scan evidence. "
+                "Where controls pass, cite them as evidence. Where controls fail, acknowledge the gap "
+                "and note that remediation is in progress. Use professional language for audits."
+            ),
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Answer the following {framework.upper()} questionnaire based on our AWS compliance scan:\n\n"
+                    f"FAILING CONTROLS ({len(fail_findings)}):\n{fail_summary}\n\n"
+                    f"PASSING CONTROLS ({len(pass_findings)}):\n{pass_summary}\n\n"
+                    f"{framework_questions[framework]}\n\n"
+                    "For each item: 2-3 sentences, cite specific scan evidence, acknowledge gaps honestly.\n"
+                    "Format: **[Control ID]: [Question summary]**\n[Answer]\n\n"
+                ),
+            }],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Questionnaire generation failed: {str(e)}")
+
+    text = next((b.text for b in response.content if b.type == "text"), "")
+    return {
+        "scan_id": scan_id,
+        "framework": framework.upper(),
+        "questionnaire": text,
+        "findings_analyzed": len(rows),
+    }
+
+
 @router.get("/scans/{scan_id}/export.json")
 def export_scan_json(
     scan_id: str,

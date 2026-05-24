@@ -51,6 +51,11 @@ export default function ScansPage() {
   const [aiAnalysis, setAiAnalysis] = useState("");
   const [loadingAi, setLoadingAi] = useState(false);
 
+  const [questionnaire, setQuestionnaire] = useState("");
+  const [questionnaireFramework, setQuestionnaireFramework] = useState<"soc2" | "iso27001" | "pci">("soc2");
+  const [loadingQuestionnaire, setLoadingQuestionnaire] = useState(false);
+  const [questionnaireCopied, setQuestionnaireCopied] = useState(false);
+
   const [drift, setDrift] = useState<DriftSummary | null>(null);
   const [driftFilter, setDriftFilter] = useState(false);
 
@@ -294,6 +299,30 @@ export default function ScansPage() {
     }
   }
 
+  async function handleGenerateQuestionnaire() {
+    if (!selectedScanId || loadingQuestionnaire) return;
+    setLoadingQuestionnaire(true);
+    setQuestionnaire("");
+    setError("");
+    try {
+      const data = await api<{ questionnaire: string }>(
+        `/scans/${selectedScanId}/questionnaire?framework=${questionnaireFramework}`,
+        { method: "POST" }
+      );
+      setQuestionnaire(data.questionnaire);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Questionnaire generation failed");
+    } finally {
+      setLoadingQuestionnaire(false);
+    }
+  }
+
+  function copyQuestionnaire() {
+    navigator.clipboard.writeText(questionnaire);
+    setQuestionnaireCopied(true);
+    setTimeout(() => setQuestionnaireCopied(false), 1800);
+  }
+
   const severityCounts = useMemo(() => {
     const counts: Record<string, number> = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
     filteredFindings.forEach(f => {
@@ -320,6 +349,22 @@ export default function ScansPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => window.open(`${API_BASE}/scans/${selectedScanId}/export.csv`, "_blank")}
+            disabled={!selectedScanId}
+            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium hover:bg-white/5 disabled:opacity-50 transition-colors"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => window.open(`${API_BASE}/scans/${selectedScanId}/export.pdf`, "_blank")}
+            disabled={!selectedScanId}
+            className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium hover:bg-white/5 disabled:opacity-50 transition-colors"
+          >
+            Export PDF
+          </button>
           <button
             type="button"
             onClick={() => window.open(`${API_BASE}/scans/${selectedScanId}/export.json`, "_blank")}
@@ -412,6 +457,62 @@ export default function ScansPage() {
           <p className="whitespace-pre-wrap text-sm leading-7 text-neutral-300">{aiAnalysis}</p>
         </Card>
       )}
+
+      {/* Questionnaire autofill panel */}
+      <Card className="p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-purple-300">
+              <span>◈</span>
+              <span>Security Questionnaire Autofill</span>
+            </div>
+            <p className="mt-1 text-xs text-neutral-500">
+              AI generates audit-ready answers based on your scan evidence.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {(["soc2", "iso27001", "pci"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => { setQuestionnaireFramework(f); setQuestionnaire(""); }}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  questionnaireFramework === f
+                    ? "border-purple-500/50 bg-purple-500/20 text-purple-300"
+                    : "border-white/10 text-neutral-400 hover:bg-white/5"
+                }`}
+              >
+                {f === "soc2" ? "SOC 2" : f === "iso27001" ? "ISO 27001" : "PCI DSS"}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={handleGenerateQuestionnaire}
+              disabled={!selectedScanId || loadingQuestionnaire}
+              className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-1.5 text-sm font-semibold text-purple-300 hover:bg-purple-500/20 disabled:opacity-50 transition-colors"
+            >
+              {loadingQuestionnaire ? "Generating..." : "Generate"}
+            </button>
+          </div>
+        </div>
+        {questionnaire && (
+          <>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs text-neutral-500">Ready to paste into your questionnaire</span>
+              <button
+                type="button"
+                onClick={copyQuestionnaire}
+                className="rounded-lg border border-white/10 px-3 py-1 text-xs font-semibold hover:bg-white/5 transition-colors"
+              >
+                {questionnaireCopied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+            <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/40 p-4 text-xs leading-6 text-neutral-300">
+              {questionnaire}
+            </pre>
+          </>
+        )}
+      </Card>
 
       {drift?.has_baseline && (
         <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">

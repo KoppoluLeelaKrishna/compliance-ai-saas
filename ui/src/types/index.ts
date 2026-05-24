@@ -25,10 +25,15 @@ export type BillingMe = {
   subscription_status: string;
   account_limit: number;
   connected_accounts_used: number;
+  capabilities?: {
+    account_linked_scans: boolean;
+    exports: boolean;
+  };
   razorpay?: {
     configured: boolean;
     webhook_configured: boolean;
     checkout_ready: boolean;
+    portal_ready?: boolean;
   };
 };
 

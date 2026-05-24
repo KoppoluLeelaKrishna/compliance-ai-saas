@@ -33,6 +33,7 @@ from app.deps import (
     get_actions,
     get_current_user,
     get_findings,
+    get_fix_guidance,
     get_previous_scan_id,
     get_scan,
     get_scan_account_link,
@@ -384,6 +385,97 @@ def ai_analysis(
         (block.text for block in response.content if block.type == "text"), ""
     )
     return {"scan_id": scan_id, "analysis": analysis_text, "findings_count": len(rows)}
+
+
+@router.post("/scans/{scan_id}/ticket-draft")
+def ticket_draft(
+    scan_id: str,
+    check_id: str = Query(...),
+    resource_id: str = Query(...),
+    fmt: str = Query(default="jira", alias="format"),
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
+
+    if fmt not in ("jira", "github"):
+        raise HTTPException(status_code=400, detail="format must be 'jira' or 'github'")
+    if len(check_id) > 200 or len(resource_id) > 500:
+        raise HTTPException(status_code=400, detail="check_id or resource_id too long")
+
+    findings = get_findings(scan_id)
+    finding = next(
+        (f for f in findings if f["check_id"] == check_id and f["resource_id"] == resource_id),
+        None,
+    )
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found in this scan")
+
+    guidance = get_fix_guidance(check_id)
+
+    steps_text = "\n".join(f"{i+1}. {s}" for i, s in enumerate(guidance["steps"])) if guidance else ""
+    cli_text = "\n".join(guidance["cli"]) if guidance else ""
+    summary_text = guidance["summary"] if guidance else finding.get("title", "")
+
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not anthropic_key:
+        raise HTTPException(status_code=503, detail="AI ticket generation is not configured on this server.")
+
+    if fmt == "jira":
+        format_instructions = (
+            "Format as a Jira ticket using Jira wiki markup (h2. headings, {code:bash} blocks, # lists for steps, * for bullet points). "
+            "Include: Title line (no heading), then Priority, Labels, then sections: "
+            "h2. Summary, h2. Affected Resource, h2. Risk, h2. Steps to Remediate, "
+            "h2. CLI Remediation (in {code:bash} block), h2. Acceptance Criteria (checkboxes as * [ ]), h2. References."
+        )
+    else:
+        format_instructions = (
+            "Format as a GitHub issue using Markdown. "
+            "Start with a bold metadata block (Service, Resource, Severity, Check, Detected, Scan ID), then sections: "
+            "## Summary, ## Risk, ## Steps to Remediate (numbered), ## CLI Remediation (```bash block), "
+            "## Acceptance Criteria (- [ ] checkboxes). End with a horizontal rule and attribution line."
+        )
+
+    finding_info = (
+        f"Title: {finding.get('title', '')}\n"
+        f"Service: {finding.get('service', '')}\n"
+        f"Severity: {finding.get('severity', '')}\n"
+        f"Check ID: {check_id}\n"
+        f"Resource: {resource_id}\n"
+        f"Scan ID: {scan_id}\n"
+        f"Detected: {finding.get('created_at', '')[:10]}\n"
+        f"Summary: {summary_text}\n"
+        f"Fix Steps:\n{steps_text}\n"
+        f"CLI:\n{cli_text}"
+    )
+
+    try:
+        import anthropic as _anthropic
+        client = _anthropic.Anthropic(api_key=anthropic_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1200,
+            system=(
+                "You are a senior DevSecOps engineer writing compliance remediation tickets. "
+                "Write clearly and concisely. Every ticket must be immediately actionable — "
+                "an engineer reading it should know exactly what to do without needing to look anything up."
+            ),
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Generate a {fmt.upper()} ticket for this AWS compliance finding:\n\n"
+                    f"{finding_info}\n\n"
+                    f"{format_instructions}\n\n"
+                    "Output only the ticket content, nothing else."
+                ),
+            }],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Ticket generation failed: {str(e)}")
+
+    ticket_text = next((b.text for b in response.content if b.type == "text"), "")
+    return {"scan_id": scan_id, "check_id": check_id, "resource_id": resource_id, "format": fmt, "ticket": ticket_text}
 
 
 @router.get("/scans/{scan_id}/export.json")

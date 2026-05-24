@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ApprovalEvent, ApprovalStatus, Finding, FixGuidance } from "@/types";
-import { badgeClasses, fmtDate } from "@/lib/api";
+import { api, badgeClasses, fmtDate } from "@/lib/api";
 
 interface FindingDetailProps {
   finding: Finding | null;
@@ -53,9 +53,42 @@ export function FindingDetail({
   const [approvalNote, setApprovalNote] = useState("");
   const [showAuditLog, setShowAuditLog] = useState(false);
 
+  const [ticketFormat, setTicketFormat] = useState<"jira" | "github">("jira");
+  const [ticket, setTicket] = useState("");
+  const [generatingTicket, setGeneratingTicket] = useState(false);
+  const [ticketCopied, setTicketCopied] = useState(false);
+
   if (!finding) return null;
 
   const approvalStatus: ApprovalStatus = finding.approval_status || "OPEN";
+
+  async function generateTicket() {
+    if (!finding) return;
+    setGeneratingTicket(true);
+    setTicket("");
+    try {
+      const params = new URLSearchParams({
+        check_id: finding.check_id,
+        resource_id: finding.resource_id,
+        format: ticketFormat,
+      });
+      const data = await api<{ ticket: string }>(
+        `/scans/${finding.scan_id}/ticket-draft?${params}`,
+        { method: "POST" }
+      );
+      setTicket(data.ticket || "");
+    } catch {
+      setTicket("Failed to generate ticket. Check that ANTHROPIC_API_KEY is configured.");
+    } finally {
+      setGeneratingTicket(false);
+    }
+  }
+
+  function copyTicket() {
+    navigator.clipboard.writeText(ticket);
+    setTicketCopied(true);
+    setTimeout(() => setTicketCopied(false), 1800);
+  }
 
   async function handleRequestFix() {
     if (!onRequestFix) return;
@@ -316,6 +349,60 @@ export function FindingDetail({
               {actionSaving === "IGNORED" ? "Saving..." : "Mark as Ignored"}
             </button>
           </div>
+        </section>
+
+        {/* Ticket Draft Section */}
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold">Generate Ticket</h3>
+            <div className="flex rounded-xl border border-white/10 overflow-hidden text-xs font-semibold">
+              {(["jira", "github"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => { setTicketFormat(f); setTicket(""); }}
+                  className={`px-3 py-1.5 transition-colors ${
+                    ticketFormat === f
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  }`}
+                >
+                  {f === "jira" ? "Jira" : "GitHub"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-sm text-neutral-400">
+            Generate a ready-to-paste {ticketFormat === "jira" ? "Jira" : "GitHub"} ticket with title, description, risk, fix steps, CLI, and acceptance criteria.
+          </p>
+
+          <button
+            type="button"
+            onClick={generateTicket}
+            disabled={generatingTicket}
+            className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+          >
+            {generatingTicket ? "Generating..." : `Generate ${ticketFormat === "jira" ? "Jira" : "GitHub"} Ticket`}
+          </button>
+
+          {ticket && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-neutral-500">Ready to paste</span>
+                <button
+                  type="button"
+                  onClick={copyTicket}
+                  className="rounded-lg border border-white/10 px-3 py-1 text-xs font-semibold hover:bg-white/5 transition-colors"
+                >
+                  {ticketCopied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+              <pre className="overflow-auto rounded-xl border border-white/10 bg-black p-4 text-xs text-neutral-300 whitespace-pre-wrap max-h-80">
+                {ticket}
+              </pre>
+            </div>
+          )}
         </section>
 
         <section>

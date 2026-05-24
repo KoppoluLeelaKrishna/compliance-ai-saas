@@ -552,6 +552,17 @@ def export_scan_pdf(
             self.ln(12)
 
         def footer(self) -> None:
+            # ── CONFIDENTIAL watermark — every page ────────────────
+            self.set_font("Helvetica", "B", 68)
+            self.set_text_color(120, 120, 120)
+            self.set_alpha(0.12)
+            with self.rotation(angle=45, x=105, y=148.5):
+                tw = self.get_string_width("CONFIDENTIAL")
+                self.text(x=105 - tw / 2, y=155, txt="CONFIDENTIAL")
+            self.set_alpha(1.0)
+            self.set_text_color(0, 0, 0)
+
+            # ── Running footer line — pages 2+ only ────────────────
             if self.page_no() == 1:
                 return
             self.set_y(-12)

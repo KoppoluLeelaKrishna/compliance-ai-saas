@@ -108,6 +108,16 @@ RAZORPAY_PLAN_IDS: dict = {
 }
 
 # ---------------------------------------------------------------------------
+# GitHub OAuth
+# ---------------------------------------------------------------------------
+GITHUB_CLIENT_ID: str = os.getenv("GITHUB_CLIENT_ID", "").strip()
+GITHUB_CLIENT_SECRET: str = os.getenv("GITHUB_CLIENT_SECRET", "").strip()
+GITHUB_CALLBACK_URL: str = os.getenv(
+    "GITHUB_CALLBACK_URL",
+    "http://localhost:8000/auth/github/callback",
+).strip()
+
+# ---------------------------------------------------------------------------
 # Email
 # ---------------------------------------------------------------------------
 RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "").strip()

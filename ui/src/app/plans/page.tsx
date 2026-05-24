@@ -24,26 +24,52 @@ const PLAN_CARDS = [
     key: "starter",
     title: "Starter",
     price: "₹8,299/mo",
-    usd: "~$99/mo",
+    usd: "$99",
+    period: "/mo",
     description: "For solo teams starting AWS compliance checks.",
-    bullets: ["Up to 3 AWS accounts", "Core scans", "Dashboard + exports"],
+    bullets: [
+      "Up to 3 AWS accounts",
+      "All 10 security checks",
+      "Fix guidance & remediation",
+      "CSV / JSON / PDF exports",
+      "Email alerts on CRITICAL",
+    ],
+    highlighted: false,
+    color: "border-white/[0.07]",
   },
   {
     key: "pro",
     title: "Pro",
     price: "₹24,999/mo",
-    usd: "~$299/mo",
+    usd: "$299",
+    period: "/mo",
     description: "For growing teams managing multiple customer environments.",
-    bullets: ["Up to 10 AWS accounts", "Better reporting", "Operational scaling"],
+    bullets: [
+      "Up to 10 AWS accounts",
+      "Everything in Starter",
+      "AI security analysis",
+      "Scheduled daily scans",
+      "Approval gate workflows",
+    ],
     highlighted: true,
+    color: "border-emerald-500/40",
   },
   {
     key: "msp",
     title: "MSP",
     price: "₹83,499+/mo",
-    usd: "~$999+/mo",
+    usd: "$999+",
+    period: "/mo",
     description: "For agencies and managed service providers.",
-    bullets: ["Many accounts", "Multi-customer workflows", "High-volume usage"],
+    bullets: [
+      "Unlimited AWS accounts",
+      "Everything in Pro",
+      "Multi-customer workflows",
+      "High-volume scanning",
+      "Priority support",
+    ],
+    highlighted: false,
+    color: "border-white/[0.07]",
   },
 ];
 
@@ -65,6 +91,17 @@ function loadRazorpayScript(): Promise<boolean> {
   });
 }
 
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.detail || "Request failed");
+  return data as T;
+}
+
 export default function PlansPage() {
   const [billing, setBilling] = useState<BillingState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,17 +110,6 @@ export default function PlansPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-
-  async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...init,
-      credentials: "include",
-      headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.detail || "Request failed");
-    return data as T;
-  }
 
   async function loadBilling() {
     try {
@@ -106,7 +132,7 @@ export default function PlansPage() {
       setBilling(data);
       if (showMessage) {
         setSuccessMessage("Billing status refreshed.");
-        setTimeout(() => setSuccessMessage(""), 2000);
+        setTimeout(() => setSuccessMessage(""), 2500);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Billing refresh failed");
@@ -162,9 +188,7 @@ export default function PlansPage() {
             setCheckoutLoading(null);
           }
         },
-        modal: {
-          ondismiss: () => setCheckoutLoading(null),
-        },
+        modal: { ondismiss: () => setCheckoutLoading(null) },
       };
 
       const rzp = new window.Razorpay(options);
@@ -195,181 +219,190 @@ export default function PlansPage() {
   const rzConfig = billing?.razorpay;
 
   const statusBadge = useMemo(() => {
-    if (!rzConfig?.configured) return { label: "NOT CONFIGURED", cls: "border-red-800 bg-red-950 text-red-300" };
-    if (rzConfig.checkout_ready) return { label: "READY", cls: "border-emerald-700 bg-emerald-950 text-emerald-300" };
-    return { label: "PARTIAL SETUP", cls: "border-yellow-700 bg-yellow-950 text-yellow-300" };
+    if (!rzConfig?.configured) return { label: "NOT CONFIGURED", cls: "border-red-500/30 bg-red-500/10 text-red-400" };
+    if (rzConfig.checkout_ready) return { label: "READY", cls: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" };
+    return { label: "PARTIAL", cls: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400" };
   }, [rzConfig]);
 
   return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Plans & Billing</h1>
-          <p className="mt-2 text-sm text-neutral-400">
-            Simple pricing for VigiliCloud pilots, growing teams, and MSP workflows.
-          </p>
+    <main className="space-y-5 pb-24">
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] via-transparent to-emerald-500/[0.02] p-6">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-emerald-500/[0.05] blur-3xl" />
+        <div className="relative flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/25 bg-emerald-500/10">
+            <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Plans & Billing</h1>
+            <p className="mt-0.5 text-sm text-neutral-500">Simple pricing for pilots, growing teams, and MSP workflows</p>
+            {!loading && billing && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                <span className="font-medium text-violet-400">{(billing.subscription_status || "free").toUpperCase()} plan</span>
+                <span className="text-neutral-500">{billing.connected_accounts_used}/{billing.account_limit} accounts</span>
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${statusBadge.cls}`}>{statusBadge.label}</span>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
 
-        {successMessage && (
-          <div className="mb-5 rounded-2xl border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-200">
-            {successMessage}
-          </div>
-        )}
-        {error && (
-          <div className="mb-5 rounded-2xl border border-red-800 bg-red-950 px-4 py-3 text-sm text-red-200">
-            {error}
-          </div>
-        )}
+      {/* ── Status ─────────────────────────────────────────────────────── */}
+      {(successMessage || error) && (
+        <div className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${error ? "border-red-500/20 bg-red-500/[0.07] text-red-300" : "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-300"}`}>
+          <span className="mt-0.5">{error ? "✕" : "✓"}</span>
+          <span>{error || successMessage}</span>
+        </div>
+      )}
 
-        <section className="mb-6 rounded-3xl border border-neutral-800 bg-neutral-950 p-6">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm text-neutral-400">Payment Provider</div>
-              <div className="mt-1 text-xl font-bold">Razorpay</div>
+      {/* ── Current plan summary ────────────────────────────────────────── */}
+      <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Current Plan</div>
+            <div className="mt-1 text-4xl font-black text-white">
+              {loading ? "…" : (billing?.subscription_status || "free").toUpperCase()}
             </div>
-            <span className={`rounded-full border px-3 py-1 text-xs font-medium ${statusBadge.cls}`}>
-              {loading ? "Checking..." : statusBadge.label}
-            </span>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-neutral-800 bg-black p-4">
-              <div className="text-sm text-neutral-400">Checkout Ready</div>
-              <div className="mt-2 text-2xl font-bold">
-                {loading ? "..." : rzConfig?.checkout_ready ? "Yes" : "No"}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-neutral-800 bg-black p-4">
-              <div className="text-sm text-neutral-400">Webhook Configured</div>
-              <div className="mt-2 text-2xl font-bold">
-                {loading ? "..." : rzConfig?.webhook_configured ? "Yes" : "No"}
-              </div>
+            <div className="mt-1 text-sm text-neutral-500">
+              {loading ? "" : `${billing?.connected_accounts_used ?? 0} of ${billing?.account_limit ?? 1} accounts used`}
             </div>
           </div>
-        </section>
-
-        <section className="mb-8 rounded-3xl border border-neutral-800 bg-neutral-950 p-6">
-          <div className="text-sm text-neutral-400">Current Plan</div>
-          <div className="mt-3 text-5xl font-bold">
-            {loading ? "..." : (billing?.subscription_status || "free").toUpperCase()}
-          </div>
-          <div className="mt-4 text-lg text-neutral-300">
-            Account usage: {billing?.connected_accounts_used ?? 0}/{billing?.account_limit ?? 1}
-          </div>
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             {isPaidPlan && (
               <button
                 type="button"
                 onClick={handleCancel}
                 disabled={cancelLoading}
-                className="rounded-2xl border border-red-800 bg-red-950/50 px-5 py-3 text-sm text-red-300 hover:bg-red-950 disabled:opacity-60 transition-colors"
+                className="rounded-xl border border-red-500/20 bg-red-500/[0.07] px-4 py-2 text-sm text-red-400 hover:bg-red-500/[0.12] disabled:opacity-40 transition-colors"
               >
-                {cancelLoading ? "Cancelling..." : "Cancel Subscription"}
+                {cancelLoading ? "Cancelling…" : "Cancel Subscription"}
               </button>
             )}
             <button
               type="button"
               onClick={() => syncBilling(true)}
               disabled={syncLoading}
-              className="rounded-2xl border border-neutral-800 px-5 py-3 text-sm hover:bg-neutral-900 disabled:opacity-60 transition-colors"
+              className="rounded-xl border border-white/[0.07] px-4 py-2 text-sm text-neutral-400 hover:bg-white/[0.05] hover:text-white disabled:opacity-40 transition-colors"
             >
-              {syncLoading ? "Refreshing..." : "Refresh Billing"}
+              {syncLoading ? "Syncing…" : "↺ Refresh Billing"}
             </button>
+          </div>
+        </div>
+
+        {/* Razorpay status strip */}
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: "Payment Provider", value: "Razorpay", color: "text-white" },
+            { label: "Checkout Ready", value: loading ? "…" : rzConfig?.checkout_ready ? "Yes" : "No", color: rzConfig?.checkout_ready ? "text-emerald-400" : "text-red-400" },
+            { label: "Webhook", value: loading ? "…" : rzConfig?.webhook_configured ? "Configured" : "Missing", color: rzConfig?.webhook_configured ? "text-emerald-400" : "text-yellow-400" },
+            { label: "Status", value: loading ? "…" : statusBadge.label, color: rzConfig?.checkout_ready ? "text-emerald-400" : "text-yellow-400" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="rounded-xl border border-white/[0.06] bg-black/30 px-4 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{label}</div>
+              <div className={`mt-1 font-semibold ${color}`}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Plan cards ──────────────────────────────────────────────────── */}
+      <p className="text-xs text-neutral-600">All plans billed in INR via Razorpay. USD prices shown for reference — the INR amount is fixed.</p>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {PLAN_CARDS.map((plan) => {
+          const isCurrent = currentPlanKey === plan.key;
+          const checkoutBlocked = !rzConfig?.checkout_ready;
+
+          return (
+            <div
+              key={plan.key}
+              className={`relative rounded-3xl border bg-white/[0.02] p-7 transition-all ${plan.highlighted ? "border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] to-transparent" : "border-white/[0.07]"} ${isCurrent ? "ring-1 ring-emerald-500/30" : ""}`}
+            >
+              {plan.highlighted && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-4 py-1 text-[10px] font-bold text-black">
+                  MOST POPULAR
+                </div>
+              )}
+
+              <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-500">{plan.title}</div>
+              <div className="flex items-end gap-1.5">
+                <span className={`text-4xl font-black ${plan.highlighted ? "text-emerald-400" : "text-white"}`}>{plan.usd}</span>
+                <span className="mb-1 text-sm text-neutral-500">{plan.period}</span>
+              </div>
+              <div className="mt-0.5 text-xs text-neutral-600">{plan.price} · INR · billed monthly</div>
+              <p className="mt-4 text-sm text-neutral-400">{plan.description}</p>
+
+              <div className="my-5 h-px bg-white/[0.06]" />
+
+              <ul className="space-y-2.5">
+                {plan.bullets.map(bullet => (
+                  <li key={bullet} className="flex items-center gap-2.5 text-sm text-neutral-300">
+                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] ${plan.highlighted ? "bg-emerald-500/20 text-emerald-400" : "bg-white/[0.08] text-neutral-400"}`}>✓</span>
+                    {bullet}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                type="button"
+                onClick={() => startCheckout(plan.key)}
+                disabled={checkoutLoading === plan.key || isCurrent || checkoutBlocked}
+                className={`mt-7 w-full rounded-2xl py-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  isCurrent
+                    ? "border border-emerald-500/30 text-emerald-400"
+                    : plan.highlighted
+                    ? "bg-emerald-500 text-black hover:bg-emerald-400"
+                    : "border border-white/[0.10] text-white hover:bg-white/[0.06]"
+                }`}
+              >
+                {isCurrent ? "Current Plan" : checkoutLoading === plan.key ? "Opening checkout…" : `Upgrade to ${plan.title}`}
+              </button>
+
+              {!isCurrent && checkoutBlocked && !loading && (
+                <p className="mt-2 text-center text-xs text-red-400">Configure Razorpay keys to enable checkout</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Bottom context sections ─────────────────────────────────────── */}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
+          <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-500">Pilot Positioning</div>
+          <h2 className="mt-1 text-xl font-bold">Use this in a VigiliCloud pilot conversation</h2>
+          <p className="mt-3 text-sm leading-6 text-neutral-400">
+            VigiliCloud is easiest to position as an AWS-native security posture workflow for early-stage teams, consultants, and MSPs that want fast visibility and actionable remediation guidance.
+          </p>
+          <div className="mt-4 rounded-2xl border border-white/[0.06] bg-black/30 p-4">
+            <div className="font-semibold text-white">₹2,00,000 pilot example</div>
+            <div className="mt-2 text-sm leading-6 text-neutral-400">
+              Up to 2 AWS accounts, misconfiguration review, remediation workflow, evidence exports, and a live founder-led walkthrough.
+            </div>
           </div>
         </section>
 
-        <p className="mb-6 text-xs text-neutral-600">
-          All plans billed in INR via Razorpay. USD prices are approximate and shown for reference only — the INR amount is fixed and does not change with exchange rates.
-        </p>
-
-        <div className="mb-10 grid gap-6 md:grid-cols-3">
-          {PLAN_CARDS.map((plan) => {
-            const isCurrent = currentPlanKey === plan.key;
-            const checkoutBlocked = !rzConfig?.checkout_ready;
-
-            return (
-              <section
-                key={plan.key}
-                className={`rounded-3xl border bg-neutral-950 p-8 ${
-                  isCurrent ? "border-white" : plan.highlighted ? "border-emerald-500/40" : "border-neutral-800"
-                }`}
-              >
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="text-4xl font-bold">{plan.title}</h2>
-                  {isCurrent && (
-                    <span className="rounded-full border border-emerald-600 bg-emerald-950 px-3 py-1 text-xs text-emerald-300">
-                      Current
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-3 text-4xl font-bold">{plan.usd}</div>
-                <div className="mt-1 text-sm text-neutral-500">{plan.price} · billed in INR · approx.</div>
-                <p className="mt-5 text-lg text-neutral-300">{plan.description}</p>
-
-                <ul className="mt-8 space-y-3 text-lg text-neutral-200">
-                  {plan.bullets.map((bullet) => (
-                    <li key={bullet}>• {bullet}</li>
-                  ))}
-                </ul>
-
-                <button
-                  type="button"
-                  onClick={() => startCheckout(plan.key)}
-                  disabled={checkoutLoading === plan.key || isCurrent || checkoutBlocked}
-                  className="mt-10 w-full rounded-2xl bg-white px-5 py-4 text-lg font-medium text-black disabled:cursor-not-allowed disabled:opacity-50 hover:bg-neutral-100 transition-colors"
-                >
-                  {isCurrent
-                    ? "Current Plan"
-                    : checkoutLoading === plan.key
-                    ? "Opening checkout..."
-                    : `Upgrade to ${plan.title}`}
-                </button>
-
-                {!isCurrent && checkoutBlocked && !loading && (
-                  <div className="mt-3 text-xs text-red-300">
-                    Configure RAZORPAY_KEY_ID and plan IDs to enable checkout.
-                  </div>
-                )}
-              </section>
-            );
-          })}
-        </div>
-
-        <section className="grid gap-6 lg:grid-cols-[1fr_0.85fr]">
-          <div className="rounded-3xl border border-neutral-800 bg-neutral-950 p-6">
-            <div className="mb-3 text-xs uppercase tracking-[0.25em] text-neutral-500">
-              Pilot positioning
-            </div>
-            <h2 className="text-3xl font-bold">Use this pricing page in a VigiliCloud pilot conversation</h2>
-            <p className="mt-4 text-neutral-300">
-              VigiliCloud is easiest to position as an AWS-native security posture workflow for
-              early-stage teams, consultants, and MSPs that want fast visibility and actionable remediation guidance.
-            </p>
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black p-4">
-              <div className="text-lg font-semibold">₹2,00,000 pilot example</div>
-              <div className="mt-3 text-sm leading-7 text-neutral-300">
-                Up to 2 AWS accounts, misconfiguration review, remediation workflow, evidence exports,
-                and a live founder-led walkthrough for internal or customer-facing readiness.
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-neutral-800 bg-neutral-950 p-6">
-            <div className="mb-3 text-xs uppercase tracking-[0.25em] text-neutral-500">
-              Remaining launch work
-            </div>
-            <h2 className="text-3xl font-bold">Before full VigiliCloud launch</h2>
-            <ul className="mt-4 space-y-3 text-sm leading-7 text-neutral-300">
-              <li>• Configure Razorpay: add RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, plan IDs to Render env vars</li>
-              <li>• Create plans in Razorpay dashboard (starter, pro, msp)</li>
-              <li>• Set up Razorpay webhook pointing to /billing/webhook</li>
-              <li>• Custom domain cutover</li>
-              <li>• Final QA across scans, billing, and onboarding</li>
-            </ul>
-            <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-              Pricing page is ready for demos and pilot conversations.
-            </div>
+        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
+          <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-500">Before Full Launch</div>
+          <h2 className="mt-1 text-xl font-bold">Remaining Razorpay setup</h2>
+          <ul className="mt-4 space-y-2.5">
+            {[
+              "Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to Render env vars",
+              "Create starter, pro, msp plans in Razorpay dashboard",
+              "Set webhook URL → /billing/webhook in Razorpay",
+              "Add RAZORPAY_PLAN_STARTER, _PRO, _MSP env vars",
+            ].map((item, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-sm text-neutral-400">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-yellow-500/30 bg-yellow-500/10 text-[9px] font-bold text-yellow-400">{i + 1}</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-4 py-3 text-sm text-emerald-300">
+            Pricing page is ready for demos and pilot conversations.
           </div>
         </section>
       </div>

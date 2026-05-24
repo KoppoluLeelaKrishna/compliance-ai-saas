@@ -202,6 +202,29 @@ def auth_logout(
     return response
 
 
+@router.post("/auth/exchange")
+def auth_exchange(token: str = Query(...)):
+    """Exchange a raw session token (from OAuth redirect URL) for a session cookie."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT user_id FROM auth_sessions WHERE session_token = ?", (token,)
+    ).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    response = JSONResponse({"ok": True})
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite=COOKIE_SAMESITE,
+        secure=COOKIE_SECURE,
+        max_age=SESSION_TTL_HOURS * 60 * 60,
+        path="/",
+    )
+    return response
+
+
 @router.get("/auth/github")
 def github_oauth_start():
     if not GITHUB_CLIENT_ID:
@@ -282,17 +305,12 @@ def github_oauth_callback(code: str = Query(...)):
     conn.close()
 
     session = create_session(user_id)
-    response = RedirectResponse(f"{FRONTEND_URL}/scans")
-    response.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=session["token"],
-        httponly=True,
-        samesite=COOKIE_SAMESITE,
-        secure=COOKIE_SECURE,
-        max_age=SESSION_TTL_HOURS * 60 * 60,
-        path="/",
+    # Redirect to frontend exchange page — cookie is set via credentialed XHR
+    # from there, which works reliably cross-origin unlike redirect+Set-Cookie.
+    return RedirectResponse(
+        f"{FRONTEND_URL}/auth/callback?token={session['token']}",
+        status_code=302,
     )
-    return response
 
 
 @router.get("/auth/me")

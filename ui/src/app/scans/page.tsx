@@ -6,7 +6,9 @@ import {
   Account,
   ActionRow,
   ActionsResponse,
+  ApprovalEvent,
   BillingMe,
+  DriftSummary,
   Finding,
   FindingsResponse,
   FixGuidance,
@@ -49,6 +51,12 @@ export default function ScansPage() {
   const [aiAnalysis, setAiAnalysis] = useState("");
   const [loadingAi, setLoadingAi] = useState(false);
 
+  const [drift, setDrift] = useState<DriftSummary | null>(null);
+  const [driftFilter, setDriftFilter] = useState(false);
+
+  const [approvalEvents, setApprovalEvents] = useState<ApprovalEvent[]>([]);
+  const [approvalSaving, setApprovalSaving] = useState(false);
+
   async function loadInitialData() {
     setLoading(true);
     try {
@@ -89,12 +97,15 @@ export default function ScansPage() {
   async function loadFindings(scanId: string) {
     if (!scanId) return;
     setLoadingFindings(true);
+    setDrift(null);
     try {
-      const findingsData = await api<FindingsResponse>(`/scans/${scanId}/findings`);
-      const actionsData = await api<ActionsResponse>(`/finding-actions/${scanId}`).catch(() => ({
-        scan_id: scanId,
-        actions: [],
-      }));
+      const [findingsData, actionsData, driftData] = await Promise.all([
+        api<FindingsResponse>(`/scans/${scanId}/findings`),
+        api<ActionsResponse>(`/finding-actions/${scanId}`).catch(() => ({ scan_id: scanId, actions: [] })),
+        api<DriftSummary>(`/scans/${scanId}/drift`).catch(() => null),
+      ]);
+
+      if (driftData) setDrift(driftData);
 
       const actionMap = new Map(
         (actionsData.actions || []).map((a) => [`${a.check_id}::${a.resource_id}`, a])
@@ -103,10 +114,12 @@ export default function ScansPage() {
       const enriched = (findingsData.findings || []).map((f) => {
         const key = `${f.check_id}::${f.resource_id}`;
         const action = actionMap.get(key);
+        const driftStatus = driftData?.drift_map?.[key] ?? null;
         return {
           ...f,
           resolution: action?.resolution || f.resolution || "OPEN",
           note: action?.note || f.note || "",
+          drift_status: driftStatus,
         };
       });
 
@@ -141,10 +154,11 @@ export default function ScansPage() {
       const matchesSeverity = severityFilter === "ALL" || f.severity === severityFilter;
       const matchesResolution =
         resolutionFilter === "ALL" || (f.resolution || "OPEN") === resolutionFilter;
+      const matchesDrift = !driftFilter || f.drift_status === "NEW";
 
-      return matchesSearch && matchesService && matchesSeverity && matchesResolution;
+      return matchesSearch && matchesService && matchesSeverity && matchesResolution && matchesDrift;
     });
-  }, [findings, search, serviceFilter, severityFilter, resolutionFilter]);
+  }, [findings, search, serviceFilter, severityFilter, resolutionFilter, driftFilter]);
 
   const services = useMemo(() => Array.from(new Set(findings.map((f) => f.service))).sort(), [findings]);
   const severities = useMemo(() => Array.from(new Set(findings.map((f) => f.severity))).sort(), [findings]);
@@ -180,12 +194,21 @@ export default function ScansPage() {
     setSelectedFinding(finding);
     setNoteInput(finding.note || "");
     setFixGuidance(null);
+    setApprovalEvents([]);
     setLoadingGuidance(true);
     try {
-      const data = await api<FixGuidance>(`/fix-guidance/${finding.check_id}`);
-      setFixGuidance(data);
-    } catch {
-      setFixGuidance(null);
+      const [guidanceData, approvalsData] = await Promise.all([
+        api<FixGuidance>(`/fix-guidance/${finding.check_id}`).catch(() => null),
+        api<{ events: ApprovalEvent[] }>(
+          `/scans/${finding.scan_id}/approvals?check_id=${encodeURIComponent(finding.check_id)}&resource_id=${encodeURIComponent(finding.resource_id)}`
+        ).catch(() => ({ events: [] })),
+      ]);
+      setFixGuidance(guidanceData);
+      setApprovalEvents(approvalsData.events || []);
+      if (approvalsData.events?.length) {
+        const latest = approvalsData.events[approvalsData.events.length - 1];
+        setSelectedFinding((f) => f ? { ...f, approval_status: latest.event_type } : f);
+      }
     } finally {
       setLoadingGuidance(false);
     }
@@ -214,6 +237,46 @@ export default function ScansPage() {
     } finally {
       setActionSaving(null);
     }
+  }
+
+  async function postApprovalAction(endpoint: string, body: object) {
+    if (!selectedFinding || !selectedScanId) return;
+    setApprovalSaving(true);
+    try {
+      const params = new URLSearchParams({
+        check_id: selectedFinding.check_id,
+        resource_id: selectedFinding.resource_id,
+      });
+      await api(`/scans/${selectedScanId}/approvals/${endpoint}?${params}`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      const approvalsData = await api<{ events: ApprovalEvent[] }>(
+        `/scans/${selectedScanId}/approvals?check_id=${encodeURIComponent(selectedFinding.check_id)}&resource_id=${encodeURIComponent(selectedFinding.resource_id)}`
+      );
+      const events = approvalsData.events || [];
+      setApprovalEvents(events);
+      if (events.length) {
+        const latest = events[events.length - 1];
+        setSelectedFinding((f) => f ? { ...f, approval_status: latest.event_type } : f);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Approval action failed");
+    } finally {
+      setApprovalSaving(false);
+    }
+  }
+
+  async function handleRequestFix(assigneeEmail: string, note: string) {
+    await postApprovalAction("request-fix", { assignee_email: assigneeEmail, note });
+  }
+
+  async function handleApprove(note: string) {
+    await postApprovalAction("approve", { note });
+  }
+
+  async function handleReject(note: string) {
+    await postApprovalAction("reject", { note });
   }
 
   async function handleAiAnalysis() {
@@ -350,6 +413,45 @@ export default function ScansPage() {
         </Card>
       )}
 
+      {drift?.has_baseline && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="font-semibold text-neutral-300">Drift since last scan</span>
+            {drift.summary.new > 0 && (
+              <span className="rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-xs font-bold text-cyan-400 border border-cyan-500/30">
+                +{drift.summary.new} NEW
+              </span>
+            )}
+            {drift.summary.remediated > 0 && (
+              <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-bold text-emerald-400 border border-emerald-500/30">
+                -{drift.summary.remediated} FIXED
+              </span>
+            )}
+            {drift.summary.new === 0 && drift.summary.remediated === 0 && (
+              <span className="text-neutral-500 text-xs">No changes detected</span>
+            )}
+            {drift.previous_scan_date && (
+              <span className="text-neutral-600 text-xs">
+                vs {new Date(drift.previous_scan_date).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+          {drift.summary.new > 0 && (
+            <button
+              type="button"
+              onClick={() => setDriftFilter((v) => !v)}
+              className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                driftFilter
+                  ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-300"
+                  : "border-white/10 text-neutral-400 hover:bg-white/5"
+              }`}
+            >
+              {driftFilter ? "Show all" : "New issues only"}
+            </button>
+          )}
+        </div>
+      )}
+
       <FindingsTable
         findings={filteredFindings}
         onOpenFinding={openFinding}
@@ -366,6 +468,11 @@ export default function ScansPage() {
           setNoteInput={setNoteInput}
           onSetAction={handleSetAction}
           actionSaving={actionSaving}
+          approvalEvents={approvalEvents}
+          onRequestFix={handleRequestFix}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          approvalSaving={approvalSaving}
         />
       )}
     </main>

@@ -57,6 +57,21 @@ export type ScanItem = {
   account?: ScanAccount | null;
 };
 
+export type ApprovalStatus = "OPEN" | "FIX_REQUESTED" | "APPROVED" | "REJECTED";
+
+export type ApprovalEvent = {
+  id: number;
+  scan_id: string;
+  check_id: string;
+  resource_id: string;
+  event_type: ApprovalStatus;
+  actor_email: string;
+  actor_name: string;
+  assignee_email: string;
+  note: string;
+  created_at: string;
+};
+
 export type Finding = {
   scan_id: string;
   service: string;
@@ -73,6 +88,21 @@ export type Finding = {
   customer_name?: string;
   account_name?: string;
   region?: string;
+  drift_status?: "NEW" | "UNCHANGED" | null;
+  approval_status?: ApprovalStatus;
+};
+
+export type DriftSummary = {
+  scan_id: string;
+  previous_scan_id: string | null;
+  previous_scan_date: string | null;
+  summary: {
+    new: number;
+    remediated: number;
+    unchanged: number;
+  };
+  drift_map: Record<string, "NEW" | "UNCHANGED">;
+  has_baseline: boolean;
 };
 
 export type FindingsResponse = {

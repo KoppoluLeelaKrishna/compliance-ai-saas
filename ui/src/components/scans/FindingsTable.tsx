@@ -52,7 +52,14 @@ export function FindingsTable({ findings, onOpenFinding, loading }: FindingsTabl
               </td>
               <td className="px-6 py-4 font-medium text-neutral-300">{f.service}</td>
               <td className="px-6 py-4">
-                <div className="font-semibold text-white">{f.title}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-white">{f.title}</span>
+                  {f.drift_status === "NEW" && (
+                    <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-cyan-400">
+                      NEW
+                    </span>
+                  )}
+                </div>
                 <div className="mt-0.5 text-xs text-neutral-500">{f.check_id}</div>
               </td>
               <td className="px-6 py-4 font-mono text-xs text-neutral-400">

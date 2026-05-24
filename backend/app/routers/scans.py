@@ -33,6 +33,8 @@ from app.deps import (
     get_actions,
     get_current_user,
     get_findings,
+    get_previous_scan_id,
+    get_scan,
     get_scan_account_link,
     list_scans,
     require_account_linked_scan_access,
@@ -165,6 +167,69 @@ def read_findings(
         "scan_id": scan_id,
         "account": account,
         "findings": enriched_findings,
+    }
+
+
+@router.get("/scans/{scan_id}/drift")
+def scan_drift(
+    scan_id: str,
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
+
+    prev_scan_id = get_previous_scan_id(scan_id)
+    if not prev_scan_id:
+        return {
+            "scan_id": scan_id,
+            "previous_scan_id": None,
+            "previous_scan_date": None,
+            "summary": {"new": 0, "remediated": 0, "unchanged": 0},
+            "has_baseline": False,
+        }
+
+    prev_scan = get_scan(prev_scan_id)
+    prev_date = prev_scan["created_at"] if prev_scan else None
+
+    current_findings = get_findings(scan_id)
+    prev_findings = get_findings(prev_scan_id)
+
+    prev_fail_keys: set = {
+        (f["check_id"], f["resource_id"])
+        for f in prev_findings
+        if f.get("status") == "FAIL"
+    }
+    curr_fail_keys: set = {
+        (f["check_id"], f["resource_id"])
+        for f in current_findings
+        if f.get("status") == "FAIL"
+    }
+
+    new_count = len(curr_fail_keys - prev_fail_keys)
+    remediated_count = len(prev_fail_keys - curr_fail_keys)
+    unchanged_count = len(curr_fail_keys & prev_fail_keys)
+
+    drift_map: Dict[str, str] = {}
+    for f in current_findings:
+        if f.get("status") != "FAIL":
+            continue
+        key = (f["check_id"], f["resource_id"])
+        drift_map[f"{f['check_id']}::{f['resource_id']}"] = (
+            "NEW" if key not in prev_fail_keys else "UNCHANGED"
+        )
+
+    return {
+        "scan_id": scan_id,
+        "previous_scan_id": prev_scan_id,
+        "previous_scan_date": prev_date,
+        "summary": {
+            "new": new_count,
+            "remediated": remediated_count,
+            "unchanged": unchanged_count,
+        },
+        "drift_map": drift_map,
+        "has_baseline": True,
     }
 
 

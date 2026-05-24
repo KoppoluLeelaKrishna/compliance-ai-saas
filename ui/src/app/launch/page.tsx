@@ -10,9 +10,8 @@ type HealthResponse = {
   app_env: string;
   frontend_url: string;
   cookie_secure: boolean;
-  stripe: {
+  razorpay: {
     configured: boolean;
-    mode: string;
     webhook_configured: boolean;
     checkout_ready: boolean;
   };
@@ -33,9 +32,8 @@ type BillingMe = {
   subscription_status: string;
   account_limit: number;
   connected_accounts_used: number;
-  stripe?: {
+  razorpay?: {
     configured: boolean;
-    mode: string;
     webhook_configured: boolean;
     checkout_ready: boolean;
   };
@@ -126,16 +124,16 @@ export default function LaunchPage() {
       detail: health?.ok ? `Healthy (${health.app_env})` : "Still needs validation",
     },
     {
-      label: "Stripe checkout readiness",
-      done: !!health?.stripe?.checkout_ready,
-      detail: health?.stripe?.checkout_ready
-        ? `Ready in ${health?.stripe?.mode?.toUpperCase()} mode`
-        : "Stripe checkout not ready",
+      label: "Razorpay checkout readiness",
+      done: !!health?.razorpay?.checkout_ready,
+      detail: health?.razorpay?.checkout_ready
+        ? "Razorpay keys + all plan IDs configured"
+        : "Razorpay checkout not ready",
     },
     {
       label: "Webhook readiness",
-      done: !!health?.stripe?.webhook_configured,
-      detail: health?.stripe?.webhook_configured
+      done: !!health?.razorpay?.webhook_configured,
+      detail: health?.razorpay?.webhook_configured
         ? "Webhook secret configured"
         : "Webhook still not configured",
     },
@@ -151,8 +149,11 @@ export default function LaunchPage() {
     },
     {
       label: "Public deployment",
-      done: false,
-      detail: "Still pending: move from localhost to real hosted frontend/backend",
+      done: !!health?.frontend_url && !health.frontend_url.includes("localhost"),
+      detail:
+        health?.frontend_url && !health.frontend_url.includes("localhost")
+          ? `Live at ${health.frontend_url}`
+          : "Still pending: move from localhost to real hosted frontend/backend",
     },
   ];
 
@@ -161,7 +162,7 @@ export default function LaunchPage() {
 3. Test role-based connection on an account.
 4. Open Scans and run a linked scan.
 5. Review findings, fix guidance, actions, and exports.
-6. Open Plans and show Stripe-backed pricing and billing readiness.
+6. Open Plans and show Razorpay-backed pricing and billing readiness.
 7. Open Launch Prep and show final QA plus launch readiness.`;
 
   const outreachTemplate = `Hi [Name],
@@ -172,7 +173,7 @@ The current product already supports:
 - account-linked scans
 - remediation tracking
 - exports
-- Stripe-backed billing flow
+- Razorpay-backed billing (live)
 
 I am opening pilot conversations for MSPs and startups preparing for SOC2 or customer security reviews.
 
@@ -224,7 +225,7 @@ Leela`;
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-5">
             <div className="text-sm text-neutral-400">Billing Mode</div>
             <div className="mt-2 text-3xl font-bold uppercase">
-              {loading ? "..." : health?.stripe?.mode || "unknown"}
+              {loading ? "..." : health?.razorpay?.configured ? "RAZORPAY" : "NOT SET"}
             </div>
           </div>
 

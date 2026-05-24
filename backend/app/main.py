@@ -25,7 +25,7 @@ from app.deps import (
     razorpay_config_summary,
     run_scheduled_scans,
 )
-from app.routers import accounts, auth, billing, fix_guidance, scans
+from app.routers import accounts, approvals, auth, billing, fix_guidance, scans
 
 # ---------------------------------------------------------------------------
 # App & middleware
@@ -211,3 +211,4 @@ app.include_router(billing.router)
 app.include_router(scans.router)
 app.include_router(accounts.router)
 app.include_router(fix_guidance.router)
+app.include_router(approvals.router)

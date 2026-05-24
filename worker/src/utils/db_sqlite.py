@@ -157,11 +157,31 @@ def init_db() -> None:
 
     add_column_if_missing(conn, "scan_account_links", "account_name", "account_name TEXT")
 
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS approval_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id TEXT NOT NULL,
+            check_id TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            actor_user_id INTEGER NOT NULL DEFAULT 0,
+            actor_email TEXT NOT NULL DEFAULT '',
+            actor_name TEXT NOT NULL DEFAULT '',
+            assignee_email TEXT NOT NULL DEFAULT '',
+            note TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
     cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_scan_id ON findings(scan_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_actions_scan_id ON finding_actions(scan_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_links_account_id ON scan_account_links(account_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_user_id ON scans(user_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON connected_accounts(user_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_events_scan ON approval_events(scan_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_events_finding ON approval_events(scan_id, check_id, resource_id)")
 
     conn.commit()
     conn.close()
@@ -429,6 +449,51 @@ def get_findings(scan_id: str) -> List[Dict[str, Any]]:
         out.append(item)
 
     return out
+
+
+def get_previous_scan_id(scan_id: str) -> Optional[str]:
+    conn = get_conn()
+    current = conn.execute(
+        "SELECT created_at, user_id FROM scans WHERE scan_id = ?",
+        (scan_id,),
+    ).fetchone()
+    if not current:
+        conn.close()
+        return None
+
+    link = conn.execute(
+        "SELECT account_id FROM scan_account_links WHERE scan_id = ?",
+        (scan_id,),
+    ).fetchone()
+
+    if link and link["account_id"]:
+        row = conn.execute(
+            """
+            SELECT l.scan_id FROM scan_account_links l
+            JOIN scans s ON l.scan_id = s.scan_id
+            WHERE l.account_id = ?
+              AND l.scan_id != ?
+              AND datetime(s.created_at) < datetime(?)
+            ORDER BY datetime(s.created_at) DESC
+            LIMIT 1
+            """,
+            (link["account_id"], scan_id, current["created_at"]),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT scan_id FROM scans
+            WHERE user_id = ?
+              AND scan_id != ?
+              AND datetime(created_at) < datetime(?)
+            ORDER BY datetime(created_at) DESC
+            LIMIT 1
+            """,
+            (current["user_id"], scan_id, current["created_at"]),
+        ).fetchone()
+
+    conn.close()
+    return row["scan_id"] if row else None
 
 
 # =========================
@@ -823,3 +888,81 @@ def delete_connected_account(account_id: int, user_id: Optional[int] = None) -> 
     conn.commit()
     conn.close()
     return True
+
+
+# =========================
+# Approval Events (immutable audit log)
+# =========================
+def create_approval_event(
+    scan_id: str,
+    check_id: str,
+    resource_id: str,
+    event_type: str,
+    actor_user_id: int,
+    actor_email: str,
+    actor_name: str,
+    assignee_email: str = "",
+    note: str = "",
+) -> int:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO approval_events (
+            scan_id, check_id, resource_id, event_type,
+            actor_user_id, actor_email, actor_name,
+            assignee_email, note, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (scan_id, check_id, resource_id, event_type,
+         actor_user_id, actor_email or "", actor_name or "",
+         assignee_email or "", note or "", now_utc_iso()),
+    )
+    conn.commit()
+    event_id = cur.lastrowid
+    conn.close()
+    return int(event_id)
+
+
+def get_approval_events(
+    scan_id: str,
+    check_id: Optional[str] = None,
+    resource_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    conn = get_conn()
+    if check_id and resource_id:
+        rows = conn.execute(
+            """
+            SELECT * FROM approval_events
+            WHERE scan_id = ? AND check_id = ? AND resource_id = ?
+            ORDER BY datetime(created_at) ASC, id ASC
+            """,
+            (scan_id, check_id, resource_id),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT * FROM approval_events
+            WHERE scan_id = ?
+            ORDER BY datetime(created_at) DESC, id DESC
+            """,
+            (scan_id,),
+        ).fetchall()
+    conn.close()
+    return rows_to_dicts(rows)
+
+
+def get_finding_approval_status(scan_id: str, check_id: str, resource_id: str) -> str:
+    conn = get_conn()
+    row = conn.execute(
+        """
+        SELECT event_type FROM approval_events
+        WHERE scan_id = ? AND check_id = ? AND resource_id = ?
+        ORDER BY datetime(created_at) DESC, id DESC
+        LIMIT 1
+        """,
+        (scan_id, check_id, resource_id),
+    ).fetchone()
+    conn.close()
+    return row["event_type"] if row else "OPEN"

@@ -1,4 +1,7 @@
-import { Finding, FixGuidance } from "@/types";
+"use client";
+
+import { useState } from "react";
+import { ApprovalEvent, ApprovalStatus, Finding, FixGuidance } from "@/types";
 import { badgeClasses, fmtDate } from "@/lib/api";
 
 interface FindingDetailProps {
@@ -10,7 +13,26 @@ interface FindingDetailProps {
   setNoteInput: (val: string) => void;
   onSetAction: (action: "FIXED" | "IGNORED") => void;
   actionSaving: "FIXED" | "IGNORED" | null;
+  approvalEvents?: ApprovalEvent[];
+  onRequestFix?: (assigneeEmail: string, note: string) => Promise<void>;
+  onApprove?: (note: string) => Promise<void>;
+  onReject?: (note: string) => Promise<void>;
+  approvalSaving?: boolean;
 }
+
+const approvalBadge: Record<ApprovalStatus, string> = {
+  OPEN: "border-neutral-700 bg-neutral-800/50 text-neutral-400",
+  FIX_REQUESTED: "border-yellow-500/40 bg-yellow-500/10 text-yellow-300",
+  APPROVED: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  REJECTED: "border-red-500/40 bg-red-500/10 text-red-300",
+};
+
+const approvalLabel: Record<ApprovalStatus, string> = {
+  OPEN: "Open",
+  FIX_REQUESTED: "Fix Requested",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+};
 
 export function FindingDetail({
   finding,
@@ -21,14 +43,45 @@ export function FindingDetail({
   setNoteInput,
   onSetAction,
   actionSaving,
+  approvalEvents = [],
+  onRequestFix,
+  onApprove,
+  onReject,
+  approvalSaving = false,
 }: FindingDetailProps) {
+  const [assigneeEmail, setAssigneeEmail] = useState("");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [showAuditLog, setShowAuditLog] = useState(false);
+
   if (!finding) return null;
 
+  const approvalStatus: ApprovalStatus = finding.approval_status || "OPEN";
+
+  async function handleRequestFix() {
+    if (!onRequestFix) return;
+    await onRequestFix(assigneeEmail, approvalNote);
+    setAssigneeEmail("");
+    setApprovalNote("");
+  }
+
+  async function handleApprove() {
+    if (!onApprove) return;
+    await onApprove(approvalNote);
+    setApprovalNote("");
+  }
+
+  async function handleReject() {
+    if (!onReject) return;
+    await onReject(approvalNote);
+    setApprovalNote("");
+  }
+
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl border-l border-white/10 bg-black p-8 shadow-2xl transition-transform md:w-2/3 lg:w-1/2 overflow-y-auto">
+    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl border-l border-white/10 bg-black p-8 shadow-2xl md:w-2/3 lg:w-1/2 overflow-y-auto">
       <div className="mb-8 flex items-center justify-between">
         <h2 className="text-2xl font-bold">Finding Detail</h2>
         <button
+          type="button"
           onClick={onClose}
           className="rounded-full border border-white/10 p-2 hover:bg-white/5"
         >
@@ -44,6 +97,9 @@ export function FindingDetail({
             </span>
             <span className={`rounded-full border px-3 py-1 text-xs font-bold ${badgeClasses(finding.resolution || "OPEN")}`}>
               {finding.resolution || "OPEN"}
+            </span>
+            <span className={`rounded-full border px-3 py-1 text-xs font-bold ${approvalBadge[approvalStatus]}`}>
+              {approvalLabel[approvalStatus]}
             </span>
             <span className="text-sm text-neutral-500">{finding.service}</span>
           </div>
@@ -68,7 +124,6 @@ export function FindingDetail({
           ) : fixGuidance ? (
             <div className="space-y-6">
               <p className="text-neutral-300">{fixGuidance.summary}</p>
-              
               <div>
                 <h4 className="mb-2 font-semibold">Console Steps</h4>
                 <ul className="list-inside list-disc space-y-2 text-sm text-neutral-400">
@@ -77,7 +132,6 @@ export function FindingDetail({
                   ))}
                 </ul>
               </div>
-
               {fixGuidance.cli && fixGuidance.cli.length > 0 && (
                 <div>
                   <h4 className="mb-2 font-semibold">CLI Remediation</h4>
@@ -92,6 +146,149 @@ export function FindingDetail({
           )}
         </section>
 
+        {/* Approval Gate Section */}
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold">Approval Gate</h3>
+            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${approvalBadge[approvalStatus]}`}>
+              {approvalLabel[approvalStatus]}
+            </span>
+          </div>
+
+          {approvalStatus === "OPEN" && (
+            <div className="space-y-3">
+              <p className="text-sm text-neutral-400">Request a fix from your team. Optionally assign it to someone by email.</p>
+              <input
+                type="email"
+                value={assigneeEmail}
+                onChange={(e) => setAssigneeEmail(e.target.value)}
+                placeholder="Assignee email (optional)"
+                className="w-full rounded-xl border border-white/10 bg-black/60 px-4 py-2 text-sm focus:border-emerald-500/50 focus:outline-none"
+              />
+              <textarea
+                value={approvalNote}
+                onChange={(e) => setApprovalNote(e.target.value)}
+                placeholder="Note (e.g. ticket ID, deadline)..."
+                rows={2}
+                className="w-full rounded-xl border border-white/10 bg-black/60 px-4 py-2 text-sm focus:border-emerald-500/50 focus:outline-none resize-none"
+              />
+              <button
+                type="button"
+                onClick={handleRequestFix}
+                disabled={approvalSaving}
+                className="w-full rounded-xl border border-yellow-500/30 bg-yellow-500/10 py-2.5 text-sm font-semibold text-yellow-300 hover:bg-yellow-500/20 disabled:opacity-50 transition-colors"
+              >
+                {approvalSaving ? "Requesting..." : "Request Fix"}
+              </button>
+            </div>
+          )}
+
+          {approvalStatus === "FIX_REQUESTED" && (
+            <div className="space-y-3">
+              <p className="text-sm text-neutral-400">Fix has been requested. Approve once the fix is confirmed, or reject if it was not applied correctly.</p>
+              <textarea
+                value={approvalNote}
+                onChange={(e) => setApprovalNote(e.target.value)}
+                placeholder="Note (optional)..."
+                rows={2}
+                className="w-full rounded-xl border border-white/10 bg-black/60 px-4 py-2 text-sm focus:border-emerald-500/50 focus:outline-none resize-none"
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                onClick={handleApprove}
+                  disabled={approvalSaving}
+                  className="flex-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+                >
+                  {approvalSaving ? "Saving..." : "Approve Fix"}
+                </button>
+                <button
+                  type="button"
+                onClick={handleReject}
+                  disabled={approvalSaving}
+                  className="flex-1 rounded-xl border border-red-500/30 bg-red-500/10 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+                >
+                  {approvalSaving ? "Saving..." : "Reject"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {approvalStatus === "APPROVED" && (
+            <div className="space-y-3">
+              <p className="text-sm text-emerald-400">Fix has been approved.</p>
+              <button
+                type="button"
+                onClick={handleRequestFix}
+                disabled={approvalSaving}
+                className="w-full rounded-xl border border-yellow-500/30 bg-yellow-500/10 py-2.5 text-sm font-semibold text-yellow-300 hover:bg-yellow-500/20 disabled:opacity-50 transition-colors"
+              >
+                Request Fix Again
+              </button>
+            </div>
+          )}
+
+          {approvalStatus === "REJECTED" && (
+            <div className="space-y-3">
+              <p className="text-sm text-red-400">Fix was rejected. You can re-request once the issue is addressed.</p>
+              <textarea
+                value={approvalNote}
+                onChange={(e) => setApprovalNote(e.target.value)}
+                placeholder="Note (e.g. what needs to be done)..."
+                rows={2}
+                className="w-full rounded-xl border border-white/10 bg-black/60 px-4 py-2 text-sm focus:border-emerald-500/50 focus:outline-none resize-none"
+              />
+              <input
+                type="email"
+                value={assigneeEmail}
+                onChange={(e) => setAssigneeEmail(e.target.value)}
+                placeholder="Assignee email (optional)"
+                className="w-full rounded-xl border border-white/10 bg-black/60 px-4 py-2 text-sm focus:border-emerald-500/50 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleRequestFix}
+                disabled={approvalSaving}
+                className="w-full rounded-xl border border-yellow-500/30 bg-yellow-500/10 py-2.5 text-sm font-semibold text-yellow-300 hover:bg-yellow-500/20 disabled:opacity-50 transition-colors"
+              >
+                {approvalSaving ? "Requesting..." : "Re-request Fix"}
+              </button>
+            </div>
+          )}
+
+          {/* Audit Trail */}
+          {approvalEvents.length > 0 && (
+            <div className="border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowAuditLog((v) => !v)}
+                className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+              >
+                {showAuditLog ? "Hide" : "Show"} audit log ({approvalEvents.length} event{approvalEvents.length !== 1 ? "s" : ""})
+              </button>
+              {showAuditLog && (
+                <ol className="mt-3 space-y-2">
+                  {approvalEvents.map((ev) => (
+                    <li key={ev.id} className="flex gap-3 text-xs text-neutral-400">
+                      <span className="shrink-0 text-neutral-600">{fmtDate(ev.created_at)}</span>
+                      <span>
+                        <span className="font-semibold text-neutral-200">{ev.actor_name || ev.actor_email}</span>
+                        {" "}
+                        {ev.event_type === "FIX_REQUESTED" && (
+                          <>requested fix{ev.assignee_email ? ` → ${ev.assignee_email}` : ""}</>
+                        )}
+                        {ev.event_type === "APPROVED" && "approved the fix"}
+                        {ev.event_type === "REJECTED" && "rejected the fix"}
+                        {ev.note && <span className="text-neutral-500"> — {ev.note}</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
+        </section>
+
         <section className="space-y-4">
           <h3 className="text-xl font-bold">Resolution Note</h3>
           <textarea
@@ -103,6 +300,7 @@ export function FindingDetail({
           />
           <div className="flex gap-3">
             <button
+              type="button"
               onClick={() => onSetAction("FIXED")}
               disabled={!!actionSaving}
               className="flex-1 rounded-xl bg-white px-6 py-3 font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
@@ -110,6 +308,7 @@ export function FindingDetail({
               {actionSaving === "FIXED" ? "Saving..." : "Mark as Fixed"}
             </button>
             <button
+              type="button"
               onClick={() => onSetAction("IGNORED")}
               disabled={!!actionSaving}
               className="flex-1 rounded-xl border border-white/10 px-6 py-3 font-medium hover:bg-white/5 disabled:opacity-50"

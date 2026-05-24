@@ -64,13 +64,17 @@ from app.config import (
 # ---------------------------------------------------------------------------
 if USE_POSTGRES:
     from worker.src.utils.db_postgres import (  # noqa: E402
+        create_approval_event,
         create_connected_account,
         delete_connected_account,
         get_actions,
+        get_approval_events,
         get_connected_account,
         get_conn as db_get_conn,
         get_findings,
+        get_finding_approval_status,
         get_fix_guidance,
+        get_previous_scan_id,
         get_scan,
         get_scan_account_link,
         init_db,
@@ -85,13 +89,17 @@ if USE_POSTGRES:
     )
 else:
     from worker.src.utils.db_sqlite import (  # noqa: E402
+        create_approval_event,
         create_connected_account,
         delete_connected_account,
         get_actions,
+        get_approval_events,
         get_connected_account,
         get_conn as db_get_conn,
         get_findings,
+        get_finding_approval_status,
         get_fix_guidance,
+        get_previous_scan_id,
         get_scan,
         get_scan_account_link,
         init_db,
@@ -108,12 +116,16 @@ else:
 # re-export so routers can do: from app.deps import init_db, ...
 __all__ = [
     "init_db",
+    "create_approval_event",
     "create_connected_account",
     "delete_connected_account",
     "get_actions",
+    "get_approval_events",
     "get_connected_account",
     "get_findings",
+    "get_finding_approval_status",
     "get_fix_guidance",
+    "get_previous_scan_id",
     "get_scan",
     "get_scan_account_link",
     "list_connected_accounts",
@@ -862,6 +874,47 @@ def send_critical_findings_email(
               <p style="color:#6b7280;font-size:12px;margin-top:24px">
                 Scan ID: {scan_id} · <a href="{FRONTEND_URL}/plans" style="color:#10b981">Manage subscription</a>
               </p>
+            </div>
+            """,
+        })
+    except Exception:
+        pass
+
+
+def send_fix_request_email(
+    assignee_email: str,
+    actor_name: str,
+    scan_id: str,
+    check_id: str,
+    resource_id: str,
+    title: str,
+    note: str = "",
+) -> None:
+    if not RESEND_API_KEY or not assignee_email:
+        return
+    try:
+        import resend
+        resend.api_key = RESEND_API_KEY
+        note_line = f"<p style='color:#9ca3af'><strong>Note:</strong> {note}</p>" if note else ""
+        resend.Emails.send({
+            "from": FROM_EMAIL,
+            "to": [assignee_email],
+            "subject": f"VigiliCloud: Fix requested — {title}",
+            "html": f"""
+            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#000;color:#fff;padding:32px;border-radius:12px">
+              <div style="margin-bottom:24px">
+                <span style="background:#10b981;color:#000;font-weight:bold;padding:4px 12px;border-radius:20px;font-size:12px">VigiliCloud</span>
+              </div>
+              <h1 style="font-size:22px;font-weight:bold;margin-bottom:16px">Fix requested: {title}</h1>
+              <p style="color:#9ca3af;margin-bottom:16px"><strong style="color:#fff">{actor_name}</strong> has requested a fix for the following compliance finding:</p>
+              <ul style="color:#d1d5db;margin-bottom:16px;padding-left:20px">
+                <li><strong>Check:</strong> {check_id}</li>
+                <li><strong>Resource:</strong> {resource_id}</li>
+              </ul>
+              {note_line}
+              <a href="{FRONTEND_URL}/scans" style="background:#10b981;color:#000;font-weight:bold;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px">
+                View in VigiliCloud →
+              </a>
             </div>
             """,
         })

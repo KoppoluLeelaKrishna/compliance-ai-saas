@@ -755,7 +755,7 @@ def export_scan_pdf(
         pdf.cell(col_w[3], 6.5, (res[:56] if len(res) <= 56 else res[:53] + "..."), border="B", fill=True)
         pdf.set_text_color(cr, cg, cb)
         pdf.set_font("Helvetica", "B", 7)
-        pdf.cell(col_w[4], 6.5, "✗", border="B", fill=True, align="C")
+        pdf.cell(col_w[4], 6.5, "FAIL", border="B", fill=True, align="C")
         pdf.set_text_color(*BODY_TEXT)
         pdf.set_font("Helvetica", "", 7)
         pdf.ln(6.5)
@@ -780,7 +780,11 @@ def export_scan_pdf(
             pdf.cell(pass_cols[2], 6.5, (res[:80] if len(res) <= 80 else res[:77] + "..."), border="B", fill=True)
             pdf.ln(6.5)
 
-    pdf_bytes = bytes(pdf.output())
+    try:
+        pdf_bytes = bytes(pdf.output())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}") from exc
+
     filename = f"vigilicloud-evidence-{scan_id[:8]}.pdf"
     return StreamingResponse(
         iter([pdf_bytes]),

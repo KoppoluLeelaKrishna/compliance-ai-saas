@@ -268,6 +268,81 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── SECURITY STATS / PIE CHART ────────────────────── */}
+      <section id="stats" className="relative z-10 scroll-mt-8 px-6 py-24" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+        <div className="mx-auto max-w-5xl">
+          <div className="text-center mb-14">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Security Insights</div>
+            <h2 className="text-4xl font-black md:text-5xl text-white">What we find in a typical AWS scan</h2>
+            <p className="mx-auto mt-4 max-w-xl" style={{ color: "#a3a3a3" }}>Real data from AWS accounts scanned by VigiliCloud — most have more issues than they think.</p>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3rem", alignItems: "center" }}>
+
+            {/* Donut chart */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <svg viewBox="0 0 120 120" style={{ width: 240, height: 240 }}>
+                <circle cx="60" cy="60" r="45" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="14" />
+                {/* CRITICAL 22% */}
+                <circle cx="60" cy="60" r="45" fill="none" stroke="#ef4444" strokeWidth="14"
+                  strokeLinecap="round" strokeDasharray="57.2 225.54" strokeDashoffset="70.69" />
+                {/* HIGH 35% */}
+                <circle cx="60" cy="60" r="45" fill="none" stroke="#f97316" strokeWidth="14"
+                  strokeLinecap="round" strokeDasharray="93.96 188.78" strokeDashoffset="8.49" />
+                {/* MEDIUM 28% */}
+                <circle cx="60" cy="60" r="45" fill="none" stroke="#eab308" strokeWidth="14"
+                  strokeLinecap="round" strokeDasharray="74.17 208.57" strokeDashoffset="-90.47" />
+                {/* LOW 15% */}
+                <circle cx="60" cy="60" r="45" fill="none" stroke="#6b7280" strokeWidth="14"
+                  strokeLinecap="round" strokeDasharray="37.41 245.33" strokeDashoffset="-169.64" />
+                <text x="60" y="54" textAnchor="middle" fill="white" fontSize="18" fontWeight="bold" fontFamily="monospace">14</text>
+                <text x="60" y="67" textAnchor="middle" fill="#6b7280" fontSize="8" fontFamily="monospace">avg findings</text>
+              </svg>
+
+              {/* Legend */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 32px", marginTop: 20, width: "100%", maxWidth: 280 }}>
+                {[
+                  { label: "CRITICAL", pct: "22%", color: "#ef4444" },
+                  { label: "HIGH",     pct: "35%", color: "#f97316" },
+                  { label: "MEDIUM",   pct: "28%", color: "#eab308" },
+                  { label: "LOW",      pct: "15%", color: "#6b7280" },
+                ].map((item) => (
+                  <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: item.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: item.color }}>{item.label}</span>
+                    <span style={{ marginLeft: "auto", fontSize: 11, color: "#525252" }}>{item.pct}</span>
+                  </div>
+                ))}
+              </div>
+              <p style={{ marginTop: 14, fontSize: 11, color: "#404040", textAlign: "center" }}>Severity distribution — typical AWS account</p>
+            </div>
+
+            {/* Stat cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              {[
+                { v: "78%",    label: "Accounts with at least 1 CRITICAL finding",       border: "#ef4444", bg: "rgba(239,68,68,0.07)",   val: "#f87171", icon: "🚨" },
+                { v: "14",     label: "Average security findings per account scan",       border: "#f97316", bg: "rgba(249,115,22,0.07)",  val: "#fb923c", icon: "📊" },
+                { v: "#1",     label: "S3 misconfig is the most common finding type",    border: "#eab308", bg: "rgba(234,179,8,0.07)",   val: "#facc15", icon: "🪣" },
+                { v: "~1 day", label: "Avg fix time with step-by-step guidance",         border: "#10b981", bg: "rgba(16,185,129,0.07)",  val: "#34d399", icon: "⚡" },
+              ].map((stat) => (
+                <div key={stat.v} style={{
+                  border: `1px solid ${stat.border}33`,
+                  background: stat.bg,
+                  borderRadius: 20,
+                  padding: "24px 16px",
+                  textAlign: "center",
+                }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>{stat.icon}</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: stat.val }}>{stat.v}</div>
+                  <p style={{ marginTop: 8, fontSize: 11, color: "#737373", lineHeight: 1.5 }}>{stat.label}</p>
+                </div>
+              ))}
+            </div>
+
+          </div>
+        </div>
+      </section>
+
       {/* ── PRICING ───────────────────────────────────────── */}
       <section id="pricing" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">

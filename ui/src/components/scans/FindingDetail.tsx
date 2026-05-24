@@ -77,8 +77,8 @@ export function FindingDetail({
         { method: "POST" }
       );
       setTicket(data.ticket || "");
-    } catch {
-      setTicket("Failed to generate ticket. Check that ANTHROPIC_API_KEY is configured.");
+    } catch (e) {
+      setTicket(`Failed to generate ticket: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setGeneratingTicket(false);
     }

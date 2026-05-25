@@ -176,26 +176,9 @@ def ensure_auth_tables() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import sys as _sys
-    try:
-        init_db()
-        print("VigiliCloud: init_db OK", flush=True)
-    except Exception as _e:
-        print(f"VigiliCloud: init_db FAILED — {_e}", flush=True)
-        _sys.exit(1)
-
-    try:
-        ensure_auth_tables()
-        print("VigiliCloud: ensure_auth_tables OK", flush=True)
-    except Exception as _e:
-        print(f"VigiliCloud: ensure_auth_tables FAILED — {_e}", flush=True)
-        _sys.exit(1)
-
-    try:
-        _do_seed_fix_guidance()
-        print("VigiliCloud: seed_fix_guidance OK", flush=True)
-    except Exception as _e:
-        print(f"VigiliCloud: seed_fix_guidance FAILED — {_e}", flush=True)
+    init_db()
+    ensure_auth_tables()
+    _do_seed_fix_guidance()
 
     if SCAN_SCHEDULE_HOURS > 0:
         try:
@@ -212,7 +195,6 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
-    print("VigiliCloud: startup complete", flush=True)
     yield  # app runs here
 
 

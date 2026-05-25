@@ -30,20 +30,6 @@ from app.deps import (
 from app.routers import accounts, approvals, auth, billing, developer, fix_guidance, integrations, msp, scans
 
 # ---------------------------------------------------------------------------
-# App & middleware
-# ---------------------------------------------------------------------------
-
-app = FastAPI(title="VigiliCloud API", version="0.4.0", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ---------------------------------------------------------------------------
 # Startup — db init, seed data, scheduler
 # ---------------------------------------------------------------------------
 
@@ -195,6 +181,20 @@ async def lifespan(app: FastAPI):
 
     yield  # app runs here
 
+
+# ---------------------------------------------------------------------------
+# App & middleware
+# ---------------------------------------------------------------------------
+
+app = FastAPI(title="VigiliCloud API", version="0.4.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ---------------------------------------------------------------------------
 # Core routes

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRef } from "react";
 import { ApprovalEvent, ApprovalStatus, Finding, FixGuidance } from "@/types";
-import { api, badgeClasses, fmtDate } from "@/lib/api";
+import { API_BASE, api, badgeClasses, fmtDate } from "@/lib/api";
 
 interface FindingDetailProps {
   finding: Finding | null;
@@ -64,6 +65,12 @@ export function FindingDetail({
   const [githubResult, setGithubResult] = useState<{ issue_number: number; issue_url: string } | null>(null);
   const [verifyingFix, setVerifyingFix] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState("");
+
+  type ChatMsg = { role: "user" | "assistant"; content: string };
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatStreaming, setChatStreaming] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   if (!finding) return null;
 
@@ -147,6 +154,54 @@ export function FindingDetail({
       setVerifyMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setVerifyingFix(false);
+    }
+  }
+
+  async function sendChat() {
+    if (!finding || !chatInput.trim() || chatStreaming) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    const history = [...chatMessages];
+    setChatMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    setChatStreaming(true);
+
+    try {
+      const params = new URLSearchParams({ resource_id: finding.resource_id });
+      const res = await fetch(
+        `${API_BASE}/scans/${finding.scan_id}/findings/${finding.check_id}/chat?${params}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userMsg, history }),
+        }
+      );
+      if (!res.ok || !res.body) {
+        const err = await res.text().catch(() => `HTTP ${res.status}`);
+        setChatMessages(prev => [...prev, { role: "assistant", content: `Error: ${err}` }]);
+        return;
+      }
+
+      setChatMessages(prev => [...prev, { role: "assistant", content: "" }]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let text = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+        setChatMessages(prev => {
+          const copy = [...prev];
+          copy[copy.length - 1] = { role: "assistant", content: text };
+          return copy;
+        });
+        chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    } catch (e) {
+      setChatMessages(prev => [...prev, { role: "assistant", content: `Error: ${e instanceof Error ? e.message : String(e)}` }]);
+    } finally {
+      setChatStreaming(false);
+      chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }
 
@@ -527,6 +582,65 @@ export function FindingDetail({
             {verifyMsg && (
               <p className={`text-xs ${verifyMsg.startsWith("Error") ? "text-red-400" : "text-emerald-300"}`}>{verifyMsg}</p>
             )}
+          </div>
+        </section>
+
+        {/* AI Chat */}
+        <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-violet-500/30 bg-violet-500/10">
+              <svg className="h-3.5 w-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+              </svg>
+            </div>
+            <h3 className="text-base font-bold text-violet-200">Ask AI about this finding</h3>
+          </div>
+          <p className="text-xs text-neutral-500">Powered by Claude Haiku · grounded in this finding&apos;s evidence</p>
+
+          {chatMessages.length > 0 && (
+            <div className="max-h-80 overflow-y-auto space-y-3 rounded-xl border border-white/[0.06] bg-black/30 p-4">
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {msg.role === "assistant" && (
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-violet-500/30 bg-violet-500/10 text-[10px] font-bold text-violet-400">AI</div>
+                  )}
+                  <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                    msg.role === "user"
+                      ? "bg-white/10 text-white"
+                      : "bg-violet-500/10 text-neutral-200"
+                  }`}>
+                    {msg.content}
+                    {chatStreaming && i === chatMessages.length - 1 && msg.role === "assistant" && (
+                      <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-violet-400 align-middle" />
+                    )}
+                  </div>
+                  {msg.role === "user" && (
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[10px] font-bold text-neutral-400">You</div>
+                  )}
+                </div>
+              ))}
+              <div ref={chatBottomRef} />
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendChat()}
+              placeholder="Is this a false positive? How do I fix this in Terraform?…"
+              disabled={chatStreaming}
+              className="flex-1 rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-violet-500/40 focus:outline-none disabled:opacity-50 transition-colors"
+            />
+            <button
+              type="button"
+              onClick={sendChat}
+              disabled={!chatInput.trim() || chatStreaming}
+              className="shrink-0 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-40 transition-colors"
+            >
+              {chatStreaming ? "…" : "Ask"}
+            </button>
           </div>
         </section>
 

@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Cookie, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 
 from app.config import (
     PROJECT_ROOT,
@@ -976,6 +977,93 @@ def generate_iac_snippets(
         "snippets": text,
         "findings_count": len(fail_findings),
     }
+
+
+# ---------------------------------------------------------------------------
+# AI Finding Chat (streaming)
+# ---------------------------------------------------------------------------
+
+class ChatIn(BaseModel):
+    message: str
+    history: List[Dict[str, str]] = []
+
+
+@router.post("/scans/{scan_id}/findings/{check_id}/chat")
+async def finding_chat(
+    scan_id: str,
+    check_id: str,
+    resource_id: str = Query(...),
+    payload: ChatIn = Body(...),
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    """Stream a Claude Haiku response grounded in the finding's evidence."""
+    user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
+
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not anthropic_key:
+        raise HTTPException(status_code=503, detail="AI not configured (missing ANTHROPIC_API_KEY)")
+
+    findings = get_findings(scan_id)
+    finding = next((f for f in findings if f["check_id"] == check_id and f["resource_id"] == resource_id), None)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    guidance = get_fix_guidance(check_id)
+    evidence_str = json.dumps(dict(finding.get("evidence") or {}), indent=2)[:1500]
+
+    system = (
+        f"You are an AWS cloud security expert helping a user investigate a specific compliance finding.\n\n"
+        f"Finding:\n"
+        f"- Check ID: {check_id}\n"
+        f"- Title: {finding.get('title', '')}\n"
+        f"- Severity: {finding.get('severity', '')}\n"
+        f"- Service: {finding.get('service', '')}\n"
+        f"- Resource: {str(finding.get('resource_id', ''))[:200]}\n"
+        f"- Status: {finding.get('status', '')}\n\n"
+        f"Evidence (raw AWS data):\n{evidence_str}\n\n"
+    )
+    if guidance:
+        steps = "\n".join(f"{i+1}. {s}" for i, s in enumerate(guidance.get("steps") or []))
+        cli = "\n".join(guidance.get("cli") or [])
+        system += (
+            f"Known remediation:\n{guidance.get('summary', '')}\n"
+            f"Steps:\n{steps}\n"
+            f"CLI:\n{cli}\n\n"
+        )
+    system += (
+        "Answer questions about this exact finding. Be concise and specific. "
+        "If the user asks about false positives, consider the evidence carefully. "
+        "If they ask for code, output it directly. Keep responses under 300 words."
+    )
+
+    safe_history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in payload.history
+        if m.get("role") in ("user", "assistant") and m.get("content")
+    ][-10:]  # cap at last 10 turns to limit token usage
+
+    messages = [*safe_history, {"role": "user", "content": payload.message[:800]}]
+
+    async def generate():
+        import anthropic as _anthropic
+        client = _anthropic.AsyncAnthropic(api_key=anthropic_key)
+        try:
+            async with client.messages.stream(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=600,
+                system=system,
+                messages=messages,
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield text
+        except _anthropic.AuthenticationError:
+            yield "[Error: Invalid Anthropic API key]"
+        except Exception as e:
+            yield f"[Error: {str(e)[:120]}]"
+
+    return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
 
 @router.get("/scans/history")

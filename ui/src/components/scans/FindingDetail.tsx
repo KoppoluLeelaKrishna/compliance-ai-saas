@@ -1,9 +1,64 @@
 "use client";
 
-import { useState } from "react";
-import { useRef } from "react";
+import { useState, useRef } from "react";
 import { ApprovalEvent, ApprovalStatus, Finding, FixGuidance } from "@/types";
 import { API_BASE, api, badgeClasses, fmtDate } from "@/lib/api";
+
+function ChatMarkdown({ text, streaming }: { text: string; streaming?: boolean }) {
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let i = 0;
+
+  function inlineRender(line: string): React.ReactNode {
+    const parts = line.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+    return parts.map((p, idx) => {
+      if (p.startsWith("`") && p.endsWith("`") && p.length > 2)
+        return <code key={idx} className="rounded bg-black/50 px-1 py-0.5 font-mono text-[11px] text-emerald-300">{p.slice(1, -1)}</code>;
+      if (p.startsWith("**") && p.endsWith("**") && p.length > 4)
+        return <strong key={idx} className="font-semibold text-white">{p.slice(2, -2)}</strong>;
+      return p;
+    });
+  }
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.startsWith("```")) {
+      const lang = line.slice(3).trim();
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      nodes.push(
+        <pre key={i} className="overflow-x-auto rounded-xl bg-black/60 border border-white/[0.07] p-3 font-mono text-[11px] text-emerald-300 my-2 whitespace-pre">
+          {lang && <div className="mb-1 text-[9px] uppercase tracking-widest text-neutral-600">{lang}</div>}
+          {codeLines.join("\n")}
+        </pre>
+      );
+    } else if (line.startsWith("### ")) {
+      nodes.push(<p key={i} className="mt-3 mb-1 text-xs font-bold uppercase tracking-wide text-neutral-300">{line.slice(4)}</p>);
+    } else if (line.startsWith("## ")) {
+      nodes.push(<p key={i} className="mt-3 mb-1 text-sm font-bold text-white">{line.slice(3)}</p>);
+    } else if (line.startsWith("# ")) {
+      nodes.push(<p key={i} className="mt-3 mb-1 text-base font-bold text-white">{line.slice(2)}</p>);
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      nodes.push(<p key={i} className="flex gap-1.5 text-sm text-neutral-200"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-violet-400" /><span>{inlineRender(line.slice(2))}</span></p>);
+    } else if (line.trim() === "") {
+      nodes.push(<div key={i} className="h-1.5" />);
+    } else {
+      nodes.push(<p key={i} className="text-sm leading-relaxed text-neutral-200">{inlineRender(line)}</p>);
+    }
+    i++;
+  }
+
+  return (
+    <div className="space-y-0.5">
+      {nodes}
+      {streaming && <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-violet-400 align-middle" />}
+    </div>
+  );
+}
 
 interface FindingDetailProps {
   finding: Finding | null;
@@ -313,15 +368,15 @@ export function FindingDetail({
                   {msg.role === "assistant" && (
                     <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-violet-500/30 bg-violet-500/10 text-[10px] font-bold text-violet-400">AI</div>
                   )}
-                  <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                  <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 ${
                     msg.role === "user"
-                      ? "bg-white/10 text-white"
-                      : "bg-violet-500/10 text-neutral-200"
+                      ? "bg-white/10 text-white text-sm"
+                      : "bg-violet-500/10"
                   }`}>
-                    {msg.content}
-                    {chatStreaming && i === chatMessages.length - 1 && msg.role === "assistant" && (
-                      <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-violet-400 align-middle" />
-                    )}
+                    {msg.role === "user"
+                      ? msg.content
+                      : <ChatMarkdown text={msg.content} streaming={chatStreaming && i === chatMessages.length - 1} />
+                    }
                   </div>
                   {msg.role === "user" && (
                     <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[10px] font-bold text-neutral-400">You</div>

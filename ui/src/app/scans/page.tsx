@@ -794,7 +794,7 @@ export default function ScansPage() {
       )}
 
       {/* ── Findings table ───────────────────────────────────────────────── */}
-      <FindingsTable findings={filteredFindings} onOpenFinding={openFinding} loading={loadingFindings} />
+      <FindingsTable findings={filteredFindings} onOpenFinding={openFinding} loading={loadingFindings} search={search} />
 
       {/* ── Finding detail panel ─────────────────────────────────────────── */}
       {selectedFinding && (

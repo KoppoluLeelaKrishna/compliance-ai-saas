@@ -5,9 +5,23 @@ interface FindingsTableProps {
   findings: Finding[];
   onOpenFinding: (finding: Finding) => void;
   loading: boolean;
+  search?: string;
 }
 
-export function FindingsTable({ findings, onOpenFinding, loading }: FindingsTableProps) {
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-violet-500/30 text-violet-200 rounded px-0.5">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
+export function FindingsTable({ findings, onOpenFinding, loading, search = "" }: FindingsTableProps) {
   if (loading) {
     return (
       <div className="space-y-4">
@@ -53,17 +67,23 @@ export function FindingsTable({ findings, onOpenFinding, loading }: FindingsTabl
               <td className="px-6 py-4 font-medium text-neutral-300">{f.service}</td>
               <td className="px-6 py-4">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-white">{f.title}</span>
+                  <span className="font-semibold text-white">
+                    <Highlight text={f.title} query={search} />
+                  </span>
                   {f.drift_status === "NEW" && (
                     <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-cyan-400">
                       NEW
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 text-xs text-neutral-500">{f.check_id}</div>
+                <div className="mt-0.5 text-xs text-neutral-500">
+                  <Highlight text={f.check_id} query={search} />
+                </div>
               </td>
-              <td className="px-6 py-4 font-mono text-xs text-neutral-400">
-                {f.resource_id.length > 30 ? f.resource_id.substring(0, 30) + "..." : f.resource_id}
+              <td className="px-6 py-4 font-mono text-xs text-neutral-400 max-w-[200px]">
+                <span className="break-all">
+                  <Highlight text={f.resource_id} query={search} />
+                </span>
               </td>
               <td className="px-6 py-4">
                 <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${badgeClasses(f.resolution || "OPEN")}`}>

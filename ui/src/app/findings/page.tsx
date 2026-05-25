@@ -279,7 +279,7 @@ export default function FindingsPage() {
       </div>
 
       {/* ── Findings table ─────────────────────────────────────────────── */}
-      <FindingsTable findings={filtered} onOpenFinding={openFinding} loading={loading} />
+      <FindingsTable findings={filtered} onOpenFinding={openFinding} loading={loading} search={search} />
 
       {/* ── Finding detail ─────────────────────────────────────────────── */}
       {selectedFinding && (

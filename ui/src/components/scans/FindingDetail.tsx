@@ -635,68 +635,29 @@ export function FindingDetail({
           )}
         </section>
 
-        {/* Create ticket / verify section */}
-        <section className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
-          <h3 className="text-lg font-bold">Create Ticket &amp; Verify</h3>
-          <p className="text-sm text-neutral-400">Push this finding directly to Jira or GitHub, then trigger a re-scan to confirm the fix.</p>
+        {/* Create ticket / verify section — coming soon */}
+        <section className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-neutral-400">Create Ticket &amp; Verify</h3>
+            <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-violet-400">
+              Coming Soon
+            </span>
+          </div>
+          <p className="text-sm text-neutral-600">Push findings directly to Jira or GitHub Issues, then trigger a re-scan to confirm the fix — available in an upcoming release.</p>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {/* Jira */}
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={createJiraTicket}
-                disabled={creatingJira}
-                className="w-full rounded-xl border border-blue-500/30 bg-blue-500/10 py-2.5 text-sm font-semibold text-blue-300 hover:bg-blue-500/20 disabled:opacity-50 transition-colors"
-              >
-                {creatingJira ? "Creating…" : "Create Jira Ticket"}
-              </button>
-              {jiraResult && (
-                jiraResult.issue_url.startsWith("Error") ? (
-                  <p className="text-xs text-red-400">{jiraResult.issue_url}</p>
-                ) : (
-                  <p className="text-xs text-blue-300">
-                    Created <a href={jiraResult.issue_url} target="_blank" rel="noopener noreferrer" className="underline font-mono">{jiraResult.issue_key}</a>
-                  </p>
-                )
-              )}
-            </div>
-
-            {/* GitHub */}
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={createGitHubIssue}
-                disabled={creatingGitHub}
-                className="w-full rounded-xl border border-white/20 bg-white/5 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-white/10 disabled:opacity-50 transition-colors"
-              >
-                {creatingGitHub ? "Creating…" : "Create GitHub Issue"}
-              </button>
-              {githubResult && (
-                githubResult.issue_url.startsWith("Error") ? (
-                  <p className="text-xs text-red-400">{githubResult.issue_url}</p>
-                ) : (
-                  <p className="text-xs text-neutral-300">
-                    Created <a href={githubResult.issue_url} target="_blank" rel="noopener noreferrer" className="underline font-mono">#{githubResult.issue_number}</a>
-                  </p>
-                )
-              )}
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 opacity-40 pointer-events-none select-none">
+            <button type="button" disabled className="w-full rounded-xl border border-blue-500/30 bg-blue-500/10 py-2.5 text-sm font-semibold text-blue-300">
+              Create Jira Ticket
+            </button>
+            <button type="button" disabled className="w-full rounded-xl border border-white/20 bg-white/5 py-2.5 text-sm font-semibold text-neutral-200">
+              Create GitHub Issue
+            </button>
           </div>
 
-          {/* Verify fix */}
-          <div className="border-t border-white/10 pt-3 space-y-2">
-            <button
-              type="button"
-              onClick={verifyFix}
-              disabled={verifyingFix}
-              className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/5 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50 transition-colors"
-            >
-              {verifyingFix ? "Starting scan…" : "Run Scan to Verify Fix"}
+          <div className="border-t border-white/[0.06] pt-3 opacity-40 pointer-events-none select-none">
+            <button type="button" disabled className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/5 py-2.5 text-sm font-semibold text-emerald-400">
+              Run Scan to Verify Fix
             </button>
-            {verifyMsg && (
-              <p className={`text-xs ${verifyMsg.startsWith("Error") ? "text-red-400" : "text-emerald-300"}`}>{verifyMsg}</p>
-            )}
           </div>
         </section>
 

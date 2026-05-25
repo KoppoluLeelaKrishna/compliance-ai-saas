@@ -6,10 +6,11 @@ import { API_BASE, api, badgeClasses, fmtDate } from "@/lib/api";
 
 function ChatMarkdown({ text, streaming }: { text: string; streaming?: boolean }) {
   const lines = text.split("\n");
-  const nodes: React.ReactNode[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nodes: any[] = [];
   let i = 0;
 
-  function inlineRender(line: string): React.ReactNode {
+  function inlineRender(line: string) {
     const parts = line.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
     return parts.map((p, idx) => {
       if (p.startsWith("`") && p.endsWith("`") && p.length > 2)

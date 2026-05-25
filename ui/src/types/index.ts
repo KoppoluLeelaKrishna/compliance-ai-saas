@@ -180,6 +180,30 @@ export type DashboardResponse = {
   };
 };
 
+export type ScanHistoryItem = {
+  scan_id: string;
+  created_at: string;
+  total: number;
+  fail: number;
+  critical: number;
+};
+
+export type IacSnippets = {
+  scan_id: string;
+  tool: string;
+  snippets: string;
+  findings_count: number;
+};
+
+export type ApiKey = {
+  id: number;
+  key_prefix: string;
+  label: string;
+  created_at: string;
+  last_used_at: string;
+  is_active: number;
+};
+
 export type HealthResponse = {
   ok: boolean;
   app_env: string;

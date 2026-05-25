@@ -911,6 +911,101 @@ def generate_questionnaire(
     }
 
 
+@router.post("/scans/{scan_id}/iac-snippets")
+def generate_iac_snippets(
+    scan_id: str,
+    tool: str = Query(default="terraform"),
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
+
+    if tool not in ("terraform", "cdk"):
+        raise HTTPException(status_code=400, detail="tool must be terraform or cdk")
+
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not anthropic_key:
+        raise HTTPException(status_code=503, detail="IaC generation is not configured.")
+
+    rows = _export_rows(scan_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Scan not found or has no findings.")
+
+    fail_findings = [r for r in rows if r.get("status") == "FAIL"]
+    if not fail_findings:
+        return {"scan_id": scan_id, "tool": tool.upper(), "snippets": "All controls pass — no fixes needed.", "findings_count": 0}
+
+    tool_name = "Terraform HCL" if tool == "terraform" else "AWS CDK (Python)"
+    findings_text = "\n".join(
+        f"- [{r.get('severity')}] {r.get('service')}: {r.get('check_id')} | Resource: {str(r.get('resource_id', ''))[:60]}"
+        for r in fail_findings[:20]
+    )
+
+    try:
+        import anthropic as _anthropic
+        client = _anthropic.Anthropic(api_key=anthropic_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=3000,
+            system=(
+                f"You are an AWS security engineer. Generate {tool_name} code to remediate security misconfigurations. "
+                "Use plain text with FINDING: section headers. Use UPPER_CASE placeholders for user-supplied values. "
+                "No markdown, no backticks, no code fences — output plain text code blocks indented with 2 spaces."
+            ),
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Generate {tool_name} to fix these failing AWS security controls:\n\n"
+                    f"{findings_text}\n\n"
+                    "For each finding output exactly this format:\n"
+                    "FINDING: [check_id] — [short description]\n"
+                    "  [code here indented 2 spaces]\n"
+                    "---\n\n"
+                    "Be concise. Include realistic resource references and UPPER_CASE placeholders."
+                ),
+            }],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"IaC generation failed: {str(e)}")
+
+    text = next((b.text for b in response.content if b.type == "text"), "")
+    return {
+        "scan_id": scan_id,
+        "tool": tool.upper(),
+        "snippets": text,
+        "findings_count": len(fail_findings),
+    }
+
+
+@router.get("/scans/history")
+def get_scan_history(
+    account_id: int = Query(...),
+    limit: int = Query(default=8, le=20),
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    scans_list = list_scans(limit=limit, account_id=account_id, user_id=user["id"])
+    result = []
+    for scan_row in scans_list:
+        s = dict(scan_row)
+        scan_id = s.get("scan_id", "")
+        findings = get_findings(scan_id)
+        fail_count = sum(1 for f in findings if f.get("status") == "FAIL")
+        critical_count = sum(
+            1 for f in findings if f.get("status") == "FAIL" and f.get("severity") == "CRITICAL"
+        )
+        result.append({
+            "scan_id": scan_id,
+            "created_at": s.get("created_at", ""),
+            "total": len(findings),
+            "fail": fail_count,
+            "critical": critical_count,
+        })
+    return {"scans": result}
+
+
 @router.get("/scans/{scan_id}/export.json")
 def export_scan_json(
     scan_id: str,

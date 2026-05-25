@@ -25,7 +25,7 @@ from app.deps import (
     razorpay_config_summary,
     run_scheduled_scans,
 )
-from app.routers import accounts, approvals, auth, billing, fix_guidance, scans
+from app.routers import accounts, approvals, auth, billing, developer, fix_guidance, integrations, msp, scans
 
 # ---------------------------------------------------------------------------
 # App & middleware
@@ -90,6 +90,14 @@ def ensure_auth_tables() -> None:
     _add_col_if_missing("subscription_status", "subscription_status TEXT NOT NULL DEFAULT 'free'")
     _add_col_if_missing("stripe_customer_id", "stripe_customer_id TEXT NOT NULL DEFAULT ''")
     _add_col_if_missing("stripe_subscription_id", "stripe_subscription_id TEXT NOT NULL DEFAULT ''")
+    _add_col_if_missing("scheduled_scans_enabled", "scheduled_scans_enabled INTEGER NOT NULL DEFAULT 0")
+    _add_col_if_missing("slack_webhook_url", "slack_webhook_url TEXT NOT NULL DEFAULT ''")
+    _add_col_if_missing("jira_url", "jira_url TEXT NOT NULL DEFAULT ''")
+    _add_col_if_missing("jira_email", "jira_email TEXT NOT NULL DEFAULT ''")
+    _add_col_if_missing("jira_api_token", "jira_api_token TEXT NOT NULL DEFAULT ''")
+    _add_col_if_missing("jira_project_key", "jira_project_key TEXT NOT NULL DEFAULT ''")
+    _add_col_if_missing("github_token", "github_token TEXT NOT NULL DEFAULT ''")
+    _add_col_if_missing("github_default_repo", "github_default_repo TEXT NOT NULL DEFAULT ''")
 
     cur.execute(
         """
@@ -115,6 +123,21 @@ def ensure_auth_tables() -> None:
             payload_json TEXT NOT NULL,
             received_at TEXT NOT NULL,
             processed_at TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            key_hash TEXT NOT NULL UNIQUE,
+            key_prefix TEXT NOT NULL,
+            label TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            last_used_at TEXT NOT NULL DEFAULT '',
+            is_active INTEGER NOT NULL DEFAULT 1
         )
         """
     )
@@ -212,3 +235,6 @@ app.include_router(scans.router)
 app.include_router(accounts.router)
 app.include_router(fix_guidance.router)
 app.include_router(approvals.router)
+app.include_router(developer.router)
+app.include_router(integrations.router)
+app.include_router(msp.router)

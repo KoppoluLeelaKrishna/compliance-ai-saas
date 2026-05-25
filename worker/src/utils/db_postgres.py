@@ -221,6 +221,7 @@ def init_db() -> None:
 
     # migrations for existing tables that predate these columns
     add_column_if_missing(conn, "connected_accounts", "user_id", "user_id INTEGER NOT NULL DEFAULT 1")
+    add_column_if_missing(conn, "connected_accounts", "client_group", "client_group TEXT NOT NULL DEFAULT ''")
     add_column_if_missing(conn, "scans", "user_id", "user_id INTEGER NOT NULL DEFAULT 1")
 
     conn.close()

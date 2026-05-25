@@ -12,6 +12,8 @@ import {
   Finding,
   FindingsResponse,
   FixGuidance,
+  IacSnippets,
+  ScanHistoryItem,
   ScanItem,
 } from "@/types";
 import { Card } from "@/components/ui/Card";
@@ -58,6 +60,14 @@ export default function ScansPage() {
 
   const [drift, setDrift] = useState<DriftSummary | null>(null);
   const [driftFilter, setDriftFilter] = useState(false);
+
+  const [iac, setIac] = useState<IacSnippets | null>(null);
+  const [iacTool, setIacTool] = useState<"terraform" | "cdk">("terraform");
+  const [loadingIac, setLoadingIac] = useState(false);
+  const [iacCopied, setIacCopied] = useState(false);
+
+  const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [approvalEvents, setApprovalEvents] = useState<ApprovalEvent[]>([]);
   const [approvalSaving, setApprovalSaving] = useState(false);
@@ -141,6 +151,7 @@ export default function ScansPage() {
 
   useEffect(() => {
     if (selectedScanId) {
+      setIac(null);
       loadFindings(selectedScanId);
     }
   }, [selectedScanId]);
@@ -170,7 +181,9 @@ export default function ScansPage() {
 
   async function handleAccountChange(id: string) {
     setSelectedAccountId(id);
-    await loadScans(id);
+    setIac(null);
+    setScanHistory([]);
+    await Promise.all([loadScans(id), loadScanHistory(id)]);
   }
 
   async function handleRunScan() {
@@ -321,6 +334,45 @@ export default function ScansPage() {
     navigator.clipboard.writeText(questionnaire);
     setQuestionnaireCopied(true);
     setTimeout(() => setQuestionnaireCopied(false), 1800);
+  }
+
+  async function handleGenerateIac() {
+    if (!selectedScanId || loadingIac) return;
+    setLoadingIac(true);
+    setIac(null);
+    setError("");
+    try {
+      const data = await api<IacSnippets>(
+        `/scans/${selectedScanId}/iac-snippets?tool=${iacTool}`,
+        { method: "POST" }
+      );
+      setIac(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "IaC generation failed");
+    } finally {
+      setLoadingIac(false);
+    }
+  }
+
+  function copyIac() {
+    if (iac) {
+      navigator.clipboard.writeText(iac.snippets);
+      setIacCopied(true);
+      setTimeout(() => setIacCopied(false), 1800);
+    }
+  }
+
+  async function loadScanHistory(accountId: string) {
+    if (!accountId) { setScanHistory([]); return; }
+    setLoadingHistory(true);
+    try {
+      const data = await api<{ scans: ScanHistoryItem[] }>(`/scans/history?account_id=${accountId}`);
+      setScanHistory(data.scans || []);
+    } catch {
+      setScanHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
   }
 
   const severityCounts = useMemo(() => {
@@ -583,6 +635,119 @@ export default function ScansPage() {
           </div>
         )}
       </div>
+
+      {/* ── IaC Fix Snippets ────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-orange-300">
+              <span>⬡</span><span>IaC Fix Snippets</span>
+            </div>
+            <p className="mt-0.5 text-xs text-neutral-600">AI generates Terraform or CDK code to fix every failing control.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center divide-x divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
+              {(["terraform", "cdk"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => { setIacTool(t); setIac(null); }}
+                  className={`px-3.5 py-2 text-xs font-semibold transition-colors ${
+                    iacTool === t ? "bg-orange-500/20 text-orange-300" : "text-neutral-500 hover:text-neutral-300"
+                  }`}
+                >
+                  {t === "terraform" ? "Terraform" : "CDK (Python)"}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerateIac}
+              disabled={!selectedScanId || loadingIac}
+              className="rounded-xl border border-orange-500/25 bg-orange-500/10 px-4 py-2 text-xs font-semibold text-orange-300 hover:bg-orange-500/20 disabled:opacity-40 transition-colors"
+            >
+              {loadingIac ? "Generating…" : "Generate"}
+            </button>
+          </div>
+        </div>
+
+        {iac && (
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs text-neutral-600">{iac.findings_count} failing control{iac.findings_count !== 1 ? "s" : ""} · {iac.tool}</span>
+              <button
+                type="button"
+                onClick={copyIac}
+                className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-1 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
+              >
+                {iacCopied ? "Copied ✓" : "Copy"}
+              </button>
+            </div>
+            <div className="max-h-80 overflow-y-auto rounded-xl border border-white/[0.06] bg-black/30 p-5">
+              {iac.snippets.split("\n").map((line, i) => {
+                const isHeader = line.startsWith("FINDING:");
+                const isSep = line.trim() === "---";
+                if (isSep) return <div key={i} className="my-3 border-t border-white/[0.06]" />;
+                return isHeader
+                  ? <p key={i} className="mt-2 mb-1 text-xs font-bold text-orange-300 uppercase tracking-wide">{line}</p>
+                  : <p key={i} className={`font-mono text-xs ${line.trim() === "" ? "h-2" : "text-neutral-300"}`}>{line}</p>;
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Scan Timeline ────────────────────────────────────────────────── */}
+      {selectedAccountId && (
+        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="text-sm font-semibold text-neutral-300">Scan History</div>
+            {loadingHistory && <span className="text-xs text-neutral-600">Loading…</span>}
+          </div>
+          {scanHistory.length === 0 && !loadingHistory ? (
+            <p className="text-xs text-neutral-600">Run more scans to see the history timeline.</p>
+          ) : (
+            <div className="flex items-end gap-2 overflow-x-auto pb-1">
+              {[...scanHistory].reverse().map((s) => {
+                const barPct = s.total > 0 ? Math.min(100, Math.round((s.fail / s.total) * 100)) : 0;
+                const barH = barPct === 0 ? "h-2" : barPct <= 25 ? "h-4" : barPct <= 50 ? "h-8" : barPct <= 75 ? "h-12" : "h-16";
+                const isSelected = s.scan_id === selectedScanId;
+                const hasCritical = s.critical > 0;
+                return (
+                  <button
+                    key={s.scan_id}
+                    type="button"
+                    title={`${new Date(s.created_at).toLocaleDateString()} — ${s.fail} fail / ${s.total} total`}
+                    onClick={() => setSelectedScanId(s.scan_id)}
+                    className={`group flex flex-col items-center gap-1.5 rounded-xl border px-2.5 py-2 transition-colors ${
+                      isSelected
+                        ? "border-emerald-500/40 bg-emerald-500/10"
+                        : "border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="flex h-16 w-6 items-end">
+                      <div
+                        className={`w-full rounded-t ${barH} ${hasCritical ? "bg-red-500/70" : s.fail > 0 ? "bg-yellow-500/60" : "bg-emerald-500/60"}`}
+                      />
+                    </div>
+                    <span className="text-[9px] text-neutral-600 group-hover:text-neutral-400">
+                      {new Date(s.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    </span>
+                    {s.critical > 0 && (
+                      <span className="text-[9px] font-bold text-red-400">{s.critical}C</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="mt-3 flex items-center gap-4 text-[10px] text-neutral-600">
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-red-500/70" /> Critical fails</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-yellow-500/60" /> Other fails</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-500/60" /> All passing</span>
+          </div>
+        </div>
+      )}
 
       {/* ── Drift banner ─────────────────────────────────────────────────── */}
       {drift && (

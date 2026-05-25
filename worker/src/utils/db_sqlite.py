@@ -130,6 +130,7 @@ def init_db() -> None:
     add_column_if_missing(conn, "connected_accounts", "account_name", "account_name TEXT NOT NULL DEFAULT ''")
     add_column_if_missing(conn, "connected_accounts", "is_active", "is_active INTEGER NOT NULL DEFAULT 1")
     add_column_if_missing(conn, "connected_accounts", "updated_at", f"updated_at TEXT NOT NULL DEFAULT '{now_utc_iso()}'")
+    add_column_if_missing(conn, "connected_accounts", "client_group", "client_group TEXT NOT NULL DEFAULT ''")
     add_column_if_missing(conn, "scans", "user_id", "user_id INTEGER NOT NULL DEFAULT 1")
 
     conn.execute(

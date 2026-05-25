@@ -58,6 +58,13 @@ export function FindingDetail({
   const [generatingTicket, setGeneratingTicket] = useState(false);
   const [ticketCopied, setTicketCopied] = useState(false);
 
+  const [creatingJira, setCreatingJira] = useState(false);
+  const [jiraResult, setJiraResult] = useState<{ issue_key: string; issue_url: string } | null>(null);
+  const [creatingGitHub, setCreatingGitHub] = useState(false);
+  const [githubResult, setGithubResult] = useState<{ issue_number: number; issue_url: string } | null>(null);
+  const [verifyingFix, setVerifyingFix] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState("");
+
   if (!finding) return null;
 
   const approvalStatus: ApprovalStatus = finding.approval_status || "OPEN";
@@ -88,6 +95,59 @@ export function FindingDetail({
     navigator.clipboard.writeText(ticket);
     setTicketCopied(true);
     setTimeout(() => setTicketCopied(false), 1800);
+  }
+
+  async function createJiraTicket() {
+    if (!finding) return;
+    setCreatingJira(true);
+    setJiraResult(null);
+    try {
+      const params = new URLSearchParams({ check_id: finding.check_id, resource_id: finding.resource_id });
+      const data = await api<{ ok: boolean; issue_key: string; issue_url: string }>(
+        `/scans/${finding.scan_id}/create-jira-ticket?${params}`,
+        { method: "POST" }
+      );
+      setJiraResult({ issue_key: data.issue_key, issue_url: data.issue_url });
+    } catch (e) {
+      setJiraResult({ issue_key: "", issue_url: `Error: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setCreatingJira(false);
+    }
+  }
+
+  async function createGitHubIssue() {
+    if (!finding) return;
+    setCreatingGitHub(true);
+    setGithubResult(null);
+    try {
+      const params = new URLSearchParams({ check_id: finding.check_id, resource_id: finding.resource_id });
+      const data = await api<{ ok: boolean; issue_number: number; issue_url: string }>(
+        `/scans/${finding.scan_id}/create-github-issue?${params}`,
+        { method: "POST" }
+      );
+      setGithubResult({ issue_number: data.issue_number, issue_url: data.issue_url });
+    } catch (e) {
+      setGithubResult({ issue_number: 0, issue_url: `Error: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setCreatingGitHub(false);
+    }
+  }
+
+  async function verifyFix() {
+    if (!finding) return;
+    setVerifyingFix(true);
+    setVerifyMsg("");
+    try {
+      const data = await api<{ ok: boolean; message: string }>(
+        `/scans/${finding.scan_id}/verify-fix`,
+        { method: "POST" }
+      );
+      setVerifyMsg(data.message || "Verification scan started.");
+    } catch (e) {
+      setVerifyMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setVerifyingFix(false);
+    }
   }
 
   async function handleRequestFix() {
@@ -403,6 +463,71 @@ export function FindingDetail({
               </pre>
             </div>
           )}
+        </section>
+
+        {/* Create ticket / verify section */}
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+          <h3 className="text-lg font-bold">Create Ticket &amp; Verify</h3>
+          <p className="text-sm text-neutral-400">Push this finding directly to Jira or GitHub, then trigger a re-scan to confirm the fix.</p>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* Jira */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={createJiraTicket}
+                disabled={creatingJira}
+                className="w-full rounded-xl border border-blue-500/30 bg-blue-500/10 py-2.5 text-sm font-semibold text-blue-300 hover:bg-blue-500/20 disabled:opacity-50 transition-colors"
+              >
+                {creatingJira ? "Creating…" : "Create Jira Ticket"}
+              </button>
+              {jiraResult && (
+                jiraResult.issue_url.startsWith("Error") ? (
+                  <p className="text-xs text-red-400">{jiraResult.issue_url}</p>
+                ) : (
+                  <p className="text-xs text-blue-300">
+                    Created <a href={jiraResult.issue_url} target="_blank" rel="noopener noreferrer" className="underline font-mono">{jiraResult.issue_key}</a>
+                  </p>
+                )
+              )}
+            </div>
+
+            {/* GitHub */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={createGitHubIssue}
+                disabled={creatingGitHub}
+                className="w-full rounded-xl border border-white/20 bg-white/5 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-white/10 disabled:opacity-50 transition-colors"
+              >
+                {creatingGitHub ? "Creating…" : "Create GitHub Issue"}
+              </button>
+              {githubResult && (
+                githubResult.issue_url.startsWith("Error") ? (
+                  <p className="text-xs text-red-400">{githubResult.issue_url}</p>
+                ) : (
+                  <p className="text-xs text-neutral-300">
+                    Created <a href={githubResult.issue_url} target="_blank" rel="noopener noreferrer" className="underline font-mono">#{githubResult.issue_number}</a>
+                  </p>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Verify fix */}
+          <div className="border-t border-white/10 pt-3 space-y-2">
+            <button
+              type="button"
+              onClick={verifyFix}
+              disabled={verifyingFix}
+              className="w-full rounded-xl border border-emerald-500/20 bg-emerald-500/5 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50 transition-colors"
+            >
+              {verifyingFix ? "Starting scan…" : "Run Scan to Verify Fix"}
+            </button>
+            {verifyMsg && (
+              <p className={`text-xs ${verifyMsg.startsWith("Error") ? "text-red-400" : "text-emerald-300"}`}>{verifyMsg}</p>
+            )}
+          </div>
         </section>
 
         <section>

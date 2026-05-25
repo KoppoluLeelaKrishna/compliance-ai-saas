@@ -295,6 +295,7 @@ def get_current_user(
     session_cookie: Optional[str],
     authorization: Optional[str],
 ) -> Dict[str, Any]:
+    import hashlib as _hashlib
     token = session_cookie or get_bearer_token(authorization)
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -320,6 +321,38 @@ def get_current_user(
         (token,),
     )
     row = cur.fetchone()
+
+    if not row and token.startswith("vc_"):
+        key_hash = _hashlib.sha256(token.encode()).hexdigest()
+        cur.execute(
+            """
+            SELECT ak.id AS key_id, u.id, u.email, u.name, u.role,
+                   u.subscription_status, u.stripe_customer_id, u.stripe_subscription_id
+            FROM api_keys ak
+            JOIN users u ON u.id = ak.user_id
+            WHERE ak.key_hash = ? AND ak.is_active = 1
+            """,
+            (key_hash,),
+        )
+        api_row = cur.fetchone()
+        if api_row:
+            conn.execute(
+                "UPDATE api_keys SET last_used_at = ? WHERE id = ?",
+                (now_utc_iso(), api_row["key_id"]),
+            )
+            conn.commit()
+            user = {
+                "id": api_row["id"],
+                "email": api_row["email"],
+                "name": api_row["name"],
+                "role": api_row["role"],
+                "session_token": token,
+                "subscription_status": api_row["subscription_status"],
+                "stripe_customer_id": api_row["stripe_customer_id"],
+                "stripe_subscription_id": api_row["stripe_subscription_id"],
+            }
+            conn.close()
+            return user
 
     if not row:
         conn.close()
@@ -881,6 +914,31 @@ def send_critical_findings_email(
         pass
 
 
+def send_slack_alert(
+    webhook_url: str,
+    critical_count: int,
+    account_name: str,
+    scan_id: str,
+) -> None:
+    if not webhook_url:
+        return
+    try:
+        import json as _j
+        import urllib.request as _ur
+        account_part = f" in *{account_name}*" if account_name else ""
+        s = "s" if critical_count != 1 else ""
+        text = (
+            f":rotating_light: *VigiliCloud: {critical_count} CRITICAL finding{s} detected{account_part}*\n"
+            f"Scan `{scan_id[:8]}` · <{FRONTEND_URL}/scans|View Findings →>"
+        )
+        body = _j.dumps({"text": text}).encode()
+        req = _ur.Request(webhook_url, data=body, headers={"Content-Type": "application/json"})
+        with _ur.urlopen(req, timeout=10) as r:
+            r.read()
+    except Exception:
+        pass
+
+
 def send_fix_request_email(
     assignee_email: str,
     actor_name: str,
@@ -961,6 +1019,21 @@ def run_account_scan(account: Dict[str, Any], user: Dict[str, Any]) -> None:
                 critical_count=len(critical),
                 account_name=account.get("account_name", ""),
             )
+            try:
+                _c = get_conn()
+                _row = _c.execute(
+                    "SELECT slack_webhook_url FROM users WHERE id = ?", (user["id"],)
+                ).fetchone()
+                _c.close()
+                _slack_url = (_row["slack_webhook_url"] or "") if _row else ""
+            except Exception:
+                _slack_url = ""
+            send_slack_alert(
+                webhook_url=_slack_url,
+                critical_count=len(critical),
+                account_name=account.get("account_name", ""),
+                scan_id=scan_id,
+            )
     except Exception:
         pass
 
@@ -968,9 +1041,14 @@ def run_account_scan(account: Dict[str, Any], user: Dict[str, Any]) -> None:
 def run_scheduled_scans() -> None:
     try:
         conn = get_conn()
-        users = conn.execute(
-            "SELECT id, email, name, subscription_status FROM users"
-        ).fetchall()
+        try:
+            users = conn.execute(
+                "SELECT id, email, name, subscription_status FROM users WHERE scheduled_scans_enabled = 1"
+            ).fetchall()
+        except Exception:
+            users = conn.execute(
+                "SELECT id, email, name, subscription_status FROM users"
+            ).fetchall()
         conn.close()
 
         for user_row in users:

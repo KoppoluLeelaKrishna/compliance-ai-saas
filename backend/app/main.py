@@ -9,6 +9,8 @@ All business logic lives in:
 """
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -31,7 +33,7 @@ from app.routers import accounts, approvals, auth, billing, developer, fix_guida
 # App & middleware
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="VigiliCloud API", version="0.4.0")
+app = FastAPI(title="VigiliCloud API", version="0.4.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -170,8 +172,8 @@ def ensure_auth_tables() -> None:
     conn.close()
 
 
-@app.on_event("startup")
-def startup() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_db()
     ensure_auth_tables()
     _do_seed_fix_guidance()
@@ -190,6 +192,8 @@ def startup() -> None:
             scheduler.start()
         except Exception:
             pass
+
+    yield  # app runs here
 
 
 # ---------------------------------------------------------------------------

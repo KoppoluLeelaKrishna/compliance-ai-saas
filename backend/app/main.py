@@ -74,7 +74,7 @@ def ensure_auth_tables() -> None:
             rows = conn.execute(
                 "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"
             ).fetchall()
-            return [str(r[0]) for r in rows]
+            return [str(r["column_name"]) for r in rows]
         rows = conn.execute("PRAGMA table_info(users)").fetchall()
         return [str(r["name"]) for r in rows]
 

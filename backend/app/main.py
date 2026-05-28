@@ -69,15 +69,29 @@ def ensure_auth_tables() -> None:
             """
         )
 
-    def _add_col_if_missing(column_name: str, ddl: str) -> None:
+    def _col_names() -> list:
+        if USE_POSTGRES:
+            rows = conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"
+            ).fetchall()
+            return [str(r[0]) for r in rows]
         rows = conn.execute("PRAGMA table_info(users)").fetchall()
-        cols = [str(r["name"]) for r in rows]
-        if column_name not in cols:
+        return [str(r["name"]) for r in rows]
+
+    def _add_col_if_missing(column_name: str, ddl: str) -> None:
+        if column_name not in _col_names():
+            conn.execute(f"ALTER TABLE users ADD COLUMN {ddl}")
+
+    def _rename_col_if_exists(old: str, new: str, ddl: str) -> None:
+        cols = _col_names()
+        if old in cols and new not in cols:
+            conn.execute(f"ALTER TABLE users RENAME COLUMN {old} TO {new}")
+        elif old not in cols and new not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN {ddl}")
 
     _add_col_if_missing("subscription_status", "subscription_status TEXT NOT NULL DEFAULT 'free'")
-    _add_col_if_missing("stripe_customer_id", "stripe_customer_id TEXT NOT NULL DEFAULT ''")
-    _add_col_if_missing("stripe_subscription_id", "stripe_subscription_id TEXT NOT NULL DEFAULT ''")
+    _rename_col_if_exists("stripe_customer_id",      "razorpay_customer_id",      "razorpay_customer_id TEXT NOT NULL DEFAULT ''")
+    _rename_col_if_exists("stripe_subscription_id",  "razorpay_subscription_id",  "razorpay_subscription_id TEXT NOT NULL DEFAULT ''")
     _add_col_if_missing("scheduled_scans_enabled", "scheduled_scans_enabled INTEGER NOT NULL DEFAULT 0")
     _add_col_if_missing("slack_webhook_url", "slack_webhook_url TEXT NOT NULL DEFAULT ''")
     _add_col_if_missing("jira_url", "jira_url TEXT NOT NULL DEFAULT ''")
@@ -154,7 +168,7 @@ def ensure_auth_tables() -> None:
             """
             INSERT INTO users (
                 email, password_hash, name, role, created_at,
-                subscription_status, stripe_customer_id, stripe_subscription_id
+                subscription_status, razorpay_customer_id, razorpay_subscription_id
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,

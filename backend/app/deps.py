@@ -312,8 +312,8 @@ def get_current_user(
             u.name,
             u.role,
             u.subscription_status,
-            u.stripe_customer_id,
-            u.stripe_subscription_id
+            u.razorpay_customer_id,
+            u.razorpay_subscription_id
         FROM auth_sessions s
         JOIN users u ON u.id = s.user_id
         WHERE s.session_token = ?
@@ -327,7 +327,7 @@ def get_current_user(
         cur.execute(
             """
             SELECT ak.id AS key_id, u.id, u.email, u.name, u.role,
-                   u.subscription_status, u.stripe_customer_id, u.stripe_subscription_id
+                   u.subscription_status, u.razorpay_customer_id, u.razorpay_subscription_id
             FROM api_keys ak
             JOIN users u ON u.id = ak.user_id
             WHERE ak.key_hash = ? AND ak.is_active = 1
@@ -348,8 +348,8 @@ def get_current_user(
                 "role": api_row["role"],
                 "session_token": token,
                 "subscription_status": api_row["subscription_status"],
-                "stripe_customer_id": api_row["stripe_customer_id"],
-                "stripe_subscription_id": api_row["stripe_subscription_id"],
+                "razorpay_customer_id": api_row["razorpay_customer_id"],
+                "razorpay_subscription_id": api_row["razorpay_subscription_id"],
             }
             conn.close()
             return user
@@ -379,8 +379,8 @@ def get_current_user(
         "role": row["role"],
         "session_token": row["session_token"],
         "subscription_status": row["subscription_status"],
-        "stripe_customer_id": row["stripe_customer_id"],
-        "stripe_subscription_id": row["stripe_subscription_id"],
+        "razorpay_customer_id": row["razorpay_customer_id"],
+        "razorpay_subscription_id": row["razorpay_subscription_id"],
     }
     conn.close()
     return user
@@ -422,8 +422,8 @@ def upsert_user_billing(
     user_id: int,
     *,
     subscription_status: Optional[str] = None,
-    stripe_customer_id: Optional[str] = None,
-    stripe_subscription_id: Optional[str] = None,
+    razorpay_customer_id: Optional[str] = None,
+    razorpay_subscription_id: Optional[str] = None,
 ) -> None:
     conn = get_conn()
     updates = []
@@ -432,12 +432,12 @@ def upsert_user_billing(
     if subscription_status is not None:
         updates.append("subscription_status = ?")
         params.append(subscription_status)
-    if stripe_customer_id is not None:
-        updates.append("stripe_customer_id = ?")
-        params.append(stripe_customer_id)
-    if stripe_subscription_id is not None:
-        updates.append("stripe_subscription_id = ?")
-        params.append(stripe_subscription_id)
+    if razorpay_customer_id is not None:
+        updates.append("razorpay_customer_id = ?")
+        params.append(razorpay_customer_id)
+    if razorpay_subscription_id is not None:
+        updates.append("razorpay_subscription_id = ?")
+        params.append(razorpay_subscription_id)
 
     if not updates:
         conn.close()
@@ -449,15 +449,15 @@ def upsert_user_billing(
     conn.close()
 
 
-def find_user_by_stripe_customer(customer_id: str) -> Optional[Dict[str, Any]]:
+def find_user_by_razorpay_customer(customer_id: str) -> Optional[Dict[str, Any]]:
     conn = get_conn()
     row = conn.execute(
         """
         SELECT
             id, email, name, role,
-            subscription_status, stripe_customer_id, stripe_subscription_id
+            subscription_status, razorpay_customer_id, razorpay_subscription_id
         FROM users
-        WHERE stripe_customer_id = ?
+        WHERE razorpay_customer_id = ?
         """,
         (customer_id,),
     ).fetchone()
@@ -471,7 +471,7 @@ def find_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
         """
         SELECT
             id, email, name, role,
-            subscription_status, stripe_customer_id, stripe_subscription_id
+            subscription_status, razorpay_customer_id, razorpay_subscription_id
         FROM users
         WHERE id = ?
         """,

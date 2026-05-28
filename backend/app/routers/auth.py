@@ -92,8 +92,8 @@ def auth_login(payload: LoginIn, request: Request):
             name,
             role,
             subscription_status,
-            stripe_customer_id,
-            stripe_subscription_id
+            razorpay_customer_id,
+            razorpay_subscription_id
         FROM users
         WHERE lower(email) = ?
         """,
@@ -152,7 +152,7 @@ def auth_register(payload: RegisterIn, request: Request):
             """
             INSERT INTO users (
                 email, password_hash, name, role, created_at,
-                subscription_status, stripe_customer_id, stripe_subscription_id
+                subscription_status, razorpay_customer_id, razorpay_subscription_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (email, hash_password(password), name, "user", now_utc_iso(), "free", "", ""),
@@ -303,7 +303,7 @@ def github_oauth_callback(code: str = Query(...)):
             """
             INSERT INTO users (
                 email, password_hash, name, role, created_at,
-                subscription_status, stripe_customer_id, stripe_subscription_id
+                subscription_status, razorpay_customer_id, razorpay_subscription_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (email, "", name, "user", now_utc_iso(), "free", "", ""),

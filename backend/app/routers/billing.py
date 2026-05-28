@@ -56,7 +56,7 @@ def billing_me(
 
     return {
         "subscription_status": user.get("subscription_status", "free"),
-        "razorpay_subscription_id": user.get("stripe_subscription_id", ""),
+        "razorpay_subscription_id": user.get("razorpay_subscription_id", ""),
         "account_limit": capabilities["account_limit"],
         "connected_accounts_used": connected_accounts_used,
         "capabilities": {
@@ -83,7 +83,7 @@ def billing_sync(
 
     user = get_current_user(session_cookie, authorization)
 
-    subscription_id = user.get("stripe_subscription_id") or ""
+    subscription_id = user.get("razorpay_subscription_id") or ""
     final_plan = user.get("subscription_status", "free")
     synced = False
 
@@ -98,7 +98,7 @@ def billing_sync(
             upsert_user_billing(
                 user_id=user["id"],
                 subscription_status=final_plan,
-                stripe_subscription_id=subscription_id,
+                razorpay_subscription_id=subscription_id,
             )
             synced = True
         except Exception:
@@ -109,7 +109,7 @@ def billing_sync(
 
     return {
         "subscription_status": refreshed_user.get("subscription_status", "free"),
-        "razorpay_subscription_id": refreshed_user.get("stripe_subscription_id", ""),
+        "razorpay_subscription_id": refreshed_user.get("razorpay_subscription_id", ""),
         "account_limit": capabilities["account_limit"],
         "connected_accounts_used": count_connected_accounts(user_id=user["id"]),
         "capabilities": {
@@ -166,7 +166,7 @@ def cancel_subscription(
     enforce_rate_limit(f"portal:{ip}", BILLING_RATE_LIMIT[0], BILLING_RATE_LIMIT[1])
 
     user = get_current_user(session_cookie, authorization)
-    subscription_id = user.get("stripe_subscription_id") or ""
+    subscription_id = user.get("razorpay_subscription_id") or ""
 
     if not subscription_id:
         raise HTTPException(status_code=400, detail="No active subscription found")
@@ -174,7 +174,7 @@ def cancel_subscription(
     try:
         client = get_razorpay_client()
         client.subscription.cancel(subscription_id, {"cancel_at_cycle_end": 1})
-        upsert_user_billing(user_id=user["id"], subscription_status="free", stripe_subscription_id="")
+        upsert_user_billing(user_id=user["id"], subscription_status="free", razorpay_subscription_id="")
         return {"status": "cancelled"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Cancellation failed: {str(e)}")
@@ -203,7 +203,7 @@ def verify_payment(
     upsert_user_billing(
         user_id=user["id"],
         subscription_status=plan,
-        stripe_subscription_id=subscription_id,
+        razorpay_subscription_id=subscription_id,
     )
 
     capabilities = get_plan_capabilities(plan)
@@ -269,7 +269,7 @@ async def billing_webhook(request: Request):
                 upsert_user_billing(
                     user_id=user["id"],
                     subscription_status=mapped_plan,
-                    stripe_subscription_id=subscription_id,
+                    razorpay_subscription_id=subscription_id,
                 )
 
         elif event_type in ("subscription.cancelled", "subscription.completed", "subscription.expired"):
@@ -283,7 +283,7 @@ async def billing_webhook(request: Request):
                         upsert_user_billing(
                             user_id=user["id"],
                             subscription_status="free",
-                            stripe_subscription_id="",
+                            razorpay_subscription_id="",
                         )
                 except Exception:
                     pass

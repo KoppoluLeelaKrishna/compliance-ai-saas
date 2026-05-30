@@ -6,11 +6,14 @@ import { api } from "@/lib/api";
 import { AuthMe } from "@/types";
 import TechBackground from "@/components/TechBackground";
 import RippleEffect from "@/components/RippleEffect";
+import AuroraBackground from "@/components/AuroraBackground";
 
 /* ── Scroll-reveal hook ─────────────────────────────────── */
 function useReveal() {
   useEffect(() => {
-    const els = document.querySelectorAll(".reveal,.reveal-zoom,.reveal-left,.reveal-right");
+    const els = document.querySelectorAll(
+      ".reveal,.reveal-zoom,.reveal-left,.reveal-right,.reveal-flip,.reveal-blur,.reveal-bounce"
+    );
     const observer = new IntersectionObserver(
       (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible"); }),
       { threshold: 0.12 }
@@ -18,6 +21,53 @@ function useReveal() {
     els.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
+}
+
+/* ── Counter animation hook ─────────────────────────────── */
+function useCounterAnimation() {
+  useEffect(() => {
+    const els = document.querySelectorAll<HTMLElement>("[data-counter]");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const el = entry.target as HTMLElement;
+          const target = parseInt(el.dataset.counter ?? "0", 10);
+          const suffix = el.dataset.suffix ?? "";
+          if (isNaN(target)) return;
+          const duration = 1300;
+          const startTime = performance.now();
+          const update = (now: number) => {
+            const progress = Math.min((now - startTime) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            el.textContent = Math.round(eased * target) + suffix;
+            if (progress < 1) requestAnimationFrame(update);
+          };
+          requestAnimationFrame(update);
+          observer.unobserve(el);
+        });
+      },
+      { threshold: 0.5 }
+    );
+    els.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+}
+
+/* ── Hero parallax hook ─────────────────────────────────── */
+function useHeroParallax() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onScroll = () => {
+      if (!ref.current) return;
+      const y = window.scrollY;
+      ref.current.style.transform = `translateY(${y * 0.22}px)`;
+      ref.current.style.opacity = String(Math.max(0, 1 - y / 550));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return ref;
 }
 
 /* ── Data ───────────────────────────────────────────────── */
@@ -62,6 +112,8 @@ export default function HomePage() {
   const [email, setEmail] = useState("");
 
   useReveal();
+  useCounterAnimation();
+  const heroRef = useHeroParallax();
 
   useEffect(() => {
     api<AuthMe>("/auth/me")
@@ -72,6 +124,7 @@ export default function HomePage() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden text-white">
+      <AuroraBackground />
       <TechBackground />
       <RippleEffect />
 
@@ -80,7 +133,7 @@ export default function HomePage() {
         {/* animated background glow */}
         <div className="hero-glow pointer-events-none absolute left-1/2 top-0 h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-emerald-500 blur-[120px]" />
 
-        <div className="relative mx-auto max-w-5xl">
+        <div ref={heroRef} className="relative mx-auto max-w-5xl">
           <div className="reveal glow-badge mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-sm text-emerald-300">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
             Now live — 10 AWS security checks, zero setup
@@ -113,10 +166,21 @@ export default function HomePage() {
           <p className="reveal delay-400 mt-4 text-sm text-neutral-600">Free 2-week trial · No credit card · Setup in 5 minutes</p>
 
           {/* Stats */}
-          <div className="reveal delay-500 mt-16 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {[{ v: "10+", l: "Security checks" },{ v: "2 min", l: "Scan time" },{ v: "100%", l: "Read-only access" },{ v: "24/7", l: "Monitoring" }].map((s) => (
-              <div key={s.l} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-5 backdrop-blur-sm">
-                <div className="text-3xl font-black text-emerald-400">{s.v}</div>
+          <div className="mt-16 grid grid-cols-2 gap-4 md:grid-cols-4">
+            {[
+              { v: 10,  suf: "+",    display: "10+",   l: "Security checks" },
+              { v: 2,   suf: " min", display: "2 min", l: "Scan time" },
+              { v: 100, suf: "%",    display: "100%",  l: "Read-only access" },
+              { v: 0,   suf: "",     display: "24/7",  l: "Monitoring" },
+            ].map((s, i) => (
+              <div key={s.l} className={`reveal-bounce delay-${(i + 1) * 100} rounded-2xl border border-white/10 bg-white/5 px-4 py-5 backdrop-blur-sm`}>
+                <div
+                  className="text-3xl font-black text-emerald-400"
+                  data-counter={s.v > 0 ? String(s.v) : undefined}
+                  data-suffix={s.v > 0 ? s.suf : undefined}
+                >
+                  {s.display}
+                </div>
                 <div className="mt-1 text-sm text-neutral-500">{s.l}</div>
               </div>
             ))}
@@ -154,7 +218,7 @@ export default function HomePage() {
       {/* ── HOW IT WORKS ──────────────────────────────────── */}
       <section id="how-it-works" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="reveal text-center">
+          <div className="reveal-flip text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">How It Works</div>
             <h2 className="text-4xl font-black md:text-5xl">Up and running in 5 minutes</h2>
             <p className="mx-auto mt-4 max-w-xl text-neutral-400">No agents, no installations, no complex setup.</p>
@@ -164,7 +228,7 @@ export default function HomePage() {
             {STEPS.map((step, i) => (
               <div
                 key={step.num}
-                className={`step-card ripple-card hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal-zoom delay-${(i+1)*100} relative rounded-3xl border border-emerald-500/20 bg-gradient-to-b from-emerald-500/[0.08] to-black p-8`}
+                className={`step-card ripple-card hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal-bounce delay-${(i+1)*100} relative rounded-3xl border border-emerald-500/20 bg-gradient-to-b from-emerald-500/[0.08] to-black p-8`}
               >
                 {/* giant number background */}
                 <div className="pointer-events-none absolute -right-4 -top-4 select-none text-[9rem] font-black leading-none text-emerald-500/5">{step.num}</div>
@@ -187,7 +251,7 @@ export default function HomePage() {
       {/* ── FEATURES ──────────────────────────────────────── */}
       <section id="features" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="reveal text-center">
+          <div className="reveal-flip text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Security Checks</div>
             <h2 className="text-4xl font-black md:text-5xl">10 checks across your entire AWS account</h2>
             <p className="mx-auto mt-4 max-w-xl text-neutral-400">Every check comes with fix guidance, console path, and CLI commands.</p>
@@ -271,7 +335,7 @@ export default function HomePage() {
       {/* ── SECURITY STATS / PIE CHART ────────────────────── */}
       <section id="stats" className="relative z-10 scroll-mt-8 px-6 py-24" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}>
         <div className="mx-auto max-w-5xl">
-          <div className="text-center mb-14">
+          <div className="reveal-flip text-center mb-14">
             <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Security Insights</div>
             <h2 className="text-4xl font-black md:text-5xl text-white">What we find in a typical AWS scan</h2>
             <p className="mx-auto mt-4 max-w-xl" style={{ color: "#a3a3a3" }}>Real data from AWS accounts scanned by VigiliCloud — most have more issues than they think.</p>
@@ -346,7 +410,7 @@ export default function HomePage() {
       {/* ── PRICING ───────────────────────────────────────── */}
       <section id="pricing" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="reveal text-center">
+          <div className="reveal-flip text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Pricing</div>
             <h2 className="text-4xl font-black md:text-5xl">Simple, transparent pricing</h2>
             <p className="mx-auto mt-4 max-w-xl text-neutral-400">
@@ -409,7 +473,7 @@ export default function HomePage() {
       {/* ── TESTIMONIALS ──────────────────────────────────── */}
       <section id="testimonials" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="reveal text-center">
+          <div className="reveal-flip text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Testimonials</div>
             <h2 className="text-4xl font-black md:text-5xl">Trusted by AWS teams worldwide</h2>
           </div>
@@ -418,7 +482,7 @@ export default function HomePage() {
             {TESTIMONIALS.map((t, i) => (
               <div
                 key={t.name}
-                className={`ripple-card hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal delay-${(i+1)*100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
+                className={`ripple-card hover:scale-105 hover:-translate-y-1.5 transition-all duration-300 reveal-blur delay-${(i+1)*100} relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-black p-8`}
               >
                 {/* big quote watermark */}
                 <div className="pointer-events-none absolute -right-3 -top-5 select-none text-[8rem] font-black leading-none text-emerald-500/5">"</div>
@@ -450,7 +514,7 @@ export default function HomePage() {
       {/* ── CONTACT ───────────────────────────────────────── */}
       <section id="contact" className="relative z-10 scroll-mt-8 border-t border-white/10 px-6 py-28">
         <div className="mx-auto max-w-2xl">
-          <div className="reveal text-center">
+          <div className="reveal-flip text-center">
             <div className="glow-text-sm mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-400">Contact</div>
             <h2 className="text-4xl font-black md:text-5xl">Get in touch</h2>
             <p className="mt-4 text-neutral-400">Questions, demo requests, or custom plans — we reply within 24 hours.</p>
@@ -564,7 +628,7 @@ export default function HomePage() {
       {/* ── CTA BANNER ────────────────────────────────────── */}
       <section className="relative overflow-hidden border-t border-white/10 px-6 py-24 text-center">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(16,185,129,0.07)_0%,_transparent_60%)]" />
-        <div className="reveal relative mx-auto max-w-3xl">
+        <div className="reveal-blur relative mx-auto max-w-3xl">
           <h2 className="text-4xl font-black md:text-5xl">Start securing your AWS today</h2>
           <p className="mt-4 text-neutral-400">Free 2-week trial · No credit card · Setup in 5 minutes</p>
           <Link

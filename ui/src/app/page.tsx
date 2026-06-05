@@ -272,6 +272,14 @@ const BENTO = [
   { title: "KMS Key Rotation",   desc: "Checks that customer-managed KMS keys have automatic rotation enabled.",                 sev: "Medium",   bg: C.tile1,    txt: "#fff", span: 1, h: 200 },
 ];
 
+const GALLERY = [
+  { cat: "S3 Buckets",         title: "Public access,\ndetected instantly.", sub: "Every S3 bucket scanned for public ACLs, missing encryption, and misconfigured policies — in seconds.",           accent: "#2997ff" },
+  { cat: "IAM Roles",          title: "Least privilege,\nenforced.",          sub: "Detect over-permissioned roles and wildcard policies before they become your biggest attack surface.",             accent: "#a855f7" },
+  { cat: "Security Groups",    title: "Every port,\nevery protocol.",          sub: "Find open security group rules exposing your EC2 instances to the entire internet — before attackers do.",         accent: "#f97316" },
+  { cat: "CloudTrail Logging", title: "Every action,\naudited.",               sub: "Verify CloudTrail is active and multi-region, with log file validation and S3 delivery confirmed.",               accent: "#14b8a6" },
+  { cat: "RDS & EBS",          title: "Encryption,\nnot optional.",            sub: "Check databases and volumes for unencrypted storage — and get the exact remediation command to fix it.",          accent: "#22c55e" },
+];
+
 const PLANS = [
   { key: "starter", name: "Starter", usd: "$99",  inr: "₹8,299",  desc: "For solo consultants and small teams.",        hot: false, features: ["Up to 3 AWS accounts", "All 10 security checks", "Fix guidance & remediation", "CSV / JSON exports", "Email alerts"] },
   { key: "pro",     name: "Pro",     usd: "$299", inr: "₹24,999", desc: "For teams managing multiple AWS environments.", hot: true,  features: ["Up to 10 AWS accounts", "Everything in Starter", "AI security analysis", "Scheduled daily scans", "Priority support"] },
@@ -315,6 +323,201 @@ function H2({ children, dark, center, maxW }: { children: React.ReactNode; dark?
     <h2 style={{ fontFamily: ff, fontSize: "clamp(34px,4.4vw,48px)", fontWeight: 600, lineHeight: 1.08, letterSpacing: "-0.5px", color: dark ? "#fff" : C.ink, margin: center ? "0 auto 18px" : "0 0 18px", maxWidth: maxW, textAlign: center ? "center" : "left" }}>
       {children}
     </h2>
+  );
+}
+
+/* ════════════════════════════════════════════════════
+   SCROLL GALLERY (sticky scroll — Apple style)
+════════════════════════════════════════════════════ */
+function ScrollGallery() {
+  const outerRef  = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const accentRef = useRef(GALLERY[0].accent);
+  const [activeIdx,   setActiveIdx]   = useState(0);
+  const [textVisible, setTextVisible] = useState(true);
+
+  /* ── Scroll tracking ── */
+  useEffect(() => {
+    let lastIdx = 0;
+    const onScroll = () => {
+      const el = outerRef.current;
+      if (!el) return;
+      const total = el.offsetHeight - window.innerHeight;
+      if (total <= 0) return;
+      const progress = Math.max(0, Math.min(0.9999, -el.getBoundingClientRect().top / total));
+      const newIdx = Math.min(GALLERY.length - 1, Math.floor(progress * GALLERY.length));
+      if (newIdx !== lastIdx) {
+        lastIdx = newIdx;
+        setTextVisible(false);
+        setTimeout(() => {
+          setActiveIdx(newIdx);
+          accentRef.current = GALLERY[newIdx].accent;
+          setTextVisible(true);
+        }, 240);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  /* ── Canvas: rotating particle sphere ── */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const hexToRgb = (hex: string) => [
+      parseInt(hex.slice(1, 3), 16),
+      parseInt(hex.slice(3, 5), 16),
+      parseInt(hex.slice(5, 7), 16),
+    ];
+
+    const resize = () => { canvas.width = canvas.offsetWidth || 1; canvas.height = canvas.offsetHeight || 1; };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+
+    interface Pt { x: number; y: number; z: number; vx: number; vy: number; vz: number; r: number; }
+    const N = 220;
+    const pts: Pt[] = Array.from({ length: N }, () => {
+      const theta = Math.random() * Math.PI * 2;
+      const phi   = Math.acos(2 * Math.random() - 1);
+      const rad   = 130 + Math.random() * 90;
+      return { x: rad * Math.sin(phi) * Math.cos(theta), y: rad * Math.sin(phi) * Math.sin(theta), z: rad * Math.cos(phi),
+               vx: (Math.random() - 0.5) * 0.28, vy: (Math.random() - 0.5) * 0.28, vz: (Math.random() - 0.5) * 0.28,
+               r: Math.random() * 2 + 0.5 };
+    });
+
+    let raf: number, frame = 0;
+    let color = hexToRgb(GALLERY[0].accent).map(Number);
+
+    const tick = () => {
+      frame++;
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      const target = hexToRgb(accentRef.current);
+      color = color.map((c, i) => c + (target[i] - c) * 0.025);
+      const [cr, cg, cb] = color;
+
+      const cx = W * 0.36, cy = H * 0.5;
+      const angle = frame * 0.0018;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
+
+      const proj = pts.map(p => {
+        const rx = p.x * cosA + p.z * sinA;
+        const rz = -p.x * sinA + p.z * cosA;
+        const sc = 700 / (700 + rz + 200);
+        return { sx: cx + rx * sc, sy: cy + p.y * sc, sz: rz, sc, r: p.r * sc };
+      }).sort((a, b) => a.sz - b.sz);
+
+      /* Lines */
+      const LINK = 80;
+      for (let i = 0; i < proj.length; i++) {
+        for (let j = i + 1; j < proj.length; j++) {
+          const dx = proj[i].sx - proj[j].sx, dy = proj[i].sy - proj[j].sy;
+          const d  = Math.sqrt(dx * dx + dy * dy);
+          if (d < LINK) {
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(1 - d / LINK) * 0.18 * proj[i].sc})`;
+            ctx.lineWidth = 0.5;
+            ctx.moveTo(proj[i].sx, proj[i].sy);
+            ctx.lineTo(proj[j].sx, proj[j].sy);
+            ctx.stroke();
+          }
+        }
+      }
+
+      /* Dots */
+      proj.forEach(({ sx, sy, r, sz }) => {
+        const depth = Math.max(0, Math.min(1, (sz + 250) / 500));
+        const alpha = 0.18 + depth * 0.78;
+        if (r > 1.4) {
+          const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 7);
+          glow.addColorStop(0, `rgba(${cr},${cg},${cb},${alpha * 0.28})`);
+          glow.addColorStop(1, "transparent");
+          ctx.beginPath(); ctx.arc(sx, sy, r * 7, 0, Math.PI * 2); ctx.fillStyle = glow; ctx.fill();
+        }
+        ctx.beginPath(); ctx.arc(sx, sy, Math.max(0.3, r), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`; ctx.fill();
+      });
+
+      /* Drift + spring back */
+      pts.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.z += p.vz;
+        const d = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+        if (d > 250) { p.vx -= p.x * 0.0006; p.vy -= p.y * 0.0006; p.vz -= p.z * 0.0006; }
+        p.vx *= 0.99; p.vy *= 0.99; p.vz *= 0.99;
+      });
+
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, []);
+
+  const panel = GALLERY[activeIdx];
+
+  return (
+    <div ref={outerRef} style={{ height: `${GALLERY.length * 100}vh`, position: "relative" }}>
+      <div style={{ position: "sticky", top: 44, height: "calc(100vh - 44px)", overflow: "hidden", background: "#020408" }}>
+
+        {/* Particle sphere canvas */}
+        <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />
+
+        {/* Right-side fade so text is readable */}
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, transparent 28%, #020408 68%)", pointerEvents: "none" }} />
+        {/* Top + bottom vignette */}
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(2,4,8,0.55) 0%, transparent 18%, transparent 76%, rgba(2,4,8,0.85) 100%)", pointerEvents: "none" }} />
+
+        {/* Accent glow behind text area */}
+        <div style={{ position: "absolute", right: 0, top: "25%", width: 460, height: 460,
+          background: `radial-gradient(circle at 80% 50%, ${panel.accent}18, transparent 70%)`,
+          filter: "blur(60px)", pointerEvents: "none",
+          transition: "background 0.7s ease",
+        }} />
+
+        {/* Section label — top left */}
+        <div style={{ position: "absolute", top: 36, left: 44, color: "rgba(255,255,255,0.28)", fontFamily: fft, fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+          Security Checks
+        </div>
+
+        {/* Progress pills — right edge */}
+        <div style={{ position: "absolute", right: 28, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 10 }}>
+          {GALLERY.map((g, i) => (
+            <div key={g.cat} style={{ width: 3, borderRadius: 9999,
+              height: i === activeIdx ? 32 : 8,
+              background: i === activeIdx ? panel.accent : "rgba(255,255,255,0.18)",
+              transition: "all 0.45s cubic-bezier(0.22,1,0.36,1)",
+            }} />
+          ))}
+        </div>
+
+        {/* Text — bottom right */}
+        <div style={{
+          position: "absolute", right: 64, bottom: 88, maxWidth: 460,
+          opacity: textVisible ? 1 : 0,
+          transform: textVisible ? "translateY(0px)" : "translateY(26px)",
+          transition: "opacity 0.5s cubic-bezier(0.22,1,0.36,1), transform 0.5s cubic-bezier(0.22,1,0.36,1)",
+        }}>
+          <div style={{ color: panel.accent, fontSize: 11, fontWeight: 700, fontFamily: fft, letterSpacing: "0.13em", textTransform: "uppercase", marginBottom: 16 }}>
+            {panel.cat}
+          </div>
+          <h2 style={{ fontFamily: ff, fontSize: "clamp(34px,4vw,54px)", fontWeight: 700, color: "#fff", lineHeight: 1.05, letterSpacing: "-0.5px", marginBottom: 20, whiteSpace: "pre-line" }}>
+            {panel.title}
+          </h2>
+          <p style={{ fontFamily: fft, fontSize: 17, color: "rgba(255,255,255,0.50)", lineHeight: 1.62, letterSpacing: "-0.2px" }}>
+            {panel.sub}
+          </p>
+        </div>
+
+        {/* Counter — bottom left */}
+        <div style={{ position: "absolute", bottom: 92, left: 44, color: "rgba(255,255,255,0.16)", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em" }}>
+          {String(activeIdx + 1).padStart(2, "0")} — {String(GALLERY.length).padStart(2, "0")}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -551,6 +754,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ══ SCROLL GALLERY ══ */}
+      <ScrollGallery />
 
       {/* ══ BENTO GRID ══ */}
       <section id="features" style={{ background: C.black, padding: "120px 0 0", position: "relative" }}>

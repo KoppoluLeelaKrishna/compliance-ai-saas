@@ -808,8 +808,8 @@ export default function HomePage() {
               if (col >= 3) col = 0;
               const delay = parseFloat(((startCol / 3) * 0.16).toFixed(3));
               return (
-                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s` }}>
-                  <TiltCard style={{ background: t.bg, padding: "40px 36px", height: t.h, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h }}>
+                  <TiltCard style={{ background: t.bg, padding: "40px 36px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <span style={{ fontFamily: fft, fontSize: 11, fontWeight: 600, color: t.txt === "#fff" ? C.primaryDark : C.primary, background: t.txt === "#fff" ? "rgba(41,151,255,0.12)" : "rgba(0,102,204,0.08)", border: `1px solid ${t.txt === "#fff" ? "rgba(41,151,255,0.22)" : "rgba(0,102,204,0.16)"}`, padding: "3px 8px", borderRadius: 5, letterSpacing: "0.08em" }}>AWS</span>
                       <SevBadge sev={t.sev} dark={t.txt === "#fff"} />

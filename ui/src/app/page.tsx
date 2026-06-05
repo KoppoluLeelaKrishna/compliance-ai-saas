@@ -295,10 +295,10 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const Words = ({ text, base }: { text: string; base: number }) => (
+  const Words = ({ text, base, color }: { text: string; base: number; color?: string }) => (
     <>
       {text.split(" ").map((w, i) => (
-        <span key={i} className="ap-word" style={{ animationDelay: `${base + i * 0.09}s` }}>{w}</span>
+        <span key={i} className="ap-word" style={{ animationDelay: `${base + i * 0.09}s`, ...(color ? { color } : {}) }}>{w}</span>
       ))}
     </>
   );
@@ -352,13 +352,16 @@ export default function HomePage() {
             AWS Cloud Security
           </div>
 
-          <h1 style={{ fontFamily: ff, fontSize: "clamp(44px,6vw,66px)", fontWeight: 600, lineHeight: 1.06, letterSpacing: "-0.5px", color: "#fff", maxWidth: 820, margin: "0 auto 24px", overflow: "hidden" }}>
-            <Words text="Find misconfigurations." base={0.18} />
-            <br />
-            <span className="ap-gradient-text"><Words text="Before hackers do." base={0.45} /></span>
+          <h1 style={{ fontFamily: ff, fontSize: "clamp(44px,6vw,66px)", fontWeight: 600, lineHeight: 1.08, letterSpacing: "-0.5px", maxWidth: 820, margin: "0 auto 16px" }}>
+            <div style={{ overflow: "hidden" }}>
+              <Words text="Find misconfigurations." base={0.18} color="#ffffff" />
+            </div>
+            <div style={{ overflow: "hidden" }}>
+              <Words text="Before hackers do." base={0.45} color="rgba(255,255,255,0.44)" />
+            </div>
           </h1>
 
-          <p className="ap-hero-sub" style={{ fontFamily: ff, fontSize: "clamp(19px,2.2vw,24px)", fontWeight: 300, lineHeight: 1.5, color: C.muted, maxWidth: 520, margin: "0 auto 40px" }}>
+          <p className="ap-hero-sub" style={{ fontFamily: ff, fontSize: "clamp(19px,2.2vw,24px)", fontWeight: 300, lineHeight: 1.5, color: C.muted, maxWidth: 520, margin: "0 auto 32px" }}>
             10 automated security checks. 2-minute scans. Zero setup.
           </p>
 

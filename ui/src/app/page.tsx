@@ -327,6 +327,124 @@ function H2({ children, dark, center, maxW }: { children: React.ReactNode; dark?
 }
 
 /* ════════════════════════════════════════════════════
+   INSIGHTS BAR CHART
+════════════════════════════════════════════════════ */
+const CHART_BARS = [
+  { label: "S3",         val: 5.2, color: "#dc2626", sev: "Critical" },
+  { label: "IAM",        val: 3.8, color: "#ea580c", sev: "High"     },
+  { label: "EC2",        val: 2.4, color: "#ea580c", sev: "High"     },
+  { label: "RDS",        val: 2.1, color: "#b45309", sev: "Medium"   },
+  { label: "CloudTrail", val: 1.8, color: "#b45309", sev: "Medium"   },
+  { label: "KMS",        val: 1.2, color: "#9ca3af", sev: "Low"      },
+  { label: "VPC",        val: 1.0, color: "#9ca3af", sev: "Low"      },
+  { label: "EBS",        val: 0.9, color: "#9ca3af", sev: "Low"      },
+];
+const CHART_MAX = 6;
+
+function InsightsBarChart() {
+  const ref  = useRef<HTMLDivElement>(null);
+  const [go, setGo] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setGo(true); io.disconnect(); } },
+      { threshold: 0.2 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const CH = 200; // chart height px
+
+  return (
+    <div ref={ref} style={{ marginTop: 56, background: C.canvas, borderRadius: 24, padding: "40px 40px 32px", border: `1px solid ${C.hairline}`, boxShadow: "0 2px 24px rgba(0,0,0,0.04)" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 36 }}>
+        <div>
+          <div style={{ fontFamily: fft, fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>By Service</div>
+          <div style={{ fontFamily: ff, fontSize: 20, fontWeight: 600, color: C.ink, letterSpacing: "-0.3px" }}>Avg. findings per scan</div>
+        </div>
+        {/* Legend */}
+        <div style={{ display: "flex", gap: 18 }}>
+          {[["Critical","#dc2626"],["High","#ea580c"],["Medium","#b45309"],["Low","#9ca3af"]].map(([l,c]) => (
+            <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
+              <span style={{ fontFamily: fft, fontSize: 11, color: C.inkMuted }}>{l}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 12 }}>
+        {/* Y-axis labels */}
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: CH, paddingBottom: 0, marginRight: 4 }}>
+          {[6, 5, 4, 3, 2, 1, 0].map(n => (
+            <div key={n} style={{ fontFamily: fft, fontSize: 10, color: C.inkMuted, lineHeight: 1, textAlign: "right", minWidth: 14 }}>{n}</div>
+          ))}
+        </div>
+
+        {/* Chart area */}
+        <div style={{ flex: 1 }}>
+          {/* Grid + bars */}
+          <div style={{ position: "relative", height: CH }}>
+            {/* Horizontal grid lines */}
+            {[1, 2, 3, 4, 5, 6].map(n => (
+              <div key={n} style={{ position: "absolute", left: 0, right: 0, bottom: `${(n / CHART_MAX) * 100}%`, borderTop: `1px solid ${C.hairline}`, pointerEvents: "none" }} />
+            ))}
+
+            {/* Bars */}
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "flex-end", gap: 10 }}>
+              {CHART_BARS.map((b, i) => (
+                <div key={b.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%", gap: 0 }}>
+                  {/* Value label above bar */}
+                  <div style={{
+                    fontFamily: fft, fontSize: 11, fontWeight: 700, color: b.color, lineHeight: 1,
+                    marginBottom: 5,
+                    opacity:   go ? 1 : 0,
+                    transform: go ? "translateY(0)" : "translateY(6px)",
+                    transition: `opacity 0.35s ease ${i * 0.08 + 0.7}s, transform 0.35s ease ${i * 0.08 + 0.7}s`,
+                  }}>{b.val}</div>
+
+                  {/* Bar column */}
+                  <div style={{
+                    width: "100%",
+                    height: go ? `${(b.val / CHART_MAX) * 100}%` : "0%",
+                    background: `linear-gradient(to top, ${b.color}, ${b.color}bb)`,
+                    borderRadius: "6px 6px 0 0",
+                    transition: `height 0.9s cubic-bezier(0.34,1.56,0.64,1) ${i * 0.08}s`,
+                    position: "relative",
+                  }}>
+                    {/* Hover glow top */}
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: b.color, borderRadius: "6px 6px 0 0", opacity: 0.9 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* X-axis line */}
+          <div style={{ height: 1, background: C.hairline }} />
+
+          {/* X-axis labels */}
+          <div style={{ display: "flex", gap: 10, paddingTop: 10 }}>
+            {CHART_BARS.map(b => (
+              <div key={b.label} style={{ flex: 1, textAlign: "center", fontFamily: fft, fontSize: 10, color: C.inkMuted, letterSpacing: "0.02em" }}>{b.label}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* X-axis label */}
+      <div style={{ textAlign: "center", fontFamily: fft, fontSize: 11, color: C.inkMuted, marginTop: 12, letterSpacing: "0.06em" }}>
+        AWS Service
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════
    SCROLL GALLERY (Apple sticky-scroll style)
    Uses position:fixed panel shown/hidden via scroll
    because overflow-x:hidden on root breaks sticky.
@@ -893,6 +1011,9 @@ export default function HomePage() {
               ))}
             </div>
           </div>
+
+          {/* Animated bar chart */}
+          <InsightsBarChart />
         </div>
       </section>
 

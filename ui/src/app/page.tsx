@@ -194,7 +194,7 @@ function ScrollProgress() {
 ════════════════════════════════════════════════════ */
 function useReveal() {
   useEffect(() => {
-    const els = document.querySelectorAll(".ap-reveal,.ap-reveal-left,.ap-reveal-right,.ap-reveal-scale,.ap-reveal-blur");
+    const els = document.querySelectorAll(".ap-reveal,.ap-reveal-left,.ap-reveal-right,.ap-reveal-scale,.ap-reveal-blur,.ap-pop");
     const io  = new IntersectionObserver(
       (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("ap-visible"); }),
       { threshold: 0.06 }
@@ -564,20 +564,31 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Main bento tiles — ap-pop for entrance, TiltCard for hover */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1 }}>
-          {BENTO.map((t, i) => (
-            <TiltCard key={t.title} className={`ap-reveal ap-d${(i % 5) + 1}`}
-              style={{ gridColumn: `span ${t.span}`, background: t.bg, padding: "40px 36px", height: t.h, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontFamily: fft, fontSize: 11, fontWeight: 600, color: t.txt === "#fff" ? C.primaryDark : C.primary, background: t.txt === "#fff" ? "rgba(41,151,255,0.12)" : "rgba(0,102,204,0.08)", border: `1px solid ${t.txt === "#fff" ? "rgba(41,151,255,0.22)" : "rgba(0,102,204,0.16)"}`, padding: "3px 8px", borderRadius: 5, letterSpacing: "0.08em" }}>AWS</span>
-                <SevBadge sev={t.sev} dark={t.txt === "#fff"} />
-              </div>
-              <div>
-                <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: t.txt, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 10 }}>{t.title}</h3>
-                <p style={{ fontFamily: fft, fontSize: 14, color: t.txt === "#fff" ? "rgba(255,255,255,0.52)" : C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.224px" }}>{t.desc}</p>
-              </div>
-            </TiltCard>
-          ))}
+          {(() => {
+            let col = 0;
+            return BENTO.map((t) => {
+              const startCol = col;
+              col += t.span;
+              if (col >= 3) col = 0;
+              const delay = parseFloat(((startCol / 3) * 0.16).toFixed(3));
+              return (
+                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s` }}>
+                  <TiltCard style={{ background: t.bg, padding: "40px 36px", height: t.h, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontFamily: fft, fontSize: 11, fontWeight: 600, color: t.txt === "#fff" ? C.primaryDark : C.primary, background: t.txt === "#fff" ? "rgba(41,151,255,0.12)" : "rgba(0,102,204,0.08)", border: `1px solid ${t.txt === "#fff" ? "rgba(41,151,255,0.22)" : "rgba(0,102,204,0.16)"}`, padding: "3px 8px", borderRadius: 5, letterSpacing: "0.08em" }}>AWS</span>
+                      <SevBadge sev={t.sev} dark={t.txt === "#fff"} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: t.txt, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 10 }}>{t.title}</h3>
+                      <p style={{ fontFamily: fft, fontSize: 14, color: t.txt === "#fff" ? "rgba(255,255,255,0.52)" : C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.224px" }}>{t.desc}</p>
+                    </div>
+                  </TiltCard>
+                </div>
+              );
+            });
+          })()}
         </div>
 
         {/* Extra feature tiles */}
@@ -587,10 +598,12 @@ export default function HomePage() {
             { title: "Email Alerts",          desc: "Get notified the moment a critical misconfiguration is found in your account.",           bg: C.canvas    },
             { title: "Compliance Exports",    desc: "Export findings as CSV or JSON for SOC2, ISO 27001, and audit evidence packages.",        bg: C.parchment },
           ].map((f, i) => (
-            <TiltCard key={f.title} className={`ap-reveal-scale ap-d${i + 1}`} style={{ background: f.bg, padding: "40px 36px", height: 220 }}>
-              <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: C.ink, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 10 }}>{f.title}</h3>
-              <p style={{ fontFamily: fft, fontSize: 14, color: C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.224px" }}>{f.desc}</p>
-            </TiltCard>
+            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s` }}>
+              <TiltCard style={{ background: f.bg, padding: "40px 36px", height: 220 }}>
+                <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: C.ink, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 10 }}>{f.title}</h3>
+                <p style={{ fontFamily: fft, fontSize: 14, color: C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.224px" }}>{f.desc}</p>
+              </TiltCard>
+            </div>
           ))}
         </div>
       </section>

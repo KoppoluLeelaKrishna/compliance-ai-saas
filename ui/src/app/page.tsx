@@ -416,10 +416,12 @@ function DonutChart() {
   );
 }
 
-/* ── Bar Chart with animated trend line ── */
+/* ── Bar Chart ── */
 function InsightsBarChart() {
-  const ref  = useRef<HTMLDivElement>(null);
+  const ref     = useRef<HTMLDivElement>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
   const [go, setGo] = useState(false);
+  const [hovBar, setHovBar] = useState<{ bar: typeof CHART_BARS[0]; x: number; y: number } | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -431,6 +433,11 @@ function InsightsBarChart() {
     io.observe(el);
     return () => io.disconnect();
   }, []);
+
+  const trackMouse = (e: React.MouseEvent, b: typeof CHART_BARS[0]) => {
+    const r = areaRef.current?.getBoundingClientRect();
+    if (r) setHovBar({ bar: b, x: e.clientX - r.left, y: e.clientY - r.top });
+  };
 
   const CH = 200;
 
@@ -462,7 +469,7 @@ function InsightsBarChart() {
 
         {/* Chart area */}
         <div style={{ flex: 1 }}>
-          <div style={{ position: "relative", height: CH }}>
+          <div ref={areaRef} style={{ position: "relative", height: CH }} onMouseLeave={() => setHovBar(null)}>
             {/* Grid lines */}
             {[1, 2, 3, 4, 5, 6].map(n => (
               <div key={n} style={{ position: "absolute", left: 0, right: 0, bottom: `${(n / CHART_MAX) * 100}%`, borderTop: `1px solid ${C.hairline}`, pointerEvents: "none" }} />
@@ -471,7 +478,11 @@ function InsightsBarChart() {
             {/* Bars */}
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "flex-end", gap: 10 }}>
               {CHART_BARS.map((b, i) => (
-                <div key={b.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+                <div key={b.label}
+                  style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%", cursor: "pointer" }}
+                  onMouseEnter={(e) => trackMouse(e, b)}
+                  onMouseMove={(e) => trackMouse(e, b)}
+                >
                   <div style={{
                     fontFamily: fft, fontSize: 11, fontWeight: 700, color: b.color, lineHeight: 1, marginBottom: 5,
                     opacity: go ? 1 : 0, transform: go ? "translateY(0)" : "translateY(6px)",
@@ -491,6 +502,23 @@ function InsightsBarChart() {
               ))}
             </div>
 
+            {/* Hover tooltip */}
+            {hovBar && (
+              <div style={{
+                position: "absolute",
+                left: hovBar.x, top: hovBar.y - 44,
+                transform: "translateX(-50%)",
+                background: hovBar.bar.color, color: "#fff",
+                padding: "5px 13px", borderRadius: 8,
+                fontSize: 12, fontWeight: 700, fontFamily: fft,
+                pointerEvents: "none", whiteSpace: "nowrap",
+                boxShadow: `0 4px 16px ${hovBar.bar.color}66`,
+                zIndex: 10,
+                transition: "top 0.08s ease, left 0.08s ease",
+              }}>
+                {hovBar.bar.sev}
+              </div>
+            )}
           </div>
 
           <div style={{ height: 1, background: C.hairline }} />
@@ -985,13 +1013,13 @@ export default function HomePage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
           {(() => {
             let col = 0;
-            return BENTO.map((t) => {
+            return BENTO.map((t, idx) => {
               const startCol = col;
               col += t.span;
               if (col >= 3) col = 0;
               const delay = parseFloat(((startCol / 3) * 0.16).toFixed(3));
               return (
-                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h, borderRadius: 52, overflow: "hidden" }}>
+                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h, borderRadius: 52, overflow: "hidden", animation: `bubble-morph ${6 + (idx % 4) * 0.7}s ease-in-out ${idx * 0.45}s infinite` }}>
                   <TiltCard style={{ background: t.bg, padding: "44px 40px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 52 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <span style={{ fontFamily: fft, fontSize: 11, fontWeight: 600, color: t.txt === "#fff" ? C.primaryDark : C.primary, background: t.txt === "#fff" ? "rgba(41,151,255,0.12)" : "rgba(0,102,204,0.08)", border: `1px solid ${t.txt === "#fff" ? "rgba(41,151,255,0.22)" : "rgba(0,102,204,0.16)"}`, padding: "3px 8px", borderRadius: 5, letterSpacing: "0.08em" }}>AWS</span>
@@ -1015,7 +1043,7 @@ export default function HomePage() {
             { title: "Email Alerts",          desc: "Get notified the moment a critical misconfiguration is found in your account.",           bg: C.canvas    },
             { title: "Compliance Exports",    desc: "Export findings as CSV or JSON for SOC2, ISO 27001, and audit evidence packages.",        bg: C.parchment },
           ].map((f, i) => (
-            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s`, borderRadius: 52, overflow: "hidden" }}>
+            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s`, borderRadius: 52, overflow: "hidden", animation: `bubble-morph ${6.5 + i * 0.6}s ease-in-out ${(BENTO.length + i) * 0.45}s infinite` }}>
               <TiltCard style={{ background: f.bg, padding: "44px 40px", height: 220, borderRadius: 52 }}>
                 <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: C.ink, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 10 }}>{f.title}</h3>
                 <p style={{ fontFamily: fft, fontSize: 14, color: C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.224px" }}>{f.desc}</p>

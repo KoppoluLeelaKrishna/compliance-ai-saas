@@ -348,3 +348,14 @@ button, input, select, textarea { font: inherit; }
 .aurora-orb-4{width:500px;height:500px;bottom:-100px;left:100px;background:radial-gradient(circle,rgba(16,185,129,.12) 0%,transparent 70%);animation:aurora-drift-1 17s ease-in-out infinite reverse}
 @keyframes scan-beam { 0%{transform:translateY(-2px);opacity:0} 3%{opacity:.5} 97%{opacity:.15} 100%{transform:translateY(100vh);opacity:0} }
 .scan-line{position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,rgba(16,185,129,.3) 20%,rgba(16,185,129,.7) 50%,rgba(16,185,129,.3) 80%,transparent 100%);box-shadow:0 0 12px rgba(16,185,129,.4),0 0 30px rgba(16,185,129,.12);animation:scan-beam 10s linear 2s infinite;will-change:transform,opacity}
+
+/* ════════════════════════════════════════════════════════════
+   WATER BUBBLE CARD — organic border-radius morphing
+════════════════════════════════════════════════════════════ */
+@keyframes bubble-morph {
+  0%,100% { border-radius: 52px; }
+  20%  { border-radius: 62px 44px 58px 46px / 48px 62px 44px 58px; }
+  40%  { border-radius: 46px 64px 44px 60px / 60px 44px 64px 42px; }
+  60%  { border-radius: 58px 46px 66px 44px / 44px 60px 46px 64px; }
+  80%  { border-radius: 44px 60px 48px 62px / 62px 46px 60px 48px; }
+}

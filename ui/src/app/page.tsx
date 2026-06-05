@@ -917,7 +917,7 @@ export default function HomePage() {
         </div>
 
         {/* Main bento tiles — ap-pop for entrance, TiltCard for hover */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
           {(() => {
             let col = 0;
             return BENTO.map((t) => {
@@ -926,8 +926,8 @@ export default function HomePage() {
               if (col >= 3) col = 0;
               const delay = parseFloat(((startCol / 3) * 0.16).toFixed(3));
               return (
-                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h }}>
-                  <TiltCard style={{ background: t.bg, padding: "40px 36px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h, borderRadius: 20, overflow: "hidden" }}>
+                  <TiltCard style={{ background: t.bg, padding: "40px 36px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 20 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <span style={{ fontFamily: fft, fontSize: 11, fontWeight: 600, color: t.txt === "#fff" ? C.primaryDark : C.primary, background: t.txt === "#fff" ? "rgba(41,151,255,0.12)" : "rgba(0,102,204,0.08)", border: `1px solid ${t.txt === "#fff" ? "rgba(41,151,255,0.22)" : "rgba(0,102,204,0.16)"}`, padding: "3px 8px", borderRadius: 5, letterSpacing: "0.08em" }}>AWS</span>
                       <SevBadge sev={t.sev} dark={t.txt === "#fff"} />
@@ -944,14 +944,14 @@ export default function HomePage() {
         </div>
 
         {/* Extra feature tiles */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, marginTop: 1 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 10 }}>
           {[
             { title: "AI Security Analysis", desc: "Claude AI summarizes your findings and prioritizes what to fix first — in plain English.", bg: C.parchment },
             { title: "Email Alerts",          desc: "Get notified the moment a critical misconfiguration is found in your account.",           bg: C.canvas    },
             { title: "Compliance Exports",    desc: "Export findings as CSV or JSON for SOC2, ISO 27001, and audit evidence packages.",        bg: C.parchment },
           ].map((f, i) => (
-            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s` }}>
-              <TiltCard style={{ background: f.bg, padding: "40px 36px", height: 220 }}>
+            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s`, borderRadius: 20, overflow: "hidden" }}>
+              <TiltCard style={{ background: f.bg, padding: "40px 36px", height: 220, borderRadius: 20 }}>
                 <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: C.ink, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 10 }}>{f.title}</h3>
                 <p style={{ fontFamily: fft, fontSize: 14, color: C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.224px" }}>{f.desc}</p>
               </TiltCard>

@@ -268,6 +268,20 @@ button, input, select, textarea { font: inherit; }
 }
 
 /* ════════════════════════════════════════════════════════════
+   GEOMETRIC SHAPE SPIN
+════════════════════════════════════════════════════════════ */
+@keyframes ap-spin-geo   { from{transform:rotate(0deg)}  to{transform:rotate(360deg)}  }
+@keyframes ap-spin-geo-r { from{transform:rotate(0deg)}  to{transform:rotate(-360deg)} }
+@keyframes ap-drift-geo  {
+  0%,100% { transform:translate(0,0)   rotate(0deg);   }
+  33%     { transform:translate(18px,-22px) rotate(120deg); }
+  66%     { transform:translate(-12px,14px) rotate(240deg); }
+}
+.ap-geo-1 { animation: ap-spin-geo   90s linear infinite; }
+.ap-geo-2 { animation: ap-spin-geo-r 70s linear infinite; }
+.ap-geo-3 { animation: ap-drift-geo  40s ease-in-out infinite; }
+
+/* ════════════════════════════════════════════════════════════
    LEGACY STYLES (non-home pages)
 ════════════════════════════════════════════════════════════ */
 .glow-text     { text-shadow: 0 0 20px rgba(16,185,129,0.5),0 0 40px rgba(16,185,129,0.25),0 0 80px rgba(16,185,129,0.1); }

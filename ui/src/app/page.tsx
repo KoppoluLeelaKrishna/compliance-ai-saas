@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { AuthMe } from "@/types";
 
 /* ════════════════════════════════════════════════════
-   CANVAS PARTICLE NETWORK
+   STARFIELD + SHOOTING STARS + CONSTELLATION
 ════════════════════════════════════════════════════ */
 function CanvasParticles() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -16,7 +16,7 @@ function CanvasParticles() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let raf: number;
+    let raf: number, frame = 0, nextShoot = 180;
     let mx = -999, my = -999;
 
     const resize = () => {
@@ -26,53 +26,97 @@ function CanvasParticles() {
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
-
     canvas.parentElement?.addEventListener("mousemove", (e: MouseEvent) => {
       const r = canvas.getBoundingClientRect();
       mx = e.clientX - r.left; my = e.clientY - r.top;
     }, { passive: true });
 
-    interface P { x: number; y: number; vx: number; vy: number; r: number; op: number }
-    const N = 85;
-    const pts: P[] = Array.from({ length: N }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.55,
-      vy: (Math.random() - 0.5) * 0.55,
-      r: Math.random() * 1.8 + 0.4,
-      op: Math.random() * 0.35 + 0.15,
+    interface Star { x: number; y: number; vx: number; vy: number; r: number; bright: number; ts: number; to: number; }
+    interface Shooter { x: number; y: number; vx: number; vy: number; life: number; max: number; }
+
+    const N = 140;
+    const W = () => canvas.width  || 1400;
+    const H = () => canvas.height || 900;
+    const stars: Star[] = Array.from({ length: N }, () => ({
+      x: Math.random() * W(), y: Math.random() * H(),
+      vx: (Math.random() - 0.5) * 0.16, vy: (Math.random() - 0.5) * 0.16,
+      r: Math.pow(Math.random(), 2.2) * 2.4 + 0.25,
+      bright: Math.random() * 0.55 + 0.28,
+      ts: Math.random() * 0.016 + 0.004,
+      to: Math.random() * Math.PI * 2,
     }));
 
-    const LINK = 145, MAT = 165;
+    const shooters: Shooter[] = [];
+    const LINK = 115;
 
     const tick = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      pts.forEach(p => {
-        const dx = mx - p.x, dy = my - p.y, md = Math.hypot(dx, dy);
-        if (md < MAT && md > 0) { p.vx += dx / md * 0.038; p.vy += dy / md * 0.038; }
+      frame++;
+      ctx.clearRect(0, 0, W(), H());
+
+      /* Shooting stars */
+      if (--nextShoot <= 0) {
+        shooters.push({ x: Math.random() * W() * 0.65, y: Math.random() * H() * 0.38, vx: 10 + Math.random() * 8, vy: 3 + Math.random() * 5, life: 0, max: 30 + Math.floor(Math.random() * 28) });
+        nextShoot = 220 + Math.floor(Math.random() * 380);
+      }
+      for (let i = shooters.length - 1; i >= 0; i--) {
+        const s = shooters[i];
+        const a = Math.sin((s.life / s.max) * Math.PI) * 0.92;
+        const len = 12;
+        const g = ctx.createLinearGradient(s.x - s.vx * len, s.y - s.vy * len, s.x, s.y);
+        g.addColorStop(0, "transparent");
+        g.addColorStop(0.6, `rgba(180,220,255,${a * 0.5})`);
+        g.addColorStop(1, `rgba(220,240,255,${a})`);
+        ctx.beginPath();
+        ctx.moveTo(s.x - s.vx * len, s.y - s.vy * len);
+        ctx.lineTo(s.x, s.y);
+        ctx.strokeStyle = g; ctx.lineWidth = 1.8; ctx.stroke();
+        /* Head glow */
+        const hg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 4);
+        hg.addColorStop(0, `rgba(200,230,255,${a})`); hg.addColorStop(1, "transparent");
+        ctx.beginPath(); ctx.arc(s.x, s.y, 4, 0, Math.PI * 2); ctx.fillStyle = hg; ctx.fill();
+        s.x += s.vx; s.y += s.vy; s.life++;
+        if (s.life >= s.max) shooters.splice(i, 1);
+      }
+
+      /* Update stars */
+      stars.forEach(p => {
+        const dx = p.x - mx, dy = p.y - my, md = Math.hypot(dx, dy);
+        if (md < 140 && md > 0) { p.vx += (dx / md) * 0.055; p.vy += (dy / md) * 0.055; }
+        p.vx *= 0.975; p.vy *= 0.975;
         const sp = Math.hypot(p.vx, p.vy);
-        if (sp > 1.5) { p.vx *= 1.5 / sp; p.vy *= 1.5 / sp; }
+        if (sp > 0.55) { p.vx *= 0.55 / sp; p.vy *= 0.55 / sp; }
         p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x = canvas.width;  else if (p.x > canvas.width)  p.x = 0;
-        if (p.y < 0) p.y = canvas.height; else if (p.y > canvas.height) p.y = 0;
+        if (p.x < 0) p.x = W(); else if (p.x > W()) p.x = 0;
+        if (p.y < 0) p.y = H(); else if (p.y > H()) p.y = 0;
       });
+
+      /* Constellation lines */
       for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
-        const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+        const d = Math.hypot(stars[i].x - stars[j].x, stars[i].y - stars[j].y);
         if (d < LINK) {
           ctx.beginPath();
-          ctx.strokeStyle = `rgba(41,151,255,${(1 - d / LINK) * 0.18})`;
-          ctx.lineWidth = 0.7;
-          ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[j].x, pts[j].y);
+          ctx.strokeStyle = `rgba(100,160,255,${(1 - d / LINK) * 0.13})`;
+          ctx.lineWidth = 0.55;
+          ctx.moveTo(stars[i].x, stars[i].y); ctx.lineTo(stars[j].x, stars[j].y);
           ctx.stroke();
         }
       }
-      pts.forEach(p => {
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 3.5);
-        g.addColorStop(0, `rgba(41,151,255,${p.op})`);
-        g.addColorStop(1, "transparent");
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = g; ctx.fill();
+
+      /* Draw stars */
+      stars.forEach(p => {
+        const tw = (Math.sin(frame * p.ts + p.to) + 1) * 0.5;
+        const op = p.bright * (0.32 + tw * 0.68);
+        if (p.r > 1.1) {
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 5);
+          g.addColorStop(0, `rgba(190,220,255,${op * 0.42})`);
+          g.addColorStop(1, "transparent");
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 5, 0, Math.PI * 2);
+          ctx.fillStyle = g; ctx.fill();
+        }
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(215,230,255,${op})`; ctx.fill();
       });
+
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -332,15 +376,41 @@ export default function HomePage() {
       </nav>
 
       {/* ══ HERO ══ */}
-      <section style={{ background: C.black, minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "80px 22px 60px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+      <section style={{ background: "#040a14", minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "80px 22px 60px", textAlign: "center", position: "relative", overflow: "hidden" }}>
 
-        {/* Canvas particles */}
+        {/* Starfield canvas */}
         <CanvasParticles />
 
-        {/* Morphing blobs */}
-        <div className="ap-morph" style={{ position: "absolute", width: 700, height: 700, top: "-10%", left: "-15%", background: "radial-gradient(circle at 40% 50%, rgba(0,102,204,0.18) 0%, transparent 65%)", filter: "blur(70px)", pointerEvents: "none", zIndex: 0 }} />
-        <div className="ap-morph" style={{ position: "absolute", width: 600, height: 600, top: "10%", right: "-12%", background: "radial-gradient(circle at 60% 40%, rgba(41,151,255,0.14) 0%, transparent 65%)", filter: "blur(70px)", pointerEvents: "none", zIndex: 0, animationDelay: "-5s" }} />
-        <div className="ap-morph" style={{ position: "absolute", width: 500, height: 500, bottom: "5%", left: "35%", background: "radial-gradient(circle at 50% 50%, rgba(0,212,255,0.08) 0%, transparent 65%)", filter: "blur(80px)", pointerEvents: "none", zIndex: 0, animationDelay: "-10s" }} />
+        {/* Premium aurora blobs — purple / electric-blue / teal */}
+        <div className="ap-morph" style={{ position: "absolute", width: 820, height: 820, top: "-18%", left: "-18%", background: "radial-gradient(circle at 40% 50%, rgba(120,40,255,0.22) 0%, rgba(60,0,180,0.10) 45%, transparent 70%)", filter: "blur(80px)", pointerEvents: "none", zIndex: 0 }} />
+        <div className="ap-morph" style={{ position: "absolute", width: 700, height: 700, top: "5%", right: "-14%", background: "radial-gradient(circle at 55% 45%, rgba(0,140,255,0.20) 0%, rgba(0,80,200,0.08) 50%, transparent 70%)", filter: "blur(75px)", pointerEvents: "none", zIndex: 0, animationDelay: "-6s" }} />
+        <div className="ap-morph" style={{ position: "absolute", width: 600, height: 600, bottom: "0%", left: "28%", background: "radial-gradient(circle at 50% 55%, rgba(0,200,210,0.12) 0%, rgba(0,160,180,0.06) 50%, transparent 70%)", filter: "blur(90px)", pointerEvents: "none", zIndex: 0, animationDelay: "-11s" }} />
+        <div className="ap-morph" style={{ position: "absolute", width: 500, height: 500, top: "25%", left: "18%", background: "radial-gradient(circle at 50% 50%, rgba(180,0,255,0.07) 0%, transparent 65%)", filter: "blur(100px)", pointerEvents: "none", zIndex: 0, animationDelay: "-3s" }} />
+
+        {/* Fine dot-grid overlay */}
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(120,160,255,0.07) 1px, transparent 1px)", backgroundSize: "44px 44px", pointerEvents: "none", zIndex: 0 }} />
+
+        {/* Floating wireframe hexagons */}
+        <svg className="ap-geo-1" viewBox="0 0 200 200" fill="none" style={{ position: "absolute", top: "8%", right: "4%", width: 260, height: 260, opacity: 0.055, pointerEvents: "none", zIndex: 0 }}>
+          <polygon points="100,10 182,55 182,145 100,190 18,145 18,55" stroke="rgba(140,180,255,1)" strokeWidth="0.8"/>
+          <polygon points="100,38 158,70 158,130 100,162 42,130 42,70"  stroke="rgba(140,180,255,1)" strokeWidth="0.5"/>
+          <line x1="100" y1="10"  x2="100" y2="38"  stroke="rgba(140,180,255,1)" strokeWidth="0.4"/>
+          <line x1="182" y1="55"  x2="158" y2="70"  stroke="rgba(140,180,255,1)" strokeWidth="0.4"/>
+          <line x1="182" y1="145" x2="158" y2="130" stroke="rgba(140,180,255,1)" strokeWidth="0.4"/>
+          <line x1="100" y1="190" x2="100" y2="162" stroke="rgba(140,180,255,1)" strokeWidth="0.4"/>
+          <line x1="18"  y1="145" x2="42"  y2="130" stroke="rgba(140,180,255,1)" strokeWidth="0.4"/>
+          <line x1="18"  y1="55"  x2="42"  y2="70"  stroke="rgba(140,180,255,1)" strokeWidth="0.4"/>
+        </svg>
+
+        <svg className="ap-geo-2" viewBox="0 0 200 200" fill="none" style={{ position: "absolute", bottom: "10%", left: "2%", width: 200, height: 200, opacity: 0.045, pointerEvents: "none", zIndex: 0 }}>
+          <polygon points="100,10 182,55 182,145 100,190 18,145 18,55" stroke="rgba(100,200,255,1)" strokeWidth="0.8"/>
+          <circle cx="100" cy="100" r="52" stroke="rgba(100,200,255,1)" strokeWidth="0.4" strokeDasharray="4 6"/>
+        </svg>
+
+        <svg className="ap-geo-3" viewBox="0 0 160 160" fill="none" style={{ position: "absolute", top: "40%", left: "5%", width: 140, height: 140, opacity: 0.04, pointerEvents: "none", zIndex: 0 }}>
+          <rect x="20" y="20" width="120" height="120" stroke="rgba(180,140,255,1)" strokeWidth="0.8" transform="rotate(45 80 80)"/>
+          <rect x="40" y="40" width="80"  height="80"  stroke="rgba(180,140,255,1)" strokeWidth="0.5" transform="rotate(45 80 80)"/>
+        </svg>
 
         {/* 3D perspective grid */}
         <div className="ap-perspective-grid" />

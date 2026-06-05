@@ -327,14 +327,17 @@ function H2({ children, dark, center, maxW }: { children: React.ReactNode; dark?
 }
 
 /* ════════════════════════════════════════════════════
-   SCROLL GALLERY (sticky scroll — Apple style)
+   SCROLL GALLERY (Apple sticky-scroll style)
+   Uses position:fixed panel shown/hidden via scroll
+   because overflow-x:hidden on root breaks sticky.
 ════════════════════════════════════════════════════ */
 function ScrollGallery() {
-  const outerRef  = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const accentRef = useRef(GALLERY[0].accent);
-  const [activeIdx,   setActiveIdx]   = useState(0);
-  const [textVisible, setTextVisible] = useState(true);
+  const outerRef   = useRef<HTMLDivElement>(null);
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const accentRef  = useRef(GALLERY[0].accent);
+  const [on,        setOn]        = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [txtVis,    setTxtVis]    = useState(true);
 
   /* ── Scroll tracking ── */
   useEffect(() => {
@@ -342,25 +345,30 @@ function ScrollGallery() {
     const onScroll = () => {
       const el = outerRef.current;
       if (!el) return;
+      const rect  = el.getBoundingClientRect();
       const total = el.offsetHeight - window.innerHeight;
+      // Panel is "on" while outer div occupies the sticky zone
+      setOn(rect.top <= 44 && rect.bottom >= window.innerHeight);
       if (total <= 0) return;
-      const progress = Math.max(0, Math.min(0.9999, -el.getBoundingClientRect().top / total));
+      const scrolled = Math.min(-rect.top, total);
+      const progress = Math.max(0, Math.min(0.9999, scrolled / total));
       const newIdx = Math.min(GALLERY.length - 1, Math.floor(progress * GALLERY.length));
       if (newIdx !== lastIdx) {
         lastIdx = newIdx;
-        setTextVisible(false);
+        setTxtVis(false);
         setTimeout(() => {
           setActiveIdx(newIdx);
           accentRef.current = GALLERY[newIdx].accent;
-          setTextVisible(true);
+          setTxtVis(true);
         }, 240);
       }
     };
     window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  /* ── Canvas: rotating particle sphere ── */
+  /* ── Canvas: rotating particle sphere that shifts accent color ── */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -373,10 +381,13 @@ function ScrollGallery() {
       parseInt(hex.slice(5, 7), 16),
     ];
 
-    const resize = () => { canvas.width = canvas.offsetWidth || 1; canvas.height = canvas.offsetHeight || 1; };
+    const resize = () => {
+      const w = canvas.parentElement?.clientWidth  || window.innerWidth;
+      const h = canvas.parentElement?.clientHeight || window.innerHeight;
+      canvas.width = w; canvas.height = h;
+    };
     resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
+    window.addEventListener("resize", resize, { passive: true });
 
     interface Pt { x: number; y: number; z: number; vx: number; vy: number; vz: number; r: number; }
     const N = 220;
@@ -384,9 +395,15 @@ function ScrollGallery() {
       const theta = Math.random() * Math.PI * 2;
       const phi   = Math.acos(2 * Math.random() - 1);
       const rad   = 130 + Math.random() * 90;
-      return { x: rad * Math.sin(phi) * Math.cos(theta), y: rad * Math.sin(phi) * Math.sin(theta), z: rad * Math.cos(phi),
-               vx: (Math.random() - 0.5) * 0.28, vy: (Math.random() - 0.5) * 0.28, vz: (Math.random() - 0.5) * 0.28,
-               r: Math.random() * 2 + 0.5 };
+      return {
+        x: rad * Math.sin(phi) * Math.cos(theta),
+        y: rad * Math.sin(phi) * Math.sin(theta),
+        z: rad * Math.cos(phi),
+        vx: (Math.random() - 0.5) * 0.28,
+        vy: (Math.random() - 0.5) * 0.28,
+        vz: (Math.random() - 0.5) * 0.28,
+        r:  Math.random() * 2 + 0.5,
+      };
     });
 
     let raf: number, frame = 0;
@@ -412,7 +429,7 @@ function ScrollGallery() {
         return { sx: cx + rx * sc, sy: cy + p.y * sc, sz: rz, sc, r: p.r * sc };
       }).sort((a, b) => a.sz - b.sz);
 
-      /* Lines */
+      /* Connection lines */
       const LINK = 80;
       for (let i = 0; i < proj.length; i++) {
         for (let j = i + 1; j < proj.length; j++) {
@@ -421,7 +438,7 @@ function ScrollGallery() {
           if (d < LINK) {
             ctx.beginPath();
             ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(1 - d / LINK) * 0.18 * proj[i].sc})`;
-            ctx.lineWidth = 0.5;
+            ctx.lineWidth   = 0.5;
             ctx.moveTo(proj[i].sx, proj[i].sy);
             ctx.lineTo(proj[j].sx, proj[j].sy);
             ctx.stroke();
@@ -429,7 +446,7 @@ function ScrollGallery() {
         }
       }
 
-      /* Dots */
+      /* Dots + glow */
       proj.forEach(({ sx, sy, r, sz }) => {
         const depth = Math.max(0, Math.min(1, (sz + 250) / 500));
         const alpha = 0.18 + depth * 0.78;
@@ -443,7 +460,7 @@ function ScrollGallery() {
         ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`; ctx.fill();
       });
 
-      /* Drift + spring back */
+      /* Drift + spring back toward origin */
       pts.forEach(p => {
         p.x += p.vx; p.y += p.vy; p.z += p.vz;
         const d = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
@@ -454,39 +471,50 @@ function ScrollGallery() {
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); };
   }, []);
 
   const panel = GALLERY[activeIdx];
 
   return (
-    <div ref={outerRef} style={{ height: `${GALLERY.length * 100}vh`, position: "relative" }}>
-      <div style={{ position: "sticky", top: 44, height: "calc(100vh - 44px)", overflow: "hidden", background: "#020408" }}>
+    <>
+      {/* ── Scroll spacer — 5 × 100vh tall ── */}
+      <div ref={outerRef} style={{ height: `${GALLERY.length * 100}vh` }} />
 
-        {/* Particle sphere canvas */}
-        <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />
+      {/* ── Fixed panel — shown while spacer is in sticky zone ── */}
+      <div style={{
+        position: "fixed",
+        top: 44, left: 0, right: 0, bottom: 0,
+        background: "#020408",
+        zIndex: on ? 150 : -1,
+        opacity: on ? 1 : 0,
+        transition: "opacity 0.3s ease",
+        pointerEvents: on ? "auto" : "none",
+      }}>
+        {/* Particle canvas — full fixed panel */}
+        <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }} />
 
-        {/* Right-side fade so text is readable */}
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, transparent 28%, #020408 68%)", pointerEvents: "none" }} />
+        {/* Right-side gradient — keeps text legible */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(to right, transparent 30%, #020408 65%)", pointerEvents: "none" }} />
+
         {/* Top + bottom vignette */}
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(2,4,8,0.55) 0%, transparent 18%, transparent 76%, rgba(2,4,8,0.85) 100%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(to bottom, rgba(2,4,8,0.5) 0%, transparent 15%, transparent 75%, rgba(2,4,8,0.8) 100%)", pointerEvents: "none" }} />
 
-        {/* Accent glow behind text area */}
-        <div style={{ position: "absolute", right: 0, top: "25%", width: 460, height: 460,
-          background: `radial-gradient(circle at 80% 50%, ${panel.accent}18, transparent 70%)`,
-          filter: "blur(60px)", pointerEvents: "none",
-          transition: "background 0.7s ease",
-        }} />
+        {/* Accent glow behind text */}
+        <div style={{ position: "absolute", right: 0, top: "20%", width: 500, height: 500,
+          background: `radial-gradient(circle at 80% 50%, ${panel.accent}1a, transparent 70%)`,
+          filter: "blur(70px)", pointerEvents: "none", transition: "background 0.8s ease" }} />
 
         {/* Section label — top left */}
-        <div style={{ position: "absolute", top: 36, left: 44, color: "rgba(255,255,255,0.28)", fontFamily: fft, fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+        <div style={{ position: "absolute", top: 32, left: 44, color: "rgba(255,255,255,0.28)", fontFamily: fft, fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase" }}>
           Security Checks
         </div>
 
         {/* Progress pills — right edge */}
         <div style={{ position: "absolute", right: 28, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 10 }}>
           {GALLERY.map((g, i) => (
-            <div key={g.cat} style={{ width: 3, borderRadius: 9999,
+            <div key={g.cat} style={{
+              width: 3, borderRadius: 9999,
               height: i === activeIdx ? 32 : 8,
               background: i === activeIdx ? panel.accent : "rgba(255,255,255,0.18)",
               transition: "all 0.45s cubic-bezier(0.22,1,0.36,1)",
@@ -496,15 +524,15 @@ function ScrollGallery() {
 
         {/* Text — bottom right */}
         <div style={{
-          position: "absolute", right: 64, bottom: 88, maxWidth: 460,
-          opacity: textVisible ? 1 : 0,
-          transform: textVisible ? "translateY(0px)" : "translateY(26px)",
+          position: "absolute", right: 64, bottom: 88, maxWidth: 480,
+          opacity:   txtVis ? 1 : 0,
+          transform: txtVis ? "translateY(0)" : "translateY(28px)",
           transition: "opacity 0.5s cubic-bezier(0.22,1,0.36,1), transform 0.5s cubic-bezier(0.22,1,0.36,1)",
         }}>
           <div style={{ color: panel.accent, fontSize: 11, fontWeight: 700, fontFamily: fft, letterSpacing: "0.13em", textTransform: "uppercase", marginBottom: 16 }}>
             {panel.cat}
           </div>
-          <h2 style={{ fontFamily: ff, fontSize: "clamp(34px,4vw,54px)", fontWeight: 700, color: "#fff", lineHeight: 1.05, letterSpacing: "-0.5px", marginBottom: 20, whiteSpace: "pre-line" }}>
+          <h2 style={{ fontFamily: ff, fontSize: "clamp(34px,4vw,56px)", fontWeight: 700, color: "#fff", lineHeight: 1.05, letterSpacing: "-0.5px", marginBottom: 20, whiteSpace: "pre-line" }}>
             {panel.title}
           </h2>
           <p style={{ fontFamily: fft, fontSize: 17, color: "rgba(255,255,255,0.50)", lineHeight: 1.62, letterSpacing: "-0.2px" }}>
@@ -513,11 +541,11 @@ function ScrollGallery() {
         </div>
 
         {/* Counter — bottom left */}
-        <div style={{ position: "absolute", bottom: 92, left: 44, color: "rgba(255,255,255,0.16)", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em" }}>
+        <div style={{ position: "absolute", bottom: 88, left: 44, color: "rgba(255,255,255,0.16)", fontFamily: "monospace", fontSize: 11, letterSpacing: "0.1em" }}>
           {String(activeIdx + 1).padStart(2, "0")} — {String(GALLERY.length).padStart(2, "0")}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

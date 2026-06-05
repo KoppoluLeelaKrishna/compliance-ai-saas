@@ -298,7 +298,7 @@ export default function HomePage() {
   const Words = ({ text, base }: { text: string; base: number }) => (
     <>
       {text.split(" ").map((w, i) => (
-        <span key={i} className="ap-word" style={{ animationDelay: `${base + i * 0.09}s` }}>{w}{" "}</span>
+        <span key={i} className="ap-word" style={{ animationDelay: `${base + i * 0.09}s` }}>{w}</span>
       ))}
     </>
   );

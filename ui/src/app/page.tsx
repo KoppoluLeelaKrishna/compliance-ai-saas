@@ -341,12 +341,6 @@ const CHART_BARS = [
 ];
 const CHART_MAX = 6;
 
-/* Smooth bezier path through bar tops (0–100 viewBox, preserveAspectRatio=none).
-   X positions computed for 8 flex:1 bars with 10px gap in ~820px container.
-   Y = (1 − val/MAX) × 100                                                      */
-const LINE_PATH =
-  "M 5.72,13.3 C 12.04,13.3 12.04,36.7 18.36,36.7 C 24.68,36.7 24.68,60 31.01,60 C 37.33,60 37.33,65 43.66,65 C 49.98,65 49.98,70 56.31,70 C 62.63,70 62.63,80 68.96,80 C 75.28,80 75.28,83.3 81.61,83.3 C 87.93,83.3 87.93,85 94.26,85";
-const AREA_PATH = LINE_PATH + " L 94.26,100 L 5.72,100 Z";
 
 /* ── Donut Chart ── */
 const DONUT_SEGS = [
@@ -425,8 +419,7 @@ function DonutChart() {
 /* ── Bar Chart with animated trend line ── */
 function InsightsBarChart() {
   const ref  = useRef<HTMLDivElement>(null);
-  const [go,      setGo]      = useState(false);
-  const [lineGo,  setLineGo]  = useState(false);
+  const [go, setGo] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -438,14 +431,6 @@ function InsightsBarChart() {
     io.observe(el);
     return () => io.disconnect();
   }, []);
-
-  /* Trigger line after bars finish growing */
-  useEffect(() => {
-    if (go) {
-      const t = setTimeout(() => setLineGo(true), 900);
-      return () => clearTimeout(t);
-    }
-  }, [go]);
 
   const CH = 200;
 
@@ -506,36 +491,6 @@ function InsightsBarChart() {
               ))}
             </div>
 
-            {/* ── Trend line SVG overlay ── */}
-            <svg
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible" }}
-            >
-              <defs>
-                <clipPath id="lnClip">
-                  {/* rect width transitions 0→100% revealing the line left-to-right */}
-                  <rect x="0" y="-5" height="110"
-                    style={{ width: lineGo ? "100%" : "0%", transition: "width 1.6s cubic-bezier(0.22,1,0.36,1)" }} />
-                </clipPath>
-                <linearGradient id="lnFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor="#dc2626" stopOpacity="0.16" />
-                  <stop offset="100%" stopColor="#dc2626" stopOpacity="0"    />
-                </linearGradient>
-              </defs>
-
-              {/* Area fill */}
-              <path d={AREA_PATH} fill="url(#lnFill)" clipPath="url(#lnClip)"
-                style={{ opacity: lineGo ? 1 : 0, transition: "opacity 0.4s ease" }} />
-
-              {/* Trend line */}
-              <path d={LINE_PATH} fill="none" stroke="#dc2626" strokeWidth="0.8"
-                strokeLinecap="round" strokeLinejoin="round" clipPath="url(#lnClip)" />
-
-              {/* End dot — fades in after line finishes */}
-              <circle cx="94.26" cy="85" r="1.6" fill="#dc2626"
-                style={{ opacity: lineGo ? 1 : 0, transition: "opacity 0.3s ease 1.6s" }} />
-            </svg>
           </div>
 
           <div style={{ height: 1, background: C.hairline }} />
@@ -1036,8 +991,8 @@ export default function HomePage() {
               if (col >= 3) col = 0;
               const delay = parseFloat(((startCol / 3) * 0.16).toFixed(3));
               return (
-                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h, borderRadius: 20, overflow: "hidden" }}>
-                  <TiltCard style={{ background: t.bg, padding: "40px 36px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 20 }}>
+                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h, borderRadius: 52, overflow: "hidden" }}>
+                  <TiltCard style={{ background: t.bg, padding: "44px 40px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 52 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <span style={{ fontFamily: fft, fontSize: 11, fontWeight: 600, color: t.txt === "#fff" ? C.primaryDark : C.primary, background: t.txt === "#fff" ? "rgba(41,151,255,0.12)" : "rgba(0,102,204,0.08)", border: `1px solid ${t.txt === "#fff" ? "rgba(41,151,255,0.22)" : "rgba(0,102,204,0.16)"}`, padding: "3px 8px", borderRadius: 5, letterSpacing: "0.08em" }}>AWS</span>
                       <SevBadge sev={t.sev} dark={t.txt === "#fff"} />
@@ -1060,8 +1015,8 @@ export default function HomePage() {
             { title: "Email Alerts",          desc: "Get notified the moment a critical misconfiguration is found in your account.",           bg: C.canvas    },
             { title: "Compliance Exports",    desc: "Export findings as CSV or JSON for SOC2, ISO 27001, and audit evidence packages.",        bg: C.parchment },
           ].map((f, i) => (
-            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s`, borderRadius: 20, overflow: "hidden" }}>
-              <TiltCard style={{ background: f.bg, padding: "40px 36px", height: 220, borderRadius: 20 }}>
+            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s`, borderRadius: 52, overflow: "hidden" }}>
+              <TiltCard style={{ background: f.bg, padding: "44px 40px", height: 220, borderRadius: 52 }}>
                 <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: C.ink, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 10 }}>{f.title}</h3>
                 <p style={{ fontFamily: fft, fontSize: 14, color: C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.224px" }}>{f.desc}</p>
               </TiltCard>

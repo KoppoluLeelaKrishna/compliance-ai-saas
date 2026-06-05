@@ -1,7 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import AppTopNav from "@/components/AppTopNav";
-import KeepAlive from "@/components/KeepAlive";
+import LayoutShell from "@/components/LayoutShell";
 
 export const metadata: Metadata = {
   title: "VigiliCloud",
@@ -16,11 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-black text-white">
-        <div className="mx-auto max-w-7xl px-6 py-8">
-          <KeepAlive />
-          <AppTopNav />
-          {children}
-        </div>
+        <LayoutShell>{children}</LayoutShell>
       </body>
     </html>
   );

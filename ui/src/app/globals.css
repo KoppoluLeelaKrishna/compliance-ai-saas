@@ -25,10 +25,8 @@ a { text-decoration: none; }
 button, input, select, textarea { font: inherit; }
 
 /* ════════════════════════════════════════════════════════════
-   APPLE HOME-PAGE ANIMATIONS
+   APPLE HOME-PAGE — HERO ENTRANCE
 ════════════════════════════════════════════════════════════ */
-
-/* ── Entrance keyframes ──────────────────────────────────────── */
 @keyframes ap-fade-up {
   from { opacity: 0; transform: translateY(28px); }
   to   { opacity: 1; transform: translateY(0);    }
@@ -42,50 +40,235 @@ button, input, select, textarea { font: inherit; }
   to   { opacity: 1; transform: scale(1)    translateY(0);    }
 }
 @keyframes ap-scroll-bounce {
-  0%, 100% { transform: translateY(0);    opacity: 0.5; }
-  50%       { transform: translateY(7px); opacity: 1;   }
+  0%, 100% { transform: translateY(0);    opacity: 0.45; }
+  50%       { transform: translateY(8px); opacity: 1;    }
 }
 
-/* ── Hero element classes ────────────────────────────────────── */
 .ap-hero-chip    { animation: ap-fade-up  0.7s cubic-bezier(0.22,1,0.36,1) 0.10s both; }
 .ap-word         { display: inline-block; animation: ap-word-up 0.9s cubic-bezier(0.22,1,0.36,1) both; }
 .ap-hero-sub     { animation: ap-fade-up  0.8s cubic-bezier(0.22,1,0.36,1) 0.75s both; }
 .ap-hero-ctas    { animation: ap-fade-up  0.8s cubic-bezier(0.22,1,0.36,1) 0.92s both; }
 .ap-hero-fine    { animation: ap-fade-up  0.6s cubic-bezier(0.22,1,0.36,1) 1.05s both; }
+.ap-hero-badges  { animation: ap-fade-up  0.7s cubic-bezier(0.22,1,0.36,1) 1.15s both; }
 .ap-hero-mockup  { animation: ap-scale-in 1.1s cubic-bezier(0.22,1,0.36,1) 0.80s both; }
-.ap-scroll-caret { animation: ap-scroll-bounce 1.8s ease-in-out 2.0s infinite; }
+.ap-scroll-caret { animation: ap-scroll-bounce 1.9s ease-in-out 2.2s infinite; }
 
-/* ── Scroll-reveal (below fold) ─────────────────────────────── */
+/* ════════════════════════════════════════════════════════════
+   SCROLL-REVEAL (multiple variants)
+════════════════════════════════════════════════════════════ */
 .ap-reveal {
-  opacity: 0; transform: translateY(28px);
-  transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1),
-              transform  0.75s cubic-bezier(0.22,1,0.36,1);
+  opacity: 0; transform: translateY(32px);
+  transition: opacity 0.82s cubic-bezier(0.22,1,0.36,1),
+              transform  0.82s cubic-bezier(0.22,1,0.36,1);
   will-change: transform, opacity;
 }
-.ap-reveal.ap-visible { opacity: 1; transform: translateY(0); }
+.ap-reveal-left {
+  opacity: 0; transform: translateX(-44px);
+  transition: opacity 0.82s cubic-bezier(0.22,1,0.36,1),
+              transform  0.82s cubic-bezier(0.22,1,0.36,1);
+  will-change: transform, opacity;
+}
+.ap-reveal-right {
+  opacity: 0; transform: translateX(44px);
+  transition: opacity 0.82s cubic-bezier(0.22,1,0.36,1),
+              transform  0.82s cubic-bezier(0.22,1,0.36,1);
+  will-change: transform, opacity;
+}
+.ap-reveal-scale {
+  opacity: 0; transform: scale(0.87);
+  transition: opacity 0.82s cubic-bezier(0.22,1,0.36,1),
+              transform  0.82s cubic-bezier(0.34,1.56,0.64,1);
+  will-change: transform, opacity;
+}
+.ap-reveal-blur {
+  opacity: 0; filter: blur(14px);
+  transition: opacity 0.9s cubic-bezier(0.22,1,0.36,1),
+              filter    0.9s cubic-bezier(0.22,1,0.36,1);
+  will-change: filter, opacity;
+}
 
-/* Staggered delays for grid items */
+.ap-reveal.ap-visible,
+.ap-reveal-left.ap-visible,
+.ap-reveal-right.ap-visible { opacity: 1; transform: none; }
+.ap-reveal-scale.ap-visible  { opacity: 1; transform: scale(1); }
+.ap-reveal-blur.ap-visible   { opacity: 1; filter: blur(0); }
+
+/* Stagger delays */
 .ap-d1  { transition-delay: 0.05s; } .ap-d2  { transition-delay: 0.10s; }
 .ap-d3  { transition-delay: 0.15s; } .ap-d4  { transition-delay: 0.20s; }
 .ap-d5  { transition-delay: 0.25s; } .ap-d6  { transition-delay: 0.30s; }
 .ap-d7  { transition-delay: 0.35s; } .ap-d8  { transition-delay: 0.40s; }
 .ap-d9  { transition-delay: 0.45s; } .ap-d10 { transition-delay: 0.50s; }
 
-/* ── Bento tile hover ────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════
+   3D TILT — button & tile interactions
+════════════════════════════════════════════════════════════ */
 .ap-tile { transition: transform 0.35s cubic-bezier(0.22,1,0.36,1); }
 .ap-tile:hover  { transform: scale(1.015); z-index: 2; position: relative; }
-.ap-tile:active { transform: scale(0.984); transition-duration: 0.1s; }
+.ap-tile:active { transform: scale(0.982); transition-duration: 0.1s; }
 
-/* ── Button press ────────────────────────────────────────────── */
 .ap-btn { transition: transform 0.15s ease, opacity 0.15s ease; }
-.ap-btn:hover  { opacity: 0.86; }
+.ap-btn:hover  { opacity: 0.84; }
 .ap-btn:active { transform: scale(0.96); }
 
-/* ── Product shadow (ONLY on product mockup images) ─────────── */
-.ap-product-shadow { box-shadow: rgba(0,0,0,0.22) 3px 5px 30px 0; }
+.ap-product-shadow { box-shadow: rgba(0,0,0,0.28) 3px 8px 40px 0; }
 
 /* ════════════════════════════════════════════════════════════
-   LEGACY STYLES (kept for non-home app pages)
+   FLOATING ANIMATIONS
+════════════════════════════════════════════════════════════ */
+@keyframes ap-float   { 0%,100%{transform:translateY(0)}       50%{transform:translateY(-16px)} }
+@keyframes ap-float-r { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-11px) rotate(6deg)} }
+@keyframes ap-float-d { 0%,100%{transform:translate(0,0) rotate(0deg)} 33%{transform:translate(10px,-13px) rotate(4deg)} 66%{transform:translate(-8px,7px) rotate(-3deg)} }
+@keyframes ap-float-s { 0%,100%{transform:translateY(0) scale(1)}  50%{transform:translateY(-8px) scale(1.04)} }
+
+.ap-float   { animation: ap-float   4.4s ease-in-out infinite; }
+.ap-float-r { animation: ap-float-r 5.8s ease-in-out infinite; }
+.ap-float-d { animation: ap-float-d 7.2s ease-in-out infinite; }
+.ap-float-s { animation: ap-float-s 5s   ease-in-out infinite; }
+
+/* ════════════════════════════════════════════════════════════
+   MORPHING BLOB
+════════════════════════════════════════════════════════════ */
+@keyframes ap-morph {
+  0%,100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+  20%     { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+  40%     { border-radius: 50% 60% 30% 60% / 30% 40% 70% 50%; }
+  60%     { border-radius: 40% 30% 60% 40% / 60% 50% 40% 30%; }
+  80%     { border-radius: 70% 30% 50% 50% / 40% 60% 30% 70%; }
+}
+.ap-morph { animation: ap-morph 16s ease-in-out infinite; }
+
+/* ════════════════════════════════════════════════════════════
+   GRADIENT TEXT (animated)
+════════════════════════════════════════════════════════════ */
+@keyframes ap-text-gradient {
+  0%   { background-position: 0%   center; }
+  100% { background-position: 200% center; }
+}
+.ap-gradient-text {
+  background: linear-gradient(90deg, #ffffff 0%, #2997ff 30%, #ffffff 60%, #2997ff 90%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ap-text-gradient 4s linear infinite;
+}
+
+/* ════════════════════════════════════════════════════════════
+   ANIMATED GRADIENT BORDER (featured plan card)
+════════════════════════════════════════════════════════════ */
+@property --ap-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes ap-border-spin { to { --ap-angle: 360deg; } }
+
+.ap-glow-border {
+  position: relative;
+  z-index: 0;
+}
+.ap-glow-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--ap-angle) at 50% 50%,
+    #0066cc 0deg, #2997ff 90deg, #00d4ff 180deg, #2997ff 270deg, #0066cc 360deg
+  );
+  animation: ap-border-spin 3s linear infinite;
+  z-index: -1;
+}
+
+/* ════════════════════════════════════════════════════════════
+   SHIMMER SWEEP (badge / chip effect)
+════════════════════════════════════════════════════════════ */
+@keyframes ap-shimmer {
+  0%   { background-position: -300% center; }
+  100% { background-position:  300% center; }
+}
+.ap-shimmer-badge {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.06) 25%,
+    rgba(255,255,255,0.18) 50%,
+    rgba(255,255,255,0.06) 75%
+  );
+  background-size: 300% 100%;
+  animation: ap-shimmer 3s linear infinite;
+}
+
+/* ════════════════════════════════════════════════════════════
+   SCROLL PROGRESS BAR
+════════════════════════════════════════════════════════════ */
+.ap-progress-bar {
+  position: fixed;
+  top: 0; left: 0; height: 2px;
+  background: linear-gradient(90deg, #0066cc, #2997ff, #00d4ff);
+  z-index: 9999;
+  pointer-events: none;
+  transition: width 0.05s linear;
+}
+
+/* ════════════════════════════════════════════════════════════
+   CURSOR GLOW
+════════════════════════════════════════════════════════════ */
+.ap-cursor-glow {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9998;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(0,102,204,0.07) 0%, transparent 70%);
+  transition: left 0.08s linear, top 0.08s linear;
+}
+
+/* ════════════════════════════════════════════════════════════
+   3D PERSPECTIVE GRID (hero bottom)
+════════════════════════════════════════════════════════════ */
+.ap-perspective-grid {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 55%;
+  background-image:
+    linear-gradient(rgba(0,102,204,0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,102,204,0.12) 1px, transparent 1px);
+  background-size: 60px 60px;
+  transform: perspective(500px) rotateX(64deg);
+  transform-origin: bottom center;
+  -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%);
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* ════════════════════════════════════════════════════════════
+   SECTION — animated gradient background
+════════════════════════════════════════════════════════════ */
+@keyframes ap-gradient-shift {
+  0%,100% { background-position: 0%   50%; }
+  50%     { background-position: 100% 50%; }
+}
+.ap-animated-bg {
+  background: linear-gradient(135deg, #f5f5f7, #eaf0fb, #f5f5f7, #f0f5ff);
+  background-size: 400% 400%;
+  animation: ap-gradient-shift 12s ease infinite;
+}
+
+/* ════════════════════════════════════════════════════════════
+   PULSE RING (stat highlights)
+════════════════════════════════════════════════════════════ */
+@keyframes ap-pulse-ring {
+  0%   { transform: scale(0.88); opacity: 1; }
+  100% { transform: scale(2.0);  opacity: 0; }
+}
+.ap-pulse-ring {
+  animation: ap-pulse-ring 2.2s cubic-bezier(0.4,0,0.6,1) infinite;
+}
+
+/* ════════════════════════════════════════════════════════════
+   LEGACY STYLES (non-home pages)
 ════════════════════════════════════════════════════════════ */
 .glow-text     { text-shadow: 0 0 20px rgba(16,185,129,0.5),0 0 40px rgba(16,185,129,0.25),0 0 80px rgba(16,185,129,0.1); }
 .glow-text-sm  { text-shadow: 0 0 10px rgba(16,185,129,0.4),0 0 25px rgba(16,185,129,0.2); }
@@ -111,7 +294,7 @@ button, input, select, textarea { font: inherit; }
 .reveal-zoom.visible { opacity:1; transform:scale(1); }
 .reveal-left  { opacity:0; transform:translateX(-40px); transition:opacity 0.75s cubic-bezier(0.22,1,0.36,1),transform 0.75s cubic-bezier(0.22,1,0.36,1); }
 .reveal-left.visible { opacity:1; transform:translateX(0); }
-.reveal-right { opacity:0; transform:translateX(40px);  transition:opacity 0.75s cubic-bezier(0.22,1,0.36,1),transform 0.75s cubic-bezier(0.22,1,0.36,1); }
+.reveal-right { opacity:0; transform:translateX(40px); transition:opacity 0.75s cubic-bezier(0.22,1,0.36,1),transform 0.75s cubic-bezier(0.22,1,0.36,1); }
 .reveal-right.visible { opacity:1; transform:translateX(0); }
 .reveal-flip { opacity:0; transform:perspective(1200px) rotateX(15deg) translateY(24px); transition:opacity 0.8s cubic-bezier(0.22,1,0.36,1),transform 0.8s cubic-bezier(0.22,1,0.36,1); }
 .reveal-flip.visible { opacity:1; transform:perspective(1200px) rotateX(0deg) translateY(0); }

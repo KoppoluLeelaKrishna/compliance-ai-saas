@@ -354,8 +354,8 @@ button, input, select, textarea { font: inherit; }
 ════════════════════════════════════════════════════════════ */
 @keyframes bubble-morph {
   0%,100% { border-radius: 52px; }
-  20%  { border-radius: 62px 44px 58px 46px / 48px 62px 44px 58px; }
-  40%  { border-radius: 46px 64px 44px 60px / 60px 44px 64px 42px; }
-  60%  { border-radius: 58px 46px 66px 44px / 44px 60px 46px 64px; }
-  80%  { border-radius: 44px 60px 48px 62px / 62px 46px 60px 48px; }
+  15%  { border-radius: 74px 36px 66px 40px / 40px 76px 34px 66px; }
+  35%  { border-radius: 36px 76px 36px 72px / 70px 34px 78px 32px; }
+  55%  { border-radius: 68px 36px 78px 34px / 34px 70px 36px 76px; }
+  75%  { border-radius: 34px 70px 38px 74px / 74px 36px 70px 38px; }
 }

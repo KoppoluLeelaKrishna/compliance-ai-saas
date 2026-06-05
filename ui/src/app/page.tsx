@@ -259,17 +259,19 @@ const STEPS = [
   { num: "03", title: "Fix what's wrong",           desc: "Every finding includes the exact AWS Console path, CLI commands, and step-by-step remediation guidance.", tag: "CSV / JSON export" },
 ];
 
+const SEV_COL: Record<string, string> = { Critical: "#ef4444", High: "#f97316", Medium: "#f59e0b" };
+
 const BENTO = [
-  { title: "S3 Public Access",   desc: "Detects open buckets, public ACLs, and exposed policies before attackers find them.", sev: "Critical", bg: C.tile1,    txt: "#fff", span: 2, h: 300 },
-  { title: "Root Access Keys",   desc: "Alerts immediately if your root account has active access keys — the most dangerous risk.", sev: "Critical", bg: C.tile2, txt: "#fff", span: 1, h: 300 },
-  { title: "IAM Permissions",    desc: "Flags over-permissioned roles with unnecessary admin access.",                           sev: "High",     bg: C.parchment, txt: C.ink, span: 1, h: 240 },
-  { title: "MFA Enforcement",    desc: "Checks every IAM user and root account for missing multi-factor authentication.",        sev: "High",     bg: C.canvas,    txt: C.ink, span: 1, h: 240 },
-  { title: "Security Groups",    desc: "Finds EC2 security groups with ports open to the entire internet.",                      sev: "High",     bg: C.parchment, txt: C.ink, span: 1, h: 240 },
-  { title: "RDS Encryption",     desc: "Checks RDS instances for unencrypted storage and public accessibility.",                 sev: "High",     bg: C.canvas,    txt: C.ink, span: 2, h: 240 },
-  { title: "EBS Encryption",     desc: "Identifies unencrypted EBS volumes and missing default encryption.",                     sev: "Medium",   bg: C.tile1,    txt: "#fff", span: 1, h: 200 },
-  { title: "CloudTrail Logging", desc: "Verifies CloudTrail is active, multi-region, with log validation enabled.",             sev: "Medium",   bg: C.tile2,    txt: "#fff", span: 1, h: 200 },
-  { title: "VPC Flow Logs",      desc: "Ensures network traffic is logged for security monitoring and forensics.",               sev: "Medium",   bg: C.tile3,    txt: "#fff", span: 1, h: 200 },
-  { title: "KMS Key Rotation",   desc: "Checks that customer-managed KMS keys have automatic rotation enabled.",                 sev: "Medium",   bg: C.tile1,    txt: "#fff", span: 1, h: 200 },
+  { icon: "🪣", title: "S3 Public Access",   desc: "Detects open buckets, public ACLs, and exposed policies before attackers find them.", sev: "Critical", bg: C.tile1,    txt: "#fff", span: 2, h: 260 },
+  { icon: "🔑", title: "Root Access Keys",   desc: "Alerts immediately if your root account has active access keys — the most dangerous risk.", sev: "Critical", bg: C.tile2, txt: "#fff", span: 1, h: 260 },
+  { icon: "👤", title: "IAM Permissions",    desc: "Flags over-permissioned roles with unnecessary admin access.",                           sev: "High",     bg: C.parchment, txt: C.ink, span: 1, h: 220 },
+  { icon: "🔐", title: "MFA Enforcement",    desc: "Checks every IAM user and root account for missing multi-factor authentication.",        sev: "High",     bg: C.canvas,    txt: C.ink, span: 1, h: 220 },
+  { icon: "🛡️", title: "Security Groups",    desc: "Finds EC2 security groups with ports open to the entire internet.",                      sev: "High",     bg: C.parchment, txt: C.ink, span: 1, h: 220 },
+  { icon: "🗄️", title: "RDS Encryption",     desc: "Checks RDS instances for unencrypted storage and public accessibility.",                 sev: "High",     bg: C.canvas,    txt: C.ink, span: 2, h: 220 },
+  { icon: "💾", title: "EBS Encryption",     desc: "Identifies unencrypted EBS volumes and missing default encryption.",                     sev: "Medium",   bg: C.tile1,    txt: "#fff", span: 1, h: 185 },
+  { icon: "📋", title: "CloudTrail Logging", desc: "Verifies CloudTrail is active, multi-region, with log validation enabled.",             sev: "Medium",   bg: C.tile2,    txt: "#fff", span: 1, h: 185 },
+  { icon: "🔀", title: "VPC Flow Logs",      desc: "Ensures network traffic is logged for security monitoring and forensics.",               sev: "Medium",   bg: C.tile3,    txt: "#fff", span: 1, h: 185 },
+  { icon: "🔄", title: "KMS Key Rotation",   desc: "Checks that customer-managed KMS keys have automatic rotation enabled.",                 sev: "Medium",   bg: C.tile1,    txt: "#fff", span: 1, h: 185 },
 ];
 
 const GALLERY = [
@@ -1019,15 +1021,22 @@ export default function HomePage() {
               if (col >= 3) col = 0;
               const delay = parseFloat(((startCol / 3) * 0.16).toFixed(3));
               return (
-                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h, borderRadius: 52, overflow: "hidden", animation: `bubble-morph ${6 + (idx % 4) * 0.7}s ease-in-out ${idx * 0.45}s infinite` }}>
-                  <TiltCard style={{ background: t.bg, padding: "44px 40px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 52 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontFamily: fft, fontSize: 11, fontWeight: 600, color: t.txt === "#fff" ? C.primaryDark : C.primary, background: t.txt === "#fff" ? "rgba(41,151,255,0.12)" : "rgba(0,102,204,0.08)", border: `1px solid ${t.txt === "#fff" ? "rgba(41,151,255,0.22)" : "rgba(0,102,204,0.16)"}`, padding: "3px 8px", borderRadius: 5, letterSpacing: "0.08em" }}>AWS</span>
+                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h, borderRadius: 52, overflow: "hidden", animation: `bubble-morph ${6 + (idx % 4) * 0.7}s ease-in-out ${idx * 0.45}s infinite`, boxShadow: `0 8px 40px ${SEV_COL[t.sev] ?? "#9ca3af"}22, 0 2px 10px rgba(0,0,0,0.18)` }}>
+                  <TiltCard style={{ background: t.bg, padding: "32px 30px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 52 }}>
+                    {/* Water-bubble gloss — top highlight */}
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "54%", background: t.txt === "#fff" ? "linear-gradient(148deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 40%, transparent 65%)" : "linear-gradient(148deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.18) 40%, transparent 65%)", pointerEvents: "none" }} />
+                    {/* Severity color bloom — bottom corner */}
+                    <div style={{ position: "absolute", bottom: -32, right: -32, width: 120, height: 120, background: `radial-gradient(circle, ${SEV_COL[t.sev] ?? "#9ca3af"}2a, transparent 68%)`, borderRadius: "50%", pointerEvents: "none" }} />
+                    {/* Top row: icon pill + severity badge */}
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
+                      <div style={{ fontSize: 26, width: 46, height: 46, borderRadius: 15, background: t.txt === "#fff" ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{t.icon}</div>
                       <SevBadge sev={t.sev} dark={t.txt === "#fff"} />
                     </div>
-                    <div>
-                      <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: t.txt, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 10 }}>{t.title}</h3>
-                      <p style={{ fontFamily: fft, fontSize: 14, color: t.txt === "#fff" ? "rgba(255,255,255,0.52)" : C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.224px" }}>{t.desc}</p>
+                    {/* Bottom: AWS tag + title + desc */}
+                    <div style={{ position: "relative", zIndex: 1 }}>
+                      <span style={{ fontFamily: fft, fontSize: 10, fontWeight: 700, color: t.txt === "#fff" ? C.primaryDark : C.primary, background: t.txt === "#fff" ? "rgba(41,151,255,0.13)" : "rgba(0,102,204,0.08)", border: `1px solid ${t.txt === "#fff" ? "rgba(41,151,255,0.24)" : "rgba(0,102,204,0.18)"}`, padding: "2px 7px", borderRadius: 5, letterSpacing: "0.1em", display: "inline-block", marginBottom: 10 }}>AWS</span>
+                      <h3 style={{ fontFamily: ff, fontSize: 19, fontWeight: 600, color: t.txt, lineHeight: 1.2, letterSpacing: "0.1px", marginBottom: 8 }}>{t.title}</h3>
+                      <p style={{ fontFamily: fft, fontSize: 13, color: t.txt === "#fff" ? "rgba(255,255,255,0.50)" : C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.2px" }}>{t.desc}</p>
                     </div>
                   </TiltCard>
                 </div>
@@ -1039,14 +1048,22 @@ export default function HomePage() {
         {/* Extra feature tiles */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 10 }}>
           {[
-            { title: "AI Security Analysis", desc: "Claude AI summarizes your findings and prioritizes what to fix first — in plain English.", bg: C.parchment },
-            { title: "Email Alerts",          desc: "Get notified the moment a critical misconfiguration is found in your account.",           bg: C.canvas    },
-            { title: "Compliance Exports",    desc: "Export findings as CSV or JSON for SOC2, ISO 27001, and audit evidence packages.",        bg: C.parchment },
+            { icon: "🤖", title: "AI Security Analysis", desc: "Claude AI summarizes your findings and prioritizes what to fix first — in plain English.", bg: C.parchment },
+            { icon: "📬", title: "Email Alerts",          desc: "Get notified the moment a critical misconfiguration is found in your account.",           bg: C.canvas    },
+            { icon: "📤", title: "Compliance Exports",    desc: "Export findings as CSV or JSON for SOC2, ISO 27001, and audit evidence packages.",        bg: C.parchment },
           ].map((f, i) => (
-            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s`, borderRadius: 52, overflow: "hidden", animation: `bubble-morph ${6.5 + i * 0.6}s ease-in-out ${(BENTO.length + i) * 0.45}s infinite` }}>
-              <TiltCard style={{ background: f.bg, padding: "44px 40px", height: 220, borderRadius: 52 }}>
-                <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: C.ink, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 10 }}>{f.title}</h3>
-                <p style={{ fontFamily: fft, fontSize: 14, color: C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.224px" }}>{f.desc}</p>
+            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s`, borderRadius: 52, overflow: "hidden", animation: `bubble-morph ${6.5 + i * 0.6}s ease-in-out ${(BENTO.length + i) * 0.45}s infinite`, boxShadow: "0 8px 32px rgba(0,102,204,0.10), 0 2px 8px rgba(0,0,0,0.07)" }}>
+              <TiltCard style={{ background: f.bg, padding: "32px 30px", height: 195, borderRadius: 52 }}>
+                {/* Gloss */}
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "52%", background: "linear-gradient(148deg, rgba(255,255,255,0.58) 0%, rgba(255,255,255,0.16) 40%, transparent 65%)", pointerEvents: "none" }} />
+                <div style={{ position: "absolute", bottom: -28, right: -28, width: 100, height: 100, background: "radial-gradient(circle, rgba(0,102,204,0.14), transparent 68%)", borderRadius: "50%", pointerEvents: "none" }} />
+                <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+                  <div style={{ fontSize: 24, width: 44, height: 44, borderRadius: 14, background: "rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>{f.icon}</div>
+                </div>
+                <div style={{ position: "relative", zIndex: 1 }}>
+                  <h3 style={{ fontFamily: ff, fontSize: 18, fontWeight: 600, color: C.ink, lineHeight: 1.2, letterSpacing: "0.1px", marginBottom: 8 }}>{f.title}</h3>
+                  <p style={{ fontFamily: fft, fontSize: 13, color: C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.2px" }}>{f.desc}</p>
+                </div>
               </TiltCard>
             </div>
           ))}

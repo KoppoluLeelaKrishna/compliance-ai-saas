@@ -341,9 +341,92 @@ const CHART_BARS = [
 ];
 const CHART_MAX = 6;
 
+/* Smooth bezier path through bar tops (0–100 viewBox, preserveAspectRatio=none).
+   X positions computed for 8 flex:1 bars with 10px gap in ~820px container.
+   Y = (1 − val/MAX) × 100                                                      */
+const LINE_PATH =
+  "M 5.72,13.3 C 12.04,13.3 12.04,36.7 18.36,36.7 C 24.68,36.7 24.68,60 31.01,60 C 37.33,60 37.33,65 43.66,65 C 49.98,65 49.98,70 56.31,70 C 62.63,70 62.63,80 68.96,80 C 75.28,80 75.28,83.3 81.61,83.3 C 87.93,83.3 87.93,85 94.26,85";
+const AREA_PATH = LINE_PATH + " L 94.26,100 L 5.72,100 Z";
+
+/* ── Donut Chart ── */
+const DONUT_SEGS = [
+  { label: "Critical", pct: "22%", color: "#dc2626", da: "62 220",  doff: "70.7"   },
+  { label: "High",     pct: "35%", color: "#ea580c", da: "99 183",  doff: "3.1"    },
+  { label: "Medium",   pct: "28%", color: "#b45309", da: "79 203",  doff: "-100.5" },
+  { label: "Low",      pct: "15%", color: "#9ca3af", da: "42 240",  doff: "-184.5" },
+];
+
+function DonutChart() {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hov, setHov] = useState<typeof DONUT_SEGS[0] | null>(null);
+  const [tip, setTip] = useState({ x: 0, y: 0 });
+
+  const track = (e: React.MouseEvent, s: typeof DONUT_SEGS[0]) => {
+    const r = svgRef.current?.getBoundingClientRect();
+    if (r) setTip({ x: e.clientX - r.left, y: e.clientY - r.top });
+    setHov(s);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
+      <svg ref={svgRef} viewBox="0 0 120 120" style={{ width: 260, height: 260, overflow: "visible" }}>
+        <circle cx="60" cy="60" r="45" fill="none" stroke={C.divider} strokeWidth="16" />
+        {DONUT_SEGS.map(s => (
+          <circle key={s.label}
+            cx="60" cy="60" r="45" fill="none"
+            stroke={s.color}
+            strokeWidth={hov?.label === s.label ? 20 : 16}
+            strokeLinecap="round"
+            strokeDasharray={s.da}
+            strokeDashoffset={s.doff}
+            style={{ pointerEvents: "stroke", cursor: "pointer", transition: "stroke-width 0.18s ease" }}
+            onMouseEnter={(e) => track(e, s)}
+            onMouseMove={(e) => track(e, s)}
+            onMouseLeave={() => setHov(null)}
+          />
+        ))}
+        {/* Center text updates on hover */}
+        <text x="60" y="53" textAnchor="middle" fill={hov ? hov.color : C.ink} fontSize="20" fontWeight="600" fontFamily={ff}
+          style={{ transition: "fill 0.2s ease" }}>{hov ? hov.pct : "14"}</text>
+        <text x="60" y="67" textAnchor="middle" fill={C.inkMuted} fontSize="7" fontFamily={fft}>
+          {hov ? hov.label : "avg findings"}
+        </text>
+      </svg>
+
+      {/* Floating label tooltip */}
+      {hov && (
+        <div style={{
+          position: "absolute", left: tip.x, top: tip.y - 46,
+          transform: "translateX(-50%)",
+          background: hov.color, color: "#fff",
+          padding: "5px 12px", borderRadius: 8,
+          fontSize: 12, fontWeight: 700, fontFamily: fft,
+          pointerEvents: "none", whiteSpace: "nowrap",
+          boxShadow: `0 4px 16px ${hov.color}55`, zIndex: 10,
+        }}>
+          {hov.label} · {hov.pct}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 32px", marginTop: 20, width: "100%", maxWidth: 280 }}>
+        {DONUT_SEGS.map(s => (
+          <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: s.color, fontFamily: fft }}>{s.label}</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: C.inkMuted, fontFamily: fft }}>{s.pct}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Bar Chart with animated trend line ── */
 function InsightsBarChart() {
   const ref  = useRef<HTMLDivElement>(null);
-  const [go, setGo] = useState(false);
+  const [go,      setGo]      = useState(false);
+  const [lineGo,  setLineGo]  = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -356,7 +439,15 @@ function InsightsBarChart() {
     return () => io.disconnect();
   }, []);
 
-  const CH = 200; // chart height px
+  /* Trigger line after bars finish growing */
+  useEffect(() => {
+    if (go) {
+      const t = setTimeout(() => setLineGo(true), 900);
+      return () => clearTimeout(t);
+    }
+  }, [go]);
+
+  const CH = 200;
 
   return (
     <div ref={ref} style={{ marginTop: 56, background: C.canvas, borderRadius: 24, padding: "40px 40px 32px", border: `1px solid ${C.hairline}`, boxShadow: "0 2px 24px rgba(0,0,0,0.04)" }}>
@@ -366,7 +457,6 @@ function InsightsBarChart() {
           <div style={{ fontFamily: fft, fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>By Service</div>
           <div style={{ fontFamily: ff, fontSize: 20, fontWeight: 600, color: C.ink, letterSpacing: "-0.3px" }}>Avg. findings per scan</div>
         </div>
-        {/* Legend */}
         <div style={{ display: "flex", gap: 18 }}>
           {[["Critical","#dc2626"],["High","#ea580c"],["Medium","#b45309"],["Low","#9ca3af"]].map(([l,c]) => (
             <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -379,7 +469,7 @@ function InsightsBarChart() {
 
       <div style={{ display: "flex", gap: 12 }}>
         {/* Y-axis labels */}
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: CH, paddingBottom: 0, marginRight: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: CH, marginRight: 4 }}>
           {[6, 5, 4, 3, 2, 1, 0].map(n => (
             <div key={n} style={{ fontFamily: fft, fontSize: 10, color: C.inkMuted, lineHeight: 1, textAlign: "right", minWidth: 14 }}>{n}</div>
           ))}
@@ -387,9 +477,8 @@ function InsightsBarChart() {
 
         {/* Chart area */}
         <div style={{ flex: 1 }}>
-          {/* Grid + bars */}
           <div style={{ position: "relative", height: CH }}>
-            {/* Horizontal grid lines */}
+            {/* Grid lines */}
             {[1, 2, 3, 4, 5, 6].map(n => (
               <div key={n} style={{ position: "absolute", left: 0, right: 0, bottom: `${(n / CHART_MAX) * 100}%`, borderTop: `1px solid ${C.hairline}`, pointerEvents: "none" }} />
             ))}
@@ -397,17 +486,12 @@ function InsightsBarChart() {
             {/* Bars */}
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "flex-end", gap: 10 }}>
               {CHART_BARS.map((b, i) => (
-                <div key={b.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%", gap: 0 }}>
-                  {/* Value label above bar */}
+                <div key={b.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
                   <div style={{
-                    fontFamily: fft, fontSize: 11, fontWeight: 700, color: b.color, lineHeight: 1,
-                    marginBottom: 5,
-                    opacity:   go ? 1 : 0,
-                    transform: go ? "translateY(0)" : "translateY(6px)",
+                    fontFamily: fft, fontSize: 11, fontWeight: 700, color: b.color, lineHeight: 1, marginBottom: 5,
+                    opacity: go ? 1 : 0, transform: go ? "translateY(0)" : "translateY(6px)",
                     transition: `opacity 0.35s ease ${i * 0.08 + 0.7}s, transform 0.35s ease ${i * 0.08 + 0.7}s`,
                   }}>{b.val}</div>
-
-                  {/* Bar column */}
                   <div style={{
                     width: "100%",
                     height: go ? `${(b.val / CHART_MAX) * 100}%` : "0%",
@@ -416,18 +500,45 @@ function InsightsBarChart() {
                     transition: `height 0.9s cubic-bezier(0.34,1.56,0.64,1) ${i * 0.08}s`,
                     position: "relative",
                   }}>
-                    {/* Hover glow top */}
                     <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: b.color, borderRadius: "6px 6px 0 0", opacity: 0.9 }} />
                   </div>
                 </div>
               ))}
             </div>
+
+            {/* ── Trend line SVG overlay ── */}
+            <svg
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible" }}
+            >
+              <defs>
+                <clipPath id="lnClip">
+                  {/* rect width transitions 0→100% revealing the line left-to-right */}
+                  <rect x="0" y="-5" height="110"
+                    style={{ width: lineGo ? "100%" : "0%", transition: "width 1.6s cubic-bezier(0.22,1,0.36,1)" }} />
+                </clipPath>
+                <linearGradient id="lnFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor="#dc2626" stopOpacity="0.16" />
+                  <stop offset="100%" stopColor="#dc2626" stopOpacity="0"    />
+                </linearGradient>
+              </defs>
+
+              {/* Area fill */}
+              <path d={AREA_PATH} fill="url(#lnFill)" clipPath="url(#lnClip)"
+                style={{ opacity: lineGo ? 1 : 0, transition: "opacity 0.4s ease" }} />
+
+              {/* Trend line */}
+              <path d={LINE_PATH} fill="none" stroke="#dc2626" strokeWidth="0.8"
+                strokeLinecap="round" strokeLinejoin="round" clipPath="url(#lnClip)" />
+
+              {/* End dot — fades in after line finishes */}
+              <circle cx="94.26" cy="85" r="1.6" fill="#dc2626"
+                style={{ opacity: lineGo ? 1 : 0, transition: "opacity 0.3s ease 1.6s" }} />
+            </svg>
           </div>
 
-          {/* X-axis line */}
           <div style={{ height: 1, background: C.hairline }} />
-
-          {/* X-axis labels */}
           <div style={{ display: "flex", gap: 10, paddingTop: 10 }}>
             {CHART_BARS.map(b => (
               <div key={b.label} style={{ flex: 1, textAlign: "center", fontFamily: fft, fontSize: 10, color: C.inkMuted, letterSpacing: "0.02em" }}>{b.label}</div>
@@ -436,7 +547,6 @@ function InsightsBarChart() {
         </div>
       </div>
 
-      {/* X-axis label */}
       <div style={{ textAlign: "center", fontFamily: fft, fontSize: 11, color: C.inkMuted, marginTop: 12, letterSpacing: "0.06em" }}>
         AWS Service
       </div>
@@ -973,26 +1083,9 @@ export default function HomePage() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}>
-            {/* Donut */}
-            <div className="ap-reveal-left" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <svg viewBox="0 0 120 120" style={{ width: 260, height: 260 }}>
-                <circle cx="60" cy="60" r="45" fill="none" stroke={C.divider}  strokeWidth="16" />
-                <circle cx="60" cy="60" r="45" fill="none" stroke="#dc2626" strokeWidth="16" strokeLinecap="round" strokeDasharray="62  220" strokeDashoffset="70.7" />
-                <circle cx="60" cy="60" r="45" fill="none" stroke="#ea580c" strokeWidth="16" strokeLinecap="round" strokeDasharray="99  183" strokeDashoffset="3.1" />
-                <circle cx="60" cy="60" r="45" fill="none" stroke="#b45309" strokeWidth="16" strokeLinecap="round" strokeDasharray="79  203" strokeDashoffset="-100.5" />
-                <circle cx="60" cy="60" r="45" fill="none" stroke="#9ca3af" strokeWidth="16" strokeLinecap="round" strokeDasharray="42  240" strokeDashoffset="-184.5" />
-                <text x="60" y="54" textAnchor="middle" fill={C.ink}     fontSize="21" fontWeight="600" fontFamily={ff}>14</text>
-                <text x="60" y="68" textAnchor="middle" fill={C.inkMuted} fontSize="7.5"               fontFamily={fft}>avg findings</text>
-              </svg>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 32px", marginTop: 20, width: "100%", maxWidth: 280 }}>
-                {[["Critical","22%","#dc2626"],["High","35%","#ea580c"],["Medium","28%","#b45309"],["Low","15%","#9ca3af"]].map(([l,p,c]) => (
-                  <div key={l} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: c, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: c, fontFamily: fft }}>{l}</span>
-                    <span style={{ marginLeft: "auto", fontSize: 12, color: C.inkMuted, fontFamily: fft }}>{p}</span>
-                  </div>
-                ))}
-              </div>
+            {/* Donut — interactive with hover tooltips */}
+            <div className="ap-reveal-left">
+              <DonutChart />
             </div>
 
             {/* Stat cards */}

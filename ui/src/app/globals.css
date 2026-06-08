@@ -350,6 +350,36 @@ button, input, select, textarea { font: inherit; }
 .scan-line{position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,rgba(16,185,129,.3) 20%,rgba(16,185,129,.7) 50%,rgba(16,185,129,.3) 80%,transparent 100%);box-shadow:0 0 12px rgba(16,185,129,.4),0 0 30px rgba(16,185,129,.12);animation:scan-beam 10s linear 2s infinite;will-change:transform,opacity}
 
 /* ════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE (≤ 700px)
+════════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  /* Nav: hide centre links — logo + CTA still visible */
+  .ap-nav-mid                 { display: none !important; }
+
+  /* Reduce section vertical padding */
+  .ap-sec                     { padding-top: 72px !important; padding-bottom: 72px !important; }
+
+  /* Stats strip: 4-col → 2×2 */
+  .ap-stats-grid              { grid-template-columns: repeat(2,1fr) !important; gap: 20px !important; }
+
+  /* Bento grids: force single column, cancel all span-2 */
+  .ap-bento-grid              { grid-template-columns: 1fr !important; }
+  .ap-bento-grid > *          { grid-column: span 1 !important; }
+
+  /* 3-column sections → single column */
+  .ap-grid-3col               { grid-template-columns: 1fr !important; }
+
+  /* 2-column splits → stacked */
+  .ap-grid-2col               { grid-template-columns: 1fr !important; gap: 40px !important; }
+
+  /* Footer columns → stacked */
+  .ap-footer-grid             { grid-template-columns: 1fr !important; gap: 24px !important; margin-bottom: 28px !important; }
+
+  /* Hero: tighten mock-up font sizes */
+  .ap-hero-mockup             { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════
    WATER BUBBLE CARD — organic border-radius morphing
 ════════════════════════════════════════════════════════════ */
 @keyframes bubble-morph {

@@ -802,7 +802,7 @@ export default function HomePage() {
           <Link href="/" style={{ color: "#fff", fontSize: 15, fontWeight: 600, letterSpacing: "-0.3px", fontFamily: ff, textDecoration: "none" }}>
             VigiliCloud
           </Link>
-          <div style={{ display: "flex", gap: 32 }}>
+          <div className="ap-nav-mid" style={{ display: "flex", gap: 32 }}>
             {[["Features","#features"],["How It Works","#how-it-works"],["Pricing","#pricing"]].map(([l,h]) => (
               <a key={l} href={h} style={{ color: "rgba(255,255,255,0.68)", fontSize: 12, fontFamily: fft, textDecoration: "none" }}>{l}</a>
             ))}
@@ -953,7 +953,7 @@ export default function HomePage() {
       {/* ══ STATS STRIP ══ */}
       <section className="ap-animated-bg" style={{ padding: "80px 22px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
-          <div className="ap-reveal" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 32, textAlign: "center" }}>
+          <div className="ap-reveal ap-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 32, textAlign: "center" }}>
             {[
               { count: "10", suffix: "+",    label: "Security checks",   icon: "🔍" },
               { count: "2",  suffix: " min", label: "Average scan time", icon: "⚡" },
@@ -973,7 +973,7 @@ export default function HomePage() {
       </section>
 
       {/* ══ HOW IT WORKS ══ */}
-      <section id="how-it-works" style={{ background: C.canvas, padding: "120px 22px", position: "relative", overflow: "hidden" }}>
+      <section id="how-it-works" className="ap-sec" style={{ background: C.canvas, padding: "120px 22px", position: "relative", overflow: "hidden" }}>
         {/* Subtle bg orb */}
         <div style={{ position: "absolute", top: "30%", right: "-10%", width: 500, height: 500, background: "radial-gradient(circle, rgba(0,102,204,0.04), transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
@@ -983,7 +983,7 @@ export default function HomePage() {
             <p style={{ fontFamily: fft, fontSize: 17, color: C.inkMuted, lineHeight: 1.47, letterSpacing: "-0.374px" }}>No agents, no installations, no complex setup.</p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: C.hairline }}>
+          <div className="ap-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: C.hairline }}>
             {STEPS.map((step, i) => (
               <TiltCard key={step.num} className={`ap-reveal${i === 0 ? "-left" : i === 2 ? "-right" : ""} ap-d${i + 1}`} style={{ background: C.canvas, padding: "48px 36px", height: "100%" }}>
                 <div style={{ fontFamily: ff, fontSize: 68, fontWeight: 700, color: "rgba(0,0,0,0.05)", lineHeight: 1, marginBottom: 28, letterSpacing: "-2px" }}>{step.num}</div>
@@ -1012,7 +1012,7 @@ export default function HomePage() {
         </div>
 
         {/* Main bento tiles — ap-pop for entrance, TiltCard for hover */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+        <div className="ap-bento-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
           {(() => {
             let col = 0;
             return BENTO.map((t, idx) => {
@@ -1046,7 +1046,7 @@ export default function HomePage() {
         </div>
 
         {/* Extra feature tiles */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 10 }}>
+        <div className="ap-bento-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 10 }}>
           {[
             { icon: "🤖", title: "AI Security Analysis", desc: "Claude AI summarizes your findings and prioritizes what to fix first — in plain English.", bg: C.parchment },
             { icon: "📬", title: "Email Alerts",          desc: "Get notified the moment a critical misconfiguration is found in your account.",           bg: C.canvas    },
@@ -1071,7 +1071,7 @@ export default function HomePage() {
       </section>
 
       {/* ══ SECURITY INSIGHTS ══ */}
-      <section id="stats" style={{ background: C.parchment, padding: "120px 22px", position: "relative", overflow: "hidden" }}>
+      <section id="stats" className="ap-sec" style={{ background: C.parchment, padding: "120px 22px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: "50%", left: "-5%", width: 600, height: 600, background: "radial-gradient(circle, rgba(0,102,204,0.05), transparent 70%)", borderRadius: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <div className="ap-reveal" style={{ textAlign: "center", marginBottom: 72 }}>
@@ -1082,7 +1082,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}>
+          <div className="ap-grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}>
             {/* Donut — interactive with hover tooltips */}
             <div className="ap-reveal-left">
               <DonutChart />
@@ -1111,7 +1111,7 @@ export default function HomePage() {
       </section>
 
       {/* ══ PRICING ══ */}
-      <section id="pricing" style={{ background: C.tile1, padding: "120px 22px", position: "relative", overflow: "hidden" }}>
+      <section id="pricing" className="ap-sec" style={{ background: C.tile1, padding: "120px 22px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: "20%", left: "50%", transform: "translateX(-50%)", width: 800, height: 600, background: "radial-gradient(ellipse, rgba(0,102,204,0.08), transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
         <div style={{ maxWidth: 980, margin: "0 auto", position: "relative" }}>
           <div className="ap-reveal" style={{ textAlign: "center", marginBottom: 72 }}>
@@ -1120,7 +1120,7 @@ export default function HomePage() {
             <p style={{ fontFamily: fft, fontSize: 17, color: C.muted, lineHeight: 1.47, letterSpacing: "-0.374px" }}>2-week free trial on all plans. Billed in INR · USD shown for reference.</p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
+          <div className="ap-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
             {PLANS.map((plan, i) => (
               <div key={plan.key} className={`ap-reveal ap-d${i + 1} ${plan.hot ? "ap-glow-border" : ""}`}
                 style={{ background: C.canvas, borderRadius: 20, padding: "36px 28px", border: plan.hot ? "none" : `1px solid ${C.hairline}`, position: "relative", zIndex: 1, transition: "transform 0.12s cubic-bezier(0.22,1,0.36,1)", transformStyle: "preserve-3d" }}
@@ -1160,13 +1160,13 @@ export default function HomePage() {
       </section>
 
       {/* ══ TESTIMONIALS ══ */}
-      <section id="testimonials" style={{ background: C.canvas, padding: "120px 22px" }}>
+      <section id="testimonials" className="ap-sec" style={{ background: C.canvas, padding: "120px 22px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <div className="ap-reveal" style={{ textAlign: "center", marginBottom: 72 }}>
             <Label>Testimonials</Label>
             <H2 center>Trusted by AWS teams worldwide.</H2>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: C.hairline }}>
+          <div className="ap-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: C.hairline }}>
             {TESTIMONIALS.map((t, i) => (
               <TiltCard key={t.name} className={`ap-reveal ap-d${i + 1}`} style={{ background: C.canvas, padding: "44px 36px" }}>
                 <div style={{ display: "flex", gap: 3, marginBottom: 24 }}>
@@ -1189,8 +1189,8 @@ export default function HomePage() {
       </section>
 
       {/* ══ DEMO + CONTACT ══ */}
-      <section style={{ background: C.parchment, padding: "120px 22px" }}>
-        <div style={{ maxWidth: 980, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 72, alignItems: "start" }}>
+      <section className="ap-sec" style={{ background: C.parchment, padding: "120px 22px" }}>
+        <div className="ap-grid-2col" style={{ maxWidth: 980, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 72, alignItems: "start" }}>
 
           <div id="demo" className="ap-reveal-left">
             <Label>Book a Demo</Label>
@@ -1240,7 +1240,7 @@ export default function HomePage() {
       </section>
 
       {/* ══ CTA BANNER ══ */}
-      <section style={{ background: C.tile2, padding: "120px 22px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+      <section className="ap-sec" style={{ background: C.tile2, padding: "120px 22px", textAlign: "center", position: "relative", overflow: "hidden" }}>
         <div className="ap-morph" style={{ position: "absolute", top: "50%", left: "20%", transform: "translateY(-50%)", width: 500, height: 500, background: "radial-gradient(circle, rgba(0,102,204,0.12), transparent 70%)", filter: "blur(70px)", pointerEvents: "none" }} />
         <div className="ap-morph" style={{ position: "absolute", top: "50%", right: "15%", transform: "translateY(-50%)", width: 400, height: 400, background: "radial-gradient(circle, rgba(41,151,255,0.09), transparent 70%)", filter: "blur(70px)", pointerEvents: "none", animationDelay: "-7s" }} />
         <div style={{ maxWidth: 640, margin: "0 auto", position: "relative" }} className="ap-reveal-scale">
@@ -1257,7 +1257,7 @@ export default function HomePage() {
       {/* ══ FOOTER ══ */}
       <footer style={{ background: C.parchment, padding: "64px 22px 48px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 48, marginBottom: 48 }}>
+          <div className="ap-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 48, marginBottom: 48 }}>
             <div>
               <Link href="/" style={{ fontFamily: ff, fontSize: 17, fontWeight: 600, color: C.ink, textDecoration: "none", letterSpacing: "-0.374px", display: "block", marginBottom: 12 }}>VigiliCloud</Link>
               <p style={{ fontFamily: fft, fontSize: 14, color: C.inkMuted, lineHeight: 1.5, maxWidth: 280, letterSpacing: "-0.224px" }}>

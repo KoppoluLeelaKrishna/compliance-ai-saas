@@ -740,8 +740,12 @@ export default function ScansPage() {
                     strokeDasharray={`${s.dash} ${s.gap}`}
                     strokeDashoffset={-s.offset + circumference * 0.25}
                     strokeLinecap="butt"
-                    style={{ opacity: 0.85 }}
-                  />
+                    style={{ opacity: severityFilter === s.sev ? 1 : 0.85, cursor: "pointer", transition: "opacity 0.15s, stroke-width 0.15s" }}
+                    strokeWidth={severityFilter === s.sev ? stroke + 4 : stroke}
+                    onClick={() => { setSeverityFilter(severityFilter === s.sev ? "ALL" : s.sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
+                  >
+                    <title>{s.sev}: {s.count} findings ({Math.round(s.pct * 100)}%)</title>
+                  </circle>
                 ))}
                 <text x={cx} y={cy - 8} textAnchor="middle" fill={SEV_COLORS[dominant.sev]} fontSize={22} fontWeight={700}>{dominant.count}</text>
                 <text x={cx} y={cy + 10} textAnchor="middle" fill="#6b7280" fontSize={9} fontWeight={600} letterSpacing={1}>{dominant.sev}</text>

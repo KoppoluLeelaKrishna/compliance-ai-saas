@@ -686,82 +686,103 @@ export default function ScansPage() {
         </div>
       )}
 
-      {/* ── Severity tiles + donut chart ───────────────────────────────── */}
-      <div className="flex flex-col gap-3 lg:flex-row">
-        {/* Tiles */}
-        <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-          {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((sev) => {
-            const cfg = SEV_CONFIG[sev];
-            const count = severityCounts[sev] || 0;
-            const pct = sevTotal > 0 ? Math.round((count / sevTotal) * 100) : 0;
-            return (
-              <button
-                key={sev}
-                type="button"
-                onClick={() => { setSeverityFilter(severityFilter === sev ? "ALL" : sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
-                className={`relative overflow-hidden rounded-2xl border ${cfg.border} bg-gradient-to-br ${cfg.from} to-transparent p-5 text-left transition-opacity hover:opacity-80`}
-              >
-                <div className="text-[10px] font-bold tracking-widest text-neutral-500">{sev}</div>
-                <div className={`mt-1 text-4xl font-bold ${cfg.text}`}>{count}</div>
-                <div className="mt-3 h-[2px] rounded-full bg-white/5">
-                  <div className={`h-[2px] rounded-full ${cfg.bar} transition-all duration-700`} style={{ '--w': `${pct}%`, width: 'var(--w)' } as React.CSSProperties} />
-                </div>
-                <div className="mt-1.5 text-[10px] text-neutral-600">{pct}% of findings</div>
-              </button>
-            );
-          })}
-        </div>
+      {/* ── Severity pie chart ─────────────────────────────────────────── */}
+      {(() => {
+        const SEV_COLORS: Record<string, string> = { CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#eab308", LOW: "#3b82f6" };
+        const ALL_SEVS = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+        const r = 80; const cx = 110; const cy = 110; const stroke = 28;
+        const circumference = 2 * Math.PI * r;
+        let offset = 0;
+        const slices = ALL_SEVS.map((sev) => {
+          const count = severityCounts[sev] || 0;
+          const pct = sevTotal > 0 ? count / sevTotal : 0;
+          const dash = pct * circumference;
+          const gap = circumference - dash;
+          const sl = { sev, count, pct, dash, gap, offset, color: SEV_COLORS[sev] };
+          offset += dash;
+          return sl;
+        });
+        const activeSlices = slices.filter(s => s.count > 0);
+        const display = hoveredSev
+          ? (slices.find(s => s.sev === hoveredSev) ?? activeSlices[0])
+          : activeSlices.length > 0 ? activeSlices.reduce((a, b) => a.count > b.count ? a : b) : null;
 
-        {/* Donut chart */}
-        {sevTotal > 0 && (() => {
-          const SEV_COLORS: Record<string, string> = { CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#eab308", LOW: "#3b82f6" };
-          const r = 52; const cx = 72; const cy = 72; const stroke = 18;
-          const circumference = 2 * Math.PI * r;
-          let offset = 0;
-          const slices = (["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((sev) => {
-            const count = severityCounts[sev] || 0;
-            const pct = count / sevTotal;
-            const dash = pct * circumference;
-            const gap = circumference - dash;
-            const sl = { sev, count, pct, dash, gap, offset, color: SEV_COLORS[sev] };
-            offset += dash;
-            return sl;
-          }).filter(s => s.count > 0);
-          const display = hoveredSev ? slices.find(s => s.sev === hoveredSev) ?? slices[0] : slices.reduce((a, b) => a.count > b.count ? a : b);
-          return (
-            <div className="flex shrink-0 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-              <svg width={144} height={144} viewBox="0 0 144 144" style={{ overflow: "visible" }}>
-                {slices.map((s) => {
-                  const isHov = hoveredSev === s.sev;
-                  const isActive = severityFilter === s.sev;
-                  const sw = isHov ? stroke + 7 : isActive ? stroke + 3 : stroke;
-                  const op = hoveredSev && !isHov ? 0.25 : 0.88;
-                  const sc = isHov ? 1.07 : 1;
+        return (
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
+            <div className="mb-4 text-sm font-semibold text-neutral-300">Findings by Severity</div>
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
+
+              {/* Big donut */}
+              <div className="shrink-0">
+                {sevTotal === 0 ? (
+                  <div className="flex h-[220px] w-[220px] items-center justify-center rounded-full border border-white/[0.06] text-xs text-neutral-600">No findings</div>
+                ) : (
+                  <svg width={220} height={220} viewBox="0 0 220 220" style={{ overflow: "visible" }}>
+                    {slices.map((s) => {
+                      if (s.count === 0) return null;
+                      const isHov = hoveredSev === s.sev;
+                      const isActive = severityFilter === s.sev;
+                      const sw = isHov ? stroke + 10 : isActive ? stroke + 5 : stroke;
+                      const op = hoveredSev && !isHov ? 0.2 : isActive ? 1 : 0.85;
+                      const sc = isHov ? 1.06 : 1;
+                      return (
+                        <circle
+                          key={s.sev}
+                          cx={cx} cy={cy} r={r}
+                          fill="none"
+                          stroke={s.color}
+                          strokeWidth={sw}
+                          strokeDasharray={`${s.dash} ${s.gap}`}
+                          strokeDashoffset={-s.offset + circumference * 0.25}
+                          strokeLinecap="butt"
+                          style={{ opacity: op, cursor: "pointer", transition: "stroke-width 0.2s ease, opacity 0.2s ease, transform 0.2s ease", transformOrigin: `${cx}px ${cy}px`, transform: `scale(${sc})` }}
+                          onMouseEnter={() => setHoveredSev(s.sev)}
+                          onMouseLeave={() => setHoveredSev(null)}
+                          onClick={() => { setSeverityFilter(severityFilter === s.sev ? "ALL" : s.sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
+                        />
+                      );
+                    })}
+                    {display && (
+                      <>
+                        <text x={cx} y={cy - 14} textAnchor="middle" fill={display.color} fontSize={36} fontWeight={800} style={{ transition: "fill 0.2s" }}>{display.count}</text>
+                        <text x={cx} y={cy + 12} textAnchor="middle" fill={display.color} fontSize={11} fontWeight={700} letterSpacing={2} style={{ transition: "fill 0.2s" }}>{display.sev}</text>
+                        <text x={cx} y={cy + 30} textAnchor="middle" fill="#6b7280" fontSize={11}>{Math.round(display.pct * 100)}% of findings</text>
+                      </>
+                    )}
+                  </svg>
+                )}
+              </div>
+
+              {/* Legend */}
+              <div className="flex flex-1 flex-col gap-3 w-full">
+                {ALL_SEVS.map((sev) => {
+                  const count = severityCounts[sev] || 0;
+                  const pct = sevTotal > 0 ? Math.round((count / sevTotal) * 100) : 0;
+                  const color = SEV_COLORS[sev];
+                  const isActive = severityFilter === sev;
+                  const isHov = hoveredSev === sev;
                   return (
-                    <circle
-                      key={s.sev}
-                      cx={cx} cy={cy} r={r}
-                      fill="none"
-                      stroke={s.color}
-                      strokeWidth={sw}
-                      strokeDasharray={`${s.dash} ${s.gap}`}
-                      strokeDashoffset={-s.offset + circumference * 0.25}
-                      strokeLinecap="butt"
-                      style={{ opacity: op, cursor: "pointer", transition: "stroke-width 0.18s ease, opacity 0.18s ease, transform 0.18s ease", transformOrigin: `${cx}px ${cy}px`, transform: `scale(${sc})` }}
-                      onMouseEnter={() => setHoveredSev(s.sev)}
+                    <button
+                      key={sev}
+                      type="button"
+                      onMouseEnter={() => setHoveredSev(sev)}
                       onMouseLeave={() => setHoveredSev(null)}
-                      onClick={() => { setSeverityFilter(severityFilter === s.sev ? "ALL" : s.sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
-                    />
+                      onClick={() => { setSeverityFilter(isActive ? "ALL" : sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
+                      className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 text-left transition-all ${isActive ? "border-white/20 bg-white/[0.06]" : "border-white/[0.05] hover:border-white/10 hover:bg-white/[0.03]"}`}
+                    >
+                      <span className="h-3 w-3 shrink-0 rounded-full transition-transform" style={{ background: color, transform: isHov ? "scale(1.4)" : "scale(1)" }} />
+                      <span className="flex-1 text-xs font-semibold text-neutral-400">{sev}</span>
+                      <span className="text-lg font-bold" style={{ color: count > 0 ? color : "#374151" }}>{count}</span>
+                      <span className="w-10 text-right text-[11px] text-neutral-600">{pct}%</span>
+                    </button>
                   );
                 })}
-                <text x={cx} y={cy - 9} textAnchor="middle" fill={display.color} fontSize={24} fontWeight={700} style={{ transition: "fill 0.18s" }}>{display.count}</text>
-                <text x={cx} y={cy + 11} textAnchor="middle" fill={display.color} fontSize={8} fontWeight={700} letterSpacing={1.5} style={{ transition: "fill 0.18s" }}>{display.sev}</text>
-                <text x={cx} y={cy + 25} textAnchor="middle" fill="#4b5563" fontSize={8}>{Math.round(display.pct * 100)}%</text>
-              </svg>
+                <div className="mt-1 text-[11px] text-neutral-600">{sevTotal} total findings · click any row or arc to filter</div>
+              </div>
             </div>
-          );
-        })()}
-      </div>
+          </div>
+        );
+      })()}
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
       <ScanFilters

@@ -72,6 +72,21 @@ export default function ScansPage() {
   const [approvalEvents, setApprovalEvents] = useState<ApprovalEvent[]>([]);
   const [approvalSaving, setApprovalSaving] = useState(false);
 
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleIntervalHours, setScheduleIntervalHours] = useState(24);
+  const [schedulePlanSupports, setSchedulePlanSupports] = useState(false);
+  const [togglingSchedule, setTogglingSchedule] = useState(false);
+  const [scanSummary, setScanSummary] = useState<{ total: number; newCount: number; critical: number } | null>(null);
+
+  async function loadScheduleSettings() {
+    try {
+      const data = await api<{ enabled: boolean; interval_hours: number; plan_supports: boolean }>("/settings/scan-schedule");
+      setScheduleEnabled(data.enabled);
+      setScheduleIntervalHours(data.interval_hours);
+      setSchedulePlanSupports(data.plan_supports);
+    } catch { /* ignore */ }
+  }
+
   async function loadInitialData() {
     setLoading(true);
     try {
@@ -81,7 +96,7 @@ export default function ScansPage() {
       ]);
       setBilling(billingData);
       setAccounts(accountsData.accounts || []);
-      await loadScans("");
+      await Promise.all([loadScans(""), loadScheduleSettings()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load data");
     } finally {
@@ -190,21 +205,45 @@ export default function ScansPage() {
     setRunning(true);
     setError("");
     setMessage("");
+    setScanSummary(null);
     try {
       const payload: { account_id?: number } = {};
       if (selectedAccountId) payload.account_id = Number(selectedAccountId);
-      
       const data = await api<{ scan_id: string; count: number }>("/scans/run", {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      setMessage(`Scan completed with ${data.count} findings.`);
       await loadScans(selectedAccountId);
-      if (data.scan_id) setSelectedScanId(data.scan_id);
+      if (data.scan_id) {
+        setSelectedScanId(data.scan_id);
+        const [findingsData, driftData] = await Promise.all([
+          api<FindingsResponse>(`/scans/${data.scan_id}/findings`).catch(() => ({ findings: [] as Finding[] })),
+          api<DriftSummary>(`/scans/${data.scan_id}/drift`).catch(() => null),
+        ]);
+        const allFindings = (findingsData.findings || []) as Finding[];
+        const newCount = driftData?.summary?.new ?? 0;
+        const critical = allFindings.filter((f) => f.severity === "CRITICAL" && f.status === "FAIL").length;
+        setScanSummary({ total: data.count, newCount, critical });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to run scan");
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function handleToggleSchedule() {
+    setTogglingSchedule(true);
+    try {
+      const data = await api<{ enabled: boolean }>("/settings/scan-schedule", {
+        method: "PUT",
+        body: JSON.stringify({ enabled: !scheduleEnabled }),
+      });
+      setScheduleEnabled(data.enabled);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update auto-scan schedule");
+    } finally {
+      setTogglingSchedule(false);
     }
   }
 
@@ -417,6 +456,18 @@ export default function ScansPage() {
     LOW:      { border: "border-blue-500/20", from: "from-blue-500/[0.08]", text: "text-blue-400", bar: "bg-blue-500" },
   } as const;
 
+  const nextScanTime = useMemo(() => {
+    if (!scheduleEnabled || scans.length === 0) return null;
+    const lastScan = scans[0];
+    const nextMs = new Date(lastScan.created_at).getTime() + scheduleIntervalHours * 3_600_000;
+    const diffMs = nextMs - Date.now();
+    if (diffMs <= 0) return "Due now";
+    const diffH = Math.round(diffMs / 3_600_000);
+    if (diffH < 1) return "< 1h";
+    if (diffH < 24) return `~${diffH}h`;
+    return `~${Math.round(diffH / 24)}d`;
+  }, [scheduleEnabled, scans, scheduleIntervalHours]);
+
   const failCount = findings.filter(f => f.status === "FAIL").length;
   const passCount = findings.filter(f => f.status === "PASS").length;
   const sevTotal = Object.values(severityCounts).reduce((a, b) => a + b, 0);
@@ -494,22 +545,141 @@ export default function ScansPage() {
                 disabled={running}
                 className="rounded-xl bg-emerald-500 px-5 py-2 text-xs font-bold text-black hover:bg-emerald-400 disabled:opacity-50 transition-all active:scale-95"
               >
-                {running ? "Scanning…" : "Run Scan"}
+                {running ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 animate-spin rounded-full border border-black border-t-transparent" />
+                    Scanning…
+                  </span>
+                ) : "Run Scan"}
+              </button>
+            </div>
+
+            {/* Auto-scan toggle */}
+            <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5">
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-semibold text-neutral-300">Daily Auto-Scan</div>
+                <div className="text-[10px] text-neutral-600 mt-0.5">
+                  {schedulePlanSupports
+                    ? scheduleEnabled
+                      ? nextScanTime
+                        ? `Every ${scheduleIntervalHours}h · Next: ${nextScanTime}`
+                        : `Runs every ${scheduleIntervalHours}h`
+                      : "Automatic scanning disabled"
+                    : "Upgrade plan to enable"}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleSchedule}
+                disabled={togglingSchedule || !schedulePlanSupports}
+                title={!schedulePlanSupports ? "Requires a paid plan" : scheduleEnabled ? "Disable daily auto-scan" : "Enable daily auto-scan"}
+                className={`relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-40 ${
+                  scheduleEnabled ? "bg-emerald-500" : "bg-white/[0.12]"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    scheduleEnabled ? "translate-x-[18px]" : "translate-x-0.5"
+                  }`}
+                />
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Status message ─────────────────────────────────────────────── */}
-      {(message || error) && (
-        <div className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${
-          error
-            ? "border-red-500/20 bg-red-500/[0.07] text-red-300"
-            : "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-300"
-        }`}>
-          <span className="mt-0.5 text-base">{error ? "✕" : "✓"}</span>
-          <span>{error || message}</span>
+      {/* ── Error message ───────────────────────────────────────────────── */}
+      {error && (
+        <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.07] p-4 text-sm text-red-300">
+          <span className="mt-0.5 text-base">✕</span>
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* ── Post-scan summary ────────────────────────────────────────────── */}
+      {scanSummary && (
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              Scan complete
+            </div>
+            <button type="button" onClick={() => setScanSummary(null)} className="text-xs text-neutral-600 hover:text-neutral-400 transition-colors">
+              Dismiss
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-center">
+              <div className="text-3xl font-bold text-neutral-200">{scanSummary.total}</div>
+              <div className="mt-1 text-[10px] font-medium text-neutral-600 uppercase tracking-wider">Total Findings</div>
+            </div>
+            <div className={`rounded-xl border p-3 text-center ${scanSummary.newCount > 0 ? "border-cyan-500/25 bg-cyan-500/[0.06]" : "border-white/[0.07] bg-white/[0.02]"}`}>
+              <div className={`text-3xl font-bold ${scanSummary.newCount > 0 ? "text-cyan-400" : "text-neutral-600"}`}>
+                {scanSummary.newCount > 0 ? `+${scanSummary.newCount}` : "0"}
+              </div>
+              <div className="mt-1 text-[10px] font-medium text-neutral-600 uppercase tracking-wider">New Issues</div>
+            </div>
+            <div className={`rounded-xl border p-3 text-center ${scanSummary.critical > 0 ? "border-red-500/25 bg-red-500/[0.06]" : "border-emerald-500/20 bg-emerald-500/[0.04]"}`}>
+              <div className={`text-3xl font-bold ${scanSummary.critical > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                {scanSummary.critical}
+              </div>
+              <div className="mt-1 text-[10px] font-medium text-neutral-600 uppercase tracking-wider">Criticals</div>
+            </div>
+          </div>
+          {scanSummary.critical > 0 && (
+            <div className="mt-3 flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-2.5">
+              <svg className="h-4 w-4 shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              <span className="flex-1 text-xs font-semibold text-red-300">
+                {scanSummary.critical} critical finding{scanSummary.critical !== 1 ? "s" : ""} — immediate remediation required
+              </span>
+              <button
+                type="button"
+                onClick={() => { setSeverityFilter("CRITICAL"); setScanSummary(null); }}
+                className="shrink-0 rounded-lg border border-red-500/25 px-3 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/10 transition-colors"
+              >
+                View →
+              </button>
+            </div>
+          )}
+          {scanSummary.newCount > 0 && (
+            <button
+              type="button"
+              onClick={() => { setDriftFilter(true); setScanSummary(null); }}
+              className="mt-2 w-full rounded-xl border border-cyan-500/20 bg-cyan-500/[0.04] py-2 text-xs font-semibold text-cyan-400 hover:bg-cyan-500/[0.08] transition-colors"
+            >
+              Show {scanSummary.newCount} new issue{scanSummary.newCount !== 1 ? "s" : ""} →
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Critical alert banner ────────────────────────────────────────── */}
+      {!scanSummary && severityCounts.CRITICAL > 0 && (
+        <div className="flex items-center gap-3 rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-5 py-3.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500/15">
+            <svg className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold text-red-300">
+              {severityCounts.CRITICAL} Critical Finding{severityCounts.CRITICAL !== 1 ? "s" : ""} — Immediate Attention Required
+            </div>
+            <div className="mt-0.5 text-xs text-red-400/60">
+              Critical misconfigurations expose your infrastructure to active threats.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSeverityFilter("CRITICAL")}
+            className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors"
+          >
+            View Criticals
+          </button>
         </div>
       )}
 

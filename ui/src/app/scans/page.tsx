@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, API_BASE } from "@/lib/api";
 import {
   Account,
@@ -77,6 +77,8 @@ export default function ScansPage() {
   const [schedulePlanSupports, setSchedulePlanSupports] = useState(false);
   const [togglingSchedule, setTogglingSchedule] = useState(false);
   const [scanSummary, setScanSummary] = useState<{ total: number; newCount: number; critical: number } | null>(null);
+
+  const findingsRef = useRef<HTMLDivElement>(null);
 
   async function loadScheduleSettings() {
     try {
@@ -638,7 +640,7 @@ export default function ScansPage() {
               </span>
               <button
                 type="button"
-                onClick={() => { setSeverityFilter("CRITICAL"); setScanSummary(null); }}
+                onClick={() => { setSeverityFilter("CRITICAL"); setScanSummary(null); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
                 className="shrink-0 rounded-lg border border-red-500/25 px-3 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/10 transition-colors"
               >
                 View →
@@ -675,7 +677,7 @@ export default function ScansPage() {
           </div>
           <button
             type="button"
-            onClick={() => setSeverityFilter("CRITICAL")}
+            onClick={() => { setSeverityFilter("CRITICAL"); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
             className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors"
           >
             View Criticals
@@ -683,23 +685,86 @@ export default function ScansPage() {
         </div>
       )}
 
-      {/* ── Severity tiles ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((sev) => {
-          const cfg = SEV_CONFIG[sev];
-          const count = severityCounts[sev] || 0;
-          const pct = sevTotal > 0 ? Math.round((count / sevTotal) * 100) : 0;
+      {/* ── Severity tiles + donut chart ───────────────────────────────── */}
+      <div className="flex flex-col gap-3 lg:flex-row">
+        {/* Tiles */}
+        <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+          {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((sev) => {
+            const cfg = SEV_CONFIG[sev];
+            const count = severityCounts[sev] || 0;
+            const pct = sevTotal > 0 ? Math.round((count / sevTotal) * 100) : 0;
+            return (
+              <button
+                key={sev}
+                type="button"
+                onClick={() => { setSeverityFilter(severityFilter === sev ? "ALL" : sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
+                className={`relative overflow-hidden rounded-2xl border ${cfg.border} bg-gradient-to-br ${cfg.from} to-transparent p-5 text-left transition-opacity hover:opacity-80`}
+              >
+                <div className="text-[10px] font-bold tracking-widest text-neutral-500">{sev}</div>
+                <div className={`mt-1 text-4xl font-bold ${cfg.text}`}>{count}</div>
+                <div className="mt-3 h-[2px] rounded-full bg-white/5">
+                  <div className={`h-[2px] rounded-full ${cfg.bar} transition-all duration-700`} style={{ '--w': `${pct}%`, width: 'var(--w)' } as React.CSSProperties} />
+                </div>
+                <div className="mt-1.5 text-[10px] text-neutral-600">{pct}% of findings</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Donut chart */}
+        {sevTotal > 0 && (() => {
+          const SEV_COLORS = { CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#eab308", LOW: "#3b82f6" };
+          const r = 54; const cx = 70; const cy = 70; const stroke = 16;
+          const circumference = 2 * Math.PI * r;
+          let offset = 0;
+          const slices = (["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((sev) => {
+            const count = severityCounts[sev] || 0;
+            const pct = count / sevTotal;
+            const dash = pct * circumference;
+            const gap = circumference - dash;
+            const slice = { sev, count, pct, dash, gap, offset, color: SEV_COLORS[sev] };
+            offset += dash;
+            return slice;
+          }).filter(s => s.count > 0);
+          const dominant = slices.reduce((a, b) => a.count > b.count ? a : b);
           return (
-            <div key={sev} className={`relative overflow-hidden rounded-2xl border ${cfg.border} bg-gradient-to-br ${cfg.from} to-transparent p-5`}>
-              <div className="text-[10px] font-bold tracking-widest text-neutral-500">{sev}</div>
-              <div className={`mt-1 text-4xl font-bold ${cfg.text}`}>{count}</div>
-              <div className="mt-3 h-[2px] rounded-full bg-white/5">
-                <div className={`h-[2px] rounded-full ${cfg.bar} transition-all duration-700`} style={{ '--w': `${pct}%`, width: 'var(--w)' } as React.CSSProperties} />
+            <div className="flex shrink-0 items-center gap-5 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-6 py-5">
+              <svg width={140} height={140} viewBox="0 0 140 140">
+                {slices.map((s) => (
+                  <circle
+                    key={s.sev}
+                    cx={cx} cy={cy} r={r}
+                    fill="none"
+                    stroke={s.color}
+                    strokeWidth={stroke}
+                    strokeDasharray={`${s.dash} ${s.gap}`}
+                    strokeDashoffset={-s.offset + circumference * 0.25}
+                    strokeLinecap="butt"
+                    style={{ opacity: 0.85 }}
+                  />
+                ))}
+                <text x={cx} y={cy - 8} textAnchor="middle" fill={SEV_COLORS[dominant.sev]} fontSize={22} fontWeight={700}>{dominant.count}</text>
+                <text x={cx} y={cy + 10} textAnchor="middle" fill="#6b7280" fontSize={9} fontWeight={600} letterSpacing={1}>{dominant.sev}</text>
+              </svg>
+              <div className="flex flex-col gap-2">
+                {slices.map((s) => (
+                  <button
+                    key={s.sev}
+                    type="button"
+                    onClick={() => { setSeverityFilter(severityFilter === s.sev ? "ALL" : s.sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
+                    className="flex items-center gap-2 text-left hover:opacity-70 transition-opacity"
+                  >
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+                    <span className="text-[11px] font-semibold text-neutral-400">{s.sev}</span>
+                    <span className="ml-auto pl-3 text-[11px] font-bold" style={{ color: s.color }}>{s.count}</span>
+                    <span className="text-[10px] text-neutral-600">({Math.round(s.pct * 100)}%)</span>
+                  </button>
+                ))}
+                <div className="mt-1 border-t border-white/[0.05] pt-1 text-[10px] text-neutral-600">{sevTotal} total findings</div>
               </div>
-              <div className="mt-1.5 text-[10px] text-neutral-600">{pct}% of findings</div>
             </div>
           );
-        })}
+        })()}
       </div>
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
@@ -964,7 +1029,9 @@ export default function ScansPage() {
       )}
 
       {/* ── Findings table ───────────────────────────────────────────────── */}
-      <FindingsTable findings={filteredFindings} onOpenFinding={openFinding} loading={loadingFindings} search={search} />
+      <div ref={findingsRef}>
+        <FindingsTable findings={filteredFindings} onOpenFinding={openFinding} loading={loadingFindings} search={search} />
+      </div>
 
       {/* ── Finding detail panel ─────────────────────────────────────────── */}
       {selectedFinding && (

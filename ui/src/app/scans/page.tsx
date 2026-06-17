@@ -207,30 +207,65 @@ export default function ScansPage() {
   async function handleRunScan() {
     setRunning(true);
     setError("");
-    setMessage("");
+    setMessage("Scan started — running in background...");
     setScanSummary(null);
     try {
       const payload: { account_id?: number } = {};
       if (selectedAccountId) payload.account_id = Number(selectedAccountId);
+
+      // POST returns immediately with scan_id and status PENDING
       const data = await api<{ scan_id: string; count: number }>("/scans/run", {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      await loadScans(selectedAccountId);
-      if (data.scan_id) {
-        setSelectedScanId(data.scan_id);
-        const [findingsData, driftData] = await Promise.all([
-          api<FindingsResponse>(`/scans/${data.scan_id}/findings`).catch(() => ({ findings: [] as Finding[] })),
-          api<DriftSummary>(`/scans/${data.scan_id}/drift`).catch(() => null),
-        ]);
-        const allFindings = (findingsData.findings || []) as Finding[];
-        const newCount = driftData?.summary?.new ?? 0;
-        const critical = allFindings.filter((f) => f.severity === "CRITICAL" && f.status === "FAIL").length;
-        setScanSummary({ total: data.count, newCount, critical });
+
+      if (!data.scan_id) {
+        setError("Scan did not return a scan ID");
+        return;
       }
+
+      setSelectedScanId(data.scan_id);
+      await loadScans(selectedAccountId);
+
+      // Poll /scans/{scan_id}/status until COMPLETED or FAILED
+      let attempts = 0;
+      const maxAttempts = 60; // 5 minutes at 5s intervals
+      const poll = async (): Promise<void> => {
+        if (attempts++ >= maxAttempts) {
+          setMessage("Scan is still running — check back shortly.");
+          setRunning(false);
+          return;
+        }
+        try {
+          const status = await api<{ scan_id: string; status: string; count: number }>(
+            `/scans/${data.scan_id}/status`
+          );
+          if (status.status === "COMPLETED") {
+            const [findingsData, driftData] = await Promise.all([
+              api<FindingsResponse>(`/scans/${data.scan_id}/findings`).catch(() => ({ findings: [] as Finding[] })),
+              api<DriftSummary>(`/scans/${data.scan_id}/drift`).catch(() => null),
+            ]);
+            const allFindings = (findingsData.findings || []) as Finding[];
+            const newCount = driftData?.summary?.new ?? 0;
+            const critical = allFindings.filter((f) => f.severity === "CRITICAL" && f.status === "FAIL").length;
+            setScanSummary({ total: status.count, newCount, critical });
+            setMessage("");
+            await loadScans(selectedAccountId);
+            setRunning(false);
+          } else if (status.status === "FAILED") {
+            setError("Scan failed. Check your AWS credentials and try again.");
+            setMessage("");
+            setRunning(false);
+          } else {
+            setTimeout(poll, 5000);
+          }
+        } catch {
+          setTimeout(poll, 5000);
+        }
+      };
+      setTimeout(poll, 3000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to run scan");
-    } finally {
       setRunning(false);
     }
   }

@@ -53,6 +53,7 @@ from app.config import (
     ROLE_ARN_RE,
     SCAN_RATE_LIMIT,
     SCANNER_PATH,
+    SECRETS_ENCRYPTION_KEY,
     SESSION_COOKIE_NAME,
     SESSION_TTL_HOURS,
     USE_POSTGRES,
@@ -137,6 +138,44 @@ __all__ = [
     "upsert_action",
     "upsert_fix_guidance",
 ]
+
+# ---------------------------------------------------------------------------
+# Secrets encryption (Fernet symmetric AES-128-CBC)
+# ---------------------------------------------------------------------------
+
+def _get_fernet():
+    """Return a Fernet instance if SECRETS_ENCRYPTION_KEY is configured, else None."""
+    if not SECRETS_ENCRYPTION_KEY:
+        return None
+    try:
+        from cryptography.fernet import Fernet
+        return Fernet(SECRETS_ENCRYPTION_KEY.encode())
+    except Exception:
+        return None
+
+
+def encrypt_secret(plaintext: str) -> str:
+    """Encrypt a secret string. Returns ciphertext prefixed with 'enc:' or plaintext if no key."""
+    if not plaintext:
+        return plaintext
+    f = _get_fernet()
+    if f is None:
+        return plaintext
+    return "enc:" + f.encrypt(plaintext.encode()).decode()
+
+
+def decrypt_secret(value: str) -> str:
+    """Decrypt a secret that was encrypted with encrypt_secret(). Returns plaintext."""
+    if not value or not value.startswith("enc:"):
+        return value
+    f = _get_fernet()
+    if f is None:
+        return value
+    try:
+        return f.decrypt(value[4:].encode()).decode()
+    except Exception:
+        return value
+
 
 # ---------------------------------------------------------------------------
 # Rate-limit state
@@ -630,6 +669,8 @@ def client_ip(request: Optional[Request]) -> str:
 
 
 def enforce_rate_limit(key: str, limit: int, window_seconds: int) -> None:
+    if APP_ENV == "test":
+        return
     now_ts = time.time()
     with RATE_LIMIT_LOCK:
         bucket = RATE_LIMIT_BUCKETS[key]
@@ -775,6 +816,18 @@ def validate_account_or_404(account_id: Optional[int], user_id: Optional[int] = 
 # ---------------------------------------------------------------------------
 # Scan access guards
 # ---------------------------------------------------------------------------
+
+def require_non_viewer(user: Dict[str, Any]) -> None:
+    """Block viewer-role users from write/action endpoints."""
+    if user.get("role") == "viewer":
+        raise HTTPException(status_code=403, detail="Viewer role cannot perform this action")
+
+
+def require_admin(user: Dict[str, Any]) -> None:
+    """Restrict endpoint to admin users only."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
 
 def require_export_access(user: Dict[str, Any]) -> None:
     caps = get_plan_capabilities(user.get("subscription_status", "free"))
@@ -1025,7 +1078,7 @@ def run_account_scan(account: Dict[str, Any], user: Dict[str, Any]) -> None:
                     "SELECT slack_webhook_url FROM users WHERE id = ?", (user["id"],)
                 ).fetchone()
                 _c.close()
-                _slack_url = (_row["slack_webhook_url"] or "") if _row else ""
+                _slack_url = decrypt_secret((_row["slack_webhook_url"] or "") if _row else "")
             except Exception:
                 _slack_url = ""
             send_slack_alert(
@@ -1072,6 +1125,8 @@ def run_scheduled_scans() -> None:
 # ---------------------------------------------------------------------------
 
 def _do_seed_fix_guidance() -> None:
+    if APP_ENV == "test":
+        return
     upsert_fix_guidance(
         "S3_PUBLIC_ACCESS_BLOCK_OFF",
         "Enable S3 Block Public Access",

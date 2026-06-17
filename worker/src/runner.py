@@ -6,7 +6,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = PROJECT_ROOT.parent
@@ -40,10 +40,11 @@ def _load_check(module_path: str) -> Callable[..., List[Dict[str, Any]]]:
     )
 
 
-def run_scan(region: str = "us-east-1") -> Dict[str, Any]:
+def run_scan(region: str = "us-east-1", scan_id: Optional[str] = None) -> Dict[str, Any]:
     init_db()
 
-    scan_id = str(uuid.uuid4())
+    if not scan_id:
+        scan_id = str(uuid.uuid4())
     save_scan(scan_id, "RUNNING")
 
     checks = [
@@ -96,5 +97,6 @@ def run_scan(region: str = "us-east-1") -> Dict[str, Any]:
 
 if __name__ == "__main__":
     region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-    out = run_scan(region=region)
+    pre_scan_id = os.getenv("SCAN_ID", "") or None
+    out = run_scan(region=region, scan_id=pre_scan_id)
     print(json.dumps(out))

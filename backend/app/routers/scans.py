@@ -8,6 +8,8 @@ import io
 import json
 import os
 import subprocess
+import threading
+import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Cookie, Header, HTTPException, Query, Request
@@ -32,6 +34,7 @@ from app.deps import (
     enrich_scan,
     enrich_scans,
     get_actions,
+    get_conn,
     get_current_user,
     get_findings,
     get_fix_guidance,
@@ -39,20 +42,85 @@ from app.deps import (
     get_scan,
     get_scan_account_link,
     list_scans,
+    now_utc_iso,
     require_account_linked_scan_access,
     require_export_access,
+    require_non_viewer,
     require_scan_owner,
     sanitize_bucket_name,
     sanitize_note,
     sanitize_region,
     save_scan_account_link,
     send_critical_findings_email,
+    send_slack_alert,
     update_scan_user_id,
     upsert_action,
     validate_account_or_404,
 )
 
 router = APIRouter()
+
+
+def _run_scan_background(
+    scan_id: str,
+    env: Dict[str, str],
+    user: Dict[str, Any],
+    selected_account: Optional[Dict[str, Any]],
+) -> None:
+    """Run the scanner subprocess in a background thread and handle post-scan actions."""
+    try:
+        p = subprocess.run(
+            [PYTHON_EXE, str(SCANNER_PATH)],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=300,
+        )
+        if p.returncode != 0:
+            conn = get_conn()
+            conn.execute("UPDATE scans SET status = 'FAILED' WHERE scan_id = ?", (scan_id,))
+            conn.commit()
+            conn.close()
+            return
+
+        update_scan_user_id(scan_id, user["id"])
+        if selected_account:
+            save_scan_account_link(scan_id, selected_account)
+
+        findings = get_findings(scan_id)
+        critical = [f for f in findings if f.get("severity") == "CRITICAL" and f.get("status") == "FAIL"]
+        if critical:
+            account_name = selected_account.get("account_name", "") if selected_account else ""
+            send_critical_findings_email(
+                user_email=user.get("email", ""),
+                user_name=user.get("name", ""),
+                scan_id=scan_id,
+                critical_count=len(critical),
+                account_name=account_name,
+            )
+            try:
+                _c = get_conn()
+                _row = _c.execute(
+                    "SELECT slack_webhook_url FROM users WHERE id = ?", (user["id"],)
+                ).fetchone()
+                _c.close()
+                _slack_url = (_row["slack_webhook_url"] or "") if _row else ""
+            except Exception:
+                _slack_url = ""
+            send_slack_alert(
+                webhook_url=_slack_url,
+                critical_count=len(critical),
+                account_name=account_name,
+                scan_id=scan_id,
+            )
+    except Exception:
+        try:
+            conn = get_conn()
+            conn.execute("UPDATE scans SET status = 'FAILED' WHERE scan_id = ?", (scan_id,))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
 
 
 @router.post("/scans/run", response_model=RunScanResponse)
@@ -63,6 +131,7 @@ def run_scan(
     authorization: Optional[str] = Header(default=None),
 ):
     user = get_current_user(session_cookie, authorization)
+    require_non_viewer(user)
     rate_key = f"scan:{user['id']}:{client_ip(request)}"
     enforce_rate_limit(rate_key, SCAN_RATE_LIMIT[0], SCAN_RATE_LIMIT[1])
 
@@ -70,17 +139,31 @@ def run_scan(
     region = sanitize_region(payload.region)
     bucket_name = sanitize_bucket_name(payload.bucket_name)
 
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(PROJECT_ROOT)
-    env["AWS_DEFAULT_REGION"] = region
-
-    if bucket_name:
-        env["BUCKET_NAME"] = bucket_name
-
     if payload.account_id:
         require_account_linked_scan_access(user)
 
     selected_account = validate_account_or_404(payload.account_id, user_id=user["id"])
+
+    # Pre-generate scan_id so we can return it immediately
+    scan_id = str(uuid.uuid4())
+
+    # Seed the scan record as PENDING before background thread starts
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO scans (scan_id, status, created_at, user_id) VALUES (?, 'PENDING', ?, ?)",
+        (scan_id, now_utc_iso(), user["id"]),
+    )
+    conn.commit()
+    conn.close()
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(PROJECT_ROOT)
+    env["AWS_DEFAULT_REGION"] = region
+    env["SCAN_ID"] = scan_id
+
+    if bucket_name:
+        env["BUCKET_NAME"] = bucket_name
+
     if selected_account:
         try:
             creds = assume_account_credentials(selected_account)
@@ -89,47 +172,73 @@ def run_scan(
             env["AWS_SESSION_TOKEN"] = creds["aws_session_token"]
             env["AWS_DEFAULT_REGION"] = selected_account.get("region") or region
         except Exception as e:
+            conn = get_conn()
+            conn.execute("UPDATE scans SET status = 'FAILED' WHERE scan_id = ?", (scan_id,))
+            conn.commit()
+            conn.close()
             raise HTTPException(status_code=400, detail=f"Assume role failed for selected account: {str(e)}")
 
-    p = subprocess.run(
-        [PYTHON_EXE, str(SCANNER_PATH)],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-
-    if p.returncode != 0:
-        raise HTTPException(status_code=500, detail=p.stderr or p.stdout)
-
-    try:
-        data = json.loads(p.stdout)
-    except Exception:
-        raise HTTPException(status_code=500, detail=f"Invalid scanner output: {p.stdout}")
-
-    scan_id = data.get("scan_id", "")
-    count = int(data.get("count", 0))
-
-    if scan_id:
-        update_scan_user_id(scan_id, user["id"])
-        if selected_account:
-            save_scan_account_link(scan_id, selected_account)
-
-        findings = get_findings(scan_id)
-        critical = [f for f in findings if f.get("severity") == "CRITICAL" and f.get("status") == "FAIL"]
-        if critical:
-            send_critical_findings_email(
-                user_email=user.get("email", ""),
-                user_name=user.get("name", ""),
-                scan_id=scan_id,
-                critical_count=len(critical),
-                account_name=selected_account.get("account_name", "") if selected_account else "",
-            )
+    threading.Thread(
+        target=_run_scan_background,
+        args=(scan_id, env, dict(user), selected_account),
+        daemon=True,
+    ).start()
 
     return {
         "scan_id": scan_id,
-        "count": count,
-        "account": get_scan_account_link(scan_id) if scan_id else None,
+        "count": 0,
+        "account": {"account_id": selected_account.get("id")} if selected_account else None,
     }
+
+
+@router.get("/scans/{scan_id}/status")
+def scan_status(
+    scan_id: str,
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    s = require_scan_owner(scan_id, user["id"])
+    findings = get_findings(scan_id) if s.get("status") == "COMPLETED" else []
+    return {
+        "scan_id": scan_id,
+        "status": s.get("status", "PENDING"),
+        "count": len(findings),
+        "created_at": s.get("created_at"),
+    }
+
+
+def _compute_risk_score(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+    weights = {"CRITICAL": 10, "HIGH": 5, "MEDIUM": 3, "LOW": 1}
+    open_fails = [
+        f for f in findings
+        if f.get("status") == "FAIL" and f.get("resolution", "OPEN") == "OPEN"
+    ]
+    total_checks = len(findings)
+    if total_checks == 0:
+        return {"score": 100, "grade": "A", "breakdown": {}}
+    raw_penalty = sum(weights.get(f.get("severity", "LOW"), 1) for f in open_fails)
+    max_penalty = total_checks * weights["CRITICAL"]
+    score = max(0, round(100 - (raw_penalty / max_penalty * 100))) if max_penalty else 100
+    breakdown = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    for f in open_fails:
+        sev = f.get("severity", "LOW")
+        if sev in breakdown:
+            breakdown[sev] += 1
+    grade = "A" if score >= 90 else "B" if score >= 75 else "C" if score >= 60 else "D" if score >= 40 else "F"
+    return {"score": score, "grade": grade, "breakdown": breakdown}
+
+
+@router.get("/scans/{scan_id}/risk-score")
+def get_risk_score(
+    scan_id: str,
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    require_scan_owner(scan_id, user["id"])
+    findings = get_findings(scan_id)
+    return {"scan_id": scan_id, **_compute_risk_score(findings)}
 
 
 @router.get("/scans/{scan_id}")
@@ -140,7 +249,12 @@ def read_scan(
 ):
     user = get_current_user(session_cookie, authorization)
     s = require_scan_owner(scan_id, user["id"])
-    return enrich_scan(dict(s))
+    enriched = enrich_scan(dict(s))
+    # Attach risk score if scan is completed
+    if s.get("status") == "COMPLETED":
+        findings = get_findings(scan_id)
+        enriched["risk"] = _compute_risk_score(findings)
+    return enriched
 
 
 @router.get("/scans/{scan_id}/findings")

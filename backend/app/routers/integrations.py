@@ -14,12 +14,15 @@ from pydantic import BaseModel
 
 from app.config import SESSION_COOKIE_NAME
 from app.deps import (
+    decrypt_secret,
+    encrypt_secret,
     get_conn,
     get_current_user,
     get_findings,
     get_fix_guidance,
     list_connected_accounts,
     normalize_account_row,
+    require_non_viewer,
     require_scan_owner,
     run_account_scan,
     get_scan_account_link,
@@ -89,6 +92,7 @@ def save_jira_config(
     authorization: Optional[str] = Header(default=None),
 ):
     user = get_current_user(session_cookie, authorization)
+    require_non_viewer(user)
     url = payload.jira_url.strip().rstrip("/")
     if url and not url.startswith("https://"):
         raise HTTPException(status_code=400, detail="Jira URL must start with https://")
@@ -96,7 +100,8 @@ def save_jira_config(
     conn.execute(
         """UPDATE users SET jira_url = ?, jira_email = ?,
            jira_api_token = ?, jira_project_key = ? WHERE id = ?""",
-        (url, payload.jira_email.strip(), payload.jira_api_token.strip(),
+        (url, payload.jira_email.strip(),
+         encrypt_secret(payload.jira_api_token.strip()),
          payload.jira_project_key.strip().upper(), user["id"]),
     )
     conn.commit()
@@ -111,10 +116,11 @@ def save_github_config(
     authorization: Optional[str] = Header(default=None),
 ):
     user = get_current_user(session_cookie, authorization)
+    require_non_viewer(user)
     conn = get_conn()
     conn.execute(
         "UPDATE users SET github_token = ?, github_default_repo = ? WHERE id = ?",
-        (payload.github_token.strip(), payload.github_default_repo.strip(), user["id"]),
+        (encrypt_secret(payload.github_token.strip()), payload.github_default_repo.strip(), user["id"]),
     )
     conn.commit()
     conn.close()
@@ -165,6 +171,7 @@ def create_jira_ticket(
 
     jira_url = row["jira_url"].rstrip("/")
     project_key = row["jira_project_key"] or "SEC"
+    jira_api_token = decrypt_secret(row["jira_api_token"])
 
     findings = get_findings(scan_id)
     finding = next((f for f in findings if f["check_id"] == check_id and f["resource_id"] == resource_id), None)
@@ -190,7 +197,7 @@ def create_jira_ticket(
         }
     }
 
-    creds = base64.b64encode(f"{row['jira_email']}:{row['jira_api_token']}".encode()).decode()
+    creds = base64.b64encode(f"{row['jira_email']}:{jira_api_token}".encode()).decode()
     body = _json.dumps(payload).encode()
     req = _ur.Request(
         f"{jira_url}/rest/api/2/issue",
@@ -239,7 +246,7 @@ def create_github_issue(
     if not row or not row["github_token"] or not row["github_default_repo"]:
         raise HTTPException(status_code=400, detail="GitHub integration not configured. Add your token and repo in Settings.")
 
-    token = row["github_token"]
+    token = decrypt_secret(row["github_token"])
     repo = row["github_default_repo"].strip("/")  # owner/repo
 
     findings = get_findings(scan_id)

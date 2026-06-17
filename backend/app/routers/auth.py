@@ -29,7 +29,9 @@ from app.deps import (
     RegisterIn,
     client_ip,
     create_session,
+    decrypt_secret,
     delete_session,
+    encrypt_secret,
     enforce_rate_limit,
     get_bearer_token,
     get_conn,
@@ -458,7 +460,7 @@ def update_slack_webhook(
     if url and not url.startswith("https://"):
         raise HTTPException(status_code=400, detail="Webhook URL must start with https://")
     conn = get_conn()
-    conn.execute("UPDATE users SET slack_webhook_url = ? WHERE id = ?", (url, user["id"]))
+    conn.execute("UPDATE users SET slack_webhook_url = ? WHERE id = ?", (encrypt_secret(url), user["id"]))
     conn.commit()
     conn.close()
     return {"ok": True, "configured": bool(url)}
@@ -493,6 +495,7 @@ def test_slack_webhook(
         url = ""
     finally:
         conn.close()
+    url = decrypt_secret(url)
     if not url:
         raise HTTPException(status_code=400, detail="No Slack webhook configured")
     send_slack_alert(

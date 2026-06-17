@@ -143,6 +143,14 @@ BILLING_RATE_LIMIT: tuple = (30, 300)
 WEBHOOK_RATE_LIMIT: tuple = (120, 300)
 
 # ---------------------------------------------------------------------------
+# Secrets encryption
+# ---------------------------------------------------------------------------
+# 32-byte URL-safe base64-encoded key for Fernet symmetric encryption.
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# If not set, secrets are stored plaintext (development only).
+SECRETS_ENCRYPTION_KEY: str = os.getenv("SECRETS_ENCRYPTION_KEY", "").strip()
+
+# ---------------------------------------------------------------------------
 # Scheduler
 # ---------------------------------------------------------------------------
 SCAN_SCHEDULE_HOURS: int = int(os.getenv("SCAN_SCHEDULE_HOURS", "24"))

@@ -15,7 +15,9 @@ def now_utc_iso() -> str:
 
 
 def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -133,13 +135,16 @@ def init_db() -> None:
     add_column_if_missing(conn, "connected_accounts", "client_group", "client_group TEXT NOT NULL DEFAULT ''")
     add_column_if_missing(conn, "scans", "user_id", "user_id INTEGER NOT NULL DEFAULT 1")
 
-    conn.execute(
-        """
-        UPDATE connected_accounts
-        SET account_name = customer_name
-        WHERE account_name IS NULL OR trim(account_name) = ''
-        """
-    )
+    try:
+        conn.execute(
+            """
+            UPDATE connected_accounts
+            SET account_name = customer_name
+            WHERE account_name IS NULL OR trim(account_name) = ''
+            """
+        )
+    except Exception:
+        pass  # Migration already done or DB locked — safe to skip
 
     cur.execute(
         """

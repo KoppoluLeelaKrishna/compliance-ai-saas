@@ -263,6 +263,9 @@ export default function ScansPage() {
             const critical = allFindings.filter((f) => f.severity === "CRITICAL" && f.status === "FAIL").length;
             setScanSummary({ total: status.count, newCount, critical });
             setMessage("");
+            // Re-fetch risk score and coverage now that findings exist
+            api<RiskScore>(`/scans/${data.scan_id}/risk-score`).then(setRiskScore).catch(() => {});
+            api<ComplianceCoverage>(`/compliance/scans/${data.scan_id}/coverage`).then(setCoverage).catch(() => {});
             await loadScans(selectedAccountId);
             setRunning(false);
           } else if (status.status === "FAILED") {

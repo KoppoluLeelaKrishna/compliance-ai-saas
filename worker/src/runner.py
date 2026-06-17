@@ -40,6 +40,36 @@ def _load_check(module_path: str) -> Callable[..., List[Dict[str, Any]]]:
     )
 
 
+def _save_evidence_snapshots(scan_id: str, findings: List[Dict[str, Any]]) -> None:
+    """Store timestamped evidence for each finding — enables SOC2 Type II audit trail."""
+    try:
+        if USE_POSTGRES:
+            from worker.src.utils.db_postgres import get_conn
+        else:
+            from worker.src.utils.db_sqlite import get_conn
+
+        conn = get_conn()
+        now = _utc_now()
+        for f in findings:
+            check_id = f.get("check_id", "")
+            resource_id = f.get("resource_id", "")
+            status = f.get("status", "FAIL")
+            evidence = json.dumps(f.get("evidence") or {})
+            if not check_id or not resource_id:
+                continue
+            conn.execute(
+                """
+                INSERT INTO evidence_snapshots (scan_id, check_id, resource_id, status, evidence, collected_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (scan_id, check_id, resource_id, status, evidence, now),
+            )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass  # Non-fatal — evidence is supplementary
+
+
 def run_scan(region: str = "us-east-1", scan_id: Optional[str] = None) -> Dict[str, Any]:
     init_db()
 
@@ -89,8 +119,34 @@ def run_scan(region: str = "us-east-1", scan_id: Optional[str] = None) -> Dict[s
                 }
             )
 
+    # Run GitHub checks if a token is configured
+    github_token = os.getenv("GITHUB_TOKEN", "").strip()
+    github_org = os.getenv("GITHUB_ORG", "").strip()
+    if github_token:
+        try:
+            from worker.src.checks.github_checks import run as gh_run
+            gh_findings = gh_run(token=github_token, org=github_org)
+            for f in gh_findings:
+                if "created_at" not in f:
+                    f["created_at"] = _utc_now()
+            all_findings.extend(gh_findings)
+        except Exception as e:
+            all_findings.append({
+                "service": "GitHub",
+                "title": "GitHub checks failed",
+                "check_id": "GITHUB_CHECK_ERROR",
+                "severity": "MEDIUM",
+                "resource_id": "github://api",
+                "status": "FAIL",
+                "evidence": {"error": str(e)},
+                "created_at": _utc_now(),
+            })
+
     save_findings(scan_id, all_findings)
     save_scan(scan_id, "COMPLETED")
+
+    # Store timestamped evidence snapshots for SOC2 Type II audit trail
+    _save_evidence_snapshots(scan_id, all_findings)
 
     return {"scan_id": scan_id, "count": len(all_findings)}
 

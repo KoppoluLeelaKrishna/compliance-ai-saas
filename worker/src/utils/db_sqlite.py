@@ -189,6 +189,27 @@ def init_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_events_scan ON approval_events(scan_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_approval_events_finding ON approval_events(scan_id, check_id, resource_id)")
 
+    # Evidence snapshots — timestamped per-control evidence for SOC2 Type II
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS evidence_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id TEXT NOT NULL,
+            check_id TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            evidence TEXT NOT NULL DEFAULT '{}',
+            collected_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_evidence_snapshots_check ON evidence_snapshots(check_id, collected_at)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_evidence_snapshots_scan ON evidence_snapshots(scan_id)"
+    )
+
     conn.commit()
     conn.close()
 

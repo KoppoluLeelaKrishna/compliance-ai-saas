@@ -121,6 +121,9 @@ export function FindingDetail({
   const [githubResult, setGithubResult] = useState<{ issue_number: number; issue_url: string } | null>(null);
   const [verifyingFix, setVerifyingFix] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState("");
+  const [remediating, setRemediating] = useState(false);
+  const [remediateConfirm, setRemediateConfirm] = useState(false);
+  const [remediateResult, setRemediateResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   type ChatMsg = { role: "user" | "assistant"; content: string };
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
@@ -261,6 +264,37 @@ export function FindingDetail({
     }
   }
 
+  const REMEDIABLE = new Set([
+    "S3_PUBLIC_ACCESS_BLOCK_OFF",
+    "S3_BUCKET_ACL_PUBLIC",
+    "EC2_EBS_DEFAULT_ENCRYPTION_OFF",
+    "CLOUDTRAIL_NOT_LOGGING",
+    "CLOUDTRAIL_LOG_VALIDATION_DISABLED",
+    "GITHUB_ORG_MFA_NOT_REQUIRED",
+  ]);
+
+  async function handleAutoFix() {
+    if (!finding) return;
+    if (!remediateConfirm) {
+      setRemediateConfirm(true);
+      return;
+    }
+    setRemediating(true);
+    setRemediateResult(null);
+    try {
+      const data = await api<{ status: string; action: string; detail: string }>(
+        `/remediation/scans/${finding.scan_id}/findings/${finding.check_id}`,
+        { method: "POST", body: JSON.stringify({ confirm: true }) }
+      );
+      setRemediateResult({ ok: true, message: `${data.action}: ${data.detail}` });
+      setRemediateConfirm(false);
+    } catch (e) {
+      setRemediateResult({ ok: false, message: `Failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setRemediating(false);
+    }
+  }
+
   async function handleRequestFix() {
     if (!onRequestFix) return;
     await onRequestFix(assigneeEmail, approvalNote);
@@ -349,6 +383,59 @@ export function FindingDetail({
             <p className="text-neutral-500 italic">No remediation guidance available for this check yet.</p>
           )}
         </section>
+
+        {/* Auto-Remediation */}
+        {REMEDIABLE.has(finding.check_id) && finding.resolution !== "FIXED" && (
+          <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10">
+                <svg className="h-3.5 w-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <h3 className="text-base font-bold text-emerald-200">Auto-Remediation Available</h3>
+            </div>
+            <p className="text-sm text-neutral-400">
+              VigiliCloud can apply this fix automatically using the same IAM role used for scanning.
+            </p>
+            {remediateResult ? (
+              <div className={`rounded-xl border px-4 py-3 text-sm ${remediateResult.ok ? "border-emerald-700 bg-emerald-950/40 text-emerald-200" : "border-red-700 bg-red-950/40 text-red-300"}`}>
+                {remediateResult.message}
+              </div>
+            ) : remediateConfirm ? (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
+                  This will make a live change in your AWS account. Are you sure?
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAutoFix}
+                    disabled={remediating}
+                    className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-black hover:bg-emerald-400 disabled:opacity-50"
+                  >
+                    {remediating ? "Applying…" : "Yes, apply fix"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRemediateConfirm(false)}
+                    className="rounded-xl border border-white/10 px-4 py-2 text-sm text-neutral-300 hover:bg-white/5"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAutoFix}
+                className="rounded-xl bg-emerald-500/20 border border-emerald-500/30 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/30"
+              >
+                Auto-Fix This Issue
+              </button>
+            )}
+          </section>
+        )}
 
         {/* AI Chat — placed early so it's visible without heavy scrolling */}
         <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-6 space-y-4">

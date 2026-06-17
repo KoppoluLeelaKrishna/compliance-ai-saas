@@ -27,7 +27,7 @@ from app.deps import (
     razorpay_config_summary,
     run_scheduled_scans,
 )
-from app.routers import accounts, admin, approvals, audit, auth, billing, compliance, developer, fix_guidance, integrations, msp, org_notes, scans
+from app.routers import accounts, admin, approvals, audit, auth, billing, compliance, developer, fix_guidance, integrations, msp, org_notes, remediation, scans
 
 # ---------------------------------------------------------------------------
 # Startup — db init, seed data, scheduler
@@ -100,6 +100,7 @@ def ensure_auth_tables() -> None:
     _add_col_if_missing("jira_project_key", "jira_project_key TEXT NOT NULL DEFAULT ''")
     _add_col_if_missing("github_token", "github_token TEXT NOT NULL DEFAULT ''")
     _add_col_if_missing("github_default_repo", "github_default_repo TEXT NOT NULL DEFAULT ''")
+    _add_col_if_missing("github_org", "github_org TEXT NOT NULL DEFAULT ''")
 
     cur.execute(
         """
@@ -276,3 +277,4 @@ app.include_router(admin.router)
 app.include_router(compliance.router)
 app.include_router(audit.router)
 app.include_router(org_notes.router)
+app.include_router(remediation.router)

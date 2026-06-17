@@ -177,6 +177,39 @@ COMPLIANCE_CONTROLS: Dict[str, Dict[str, Any]] = {
         "nist": ["AC-3", "SC-7"],
         "description": "RDS instance has PubliclyAccessible set to true",
     },
+    # ── GitHub ───────────────────────────────────────────────────────────────
+    "GITHUB_ORG_MFA_NOT_REQUIRED": {
+        "title": "GitHub Org Does Not Require 2FA",
+        "soc2": ["CC6.1", "CC6.2", "CC6.3"],
+        "iso27001": ["A.9.4.2", "A.9.2.4"],
+        "pci_dss": ["8.3", "8.4"],
+        "nist": ["IA-2", "IA-5"],
+        "description": "GitHub organization does not enforce MFA for all members",
+    },
+    "GITHUB_BRANCH_PROTECTION_OFF": {
+        "title": "No Branch Protection on Default Branch",
+        "soc2": ["CC8.1", "CC7.1"],
+        "iso27001": ["A.12.1.2", "A.14.2.2"],
+        "pci_dss": ["6.3", "6.4"],
+        "nist": ["CM-3", "CM-5"],
+        "description": "Repository default branch has no branch protection rules",
+    },
+    "GITHUB_BRANCH_NO_REQUIRED_REVIEWS": {
+        "title": "No Required PR Reviews",
+        "soc2": ["CC8.1", "CC7.1"],
+        "iso27001": ["A.12.1.2", "A.14.2.2"],
+        "pci_dss": ["6.3"],
+        "nist": ["CM-3", "CM-4"],
+        "description": "Pull requests can be merged without required approvals",
+    },
+    "GITHUB_MEMBERS_CAN_CREATE_PUBLIC_REPOS": {
+        "title": "Members Can Create Public Repositories",
+        "soc2": ["CC6.1", "CC6.6"],
+        "iso27001": ["A.13.1.3", "A.9.1.2"],
+        "pci_dss": ["7.1"],
+        "nist": ["AC-3", "AC-6"],
+        "description": "Any org member can create a public repository, risking data exposure",
+    },
 }
 
 # Framework-level summaries for audit questionnaires

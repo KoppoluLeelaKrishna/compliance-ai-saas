@@ -47,6 +47,7 @@ class JiraConfigIn(BaseModel):
 class GitHubConfigIn(BaseModel):
     github_token: str = ""
     github_default_repo: str = ""
+    github_org: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +64,7 @@ def get_integration_config(
     try:
         row = conn.execute(
             """SELECT jira_url, jira_email, jira_project_key,
-                      github_default_repo
+                      github_token, github_default_repo, github_org
                FROM users WHERE id = ?""",
             (user["id"],),
         ).fetchone()
@@ -79,8 +80,9 @@ def get_integration_config(
             "jira_project_key": row["jira_project_key"] or "",
         },
         "github": {
-            "github_token_set": False,
+            "github_token_set": bool(row["github_token"]),
             "github_default_repo": row["github_default_repo"] or "",
+            "github_org": row["github_org"] or "",
         },
     }
 
@@ -118,9 +120,13 @@ def save_github_config(
     user = get_current_user(session_cookie, authorization)
     require_non_viewer(user)
     conn = get_conn()
+    updates: dict = {"github_default_repo": payload.github_default_repo.strip(), "github_org": payload.github_org.strip()}
+    if payload.github_token.strip():
+        updates["github_token"] = encrypt_secret(payload.github_token.strip())
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
     conn.execute(
-        "UPDATE users SET github_token = ?, github_default_repo = ? WHERE id = ?",
-        (encrypt_secret(payload.github_token.strip()), payload.github_default_repo.strip(), user["id"]),
+        f"UPDATE users SET {set_clause} WHERE id = ?",
+        list(updates.values()) + [user["id"]],
     )
     conn.commit()
     conn.close()

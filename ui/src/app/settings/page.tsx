@@ -10,7 +10,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 type ScanSchedule = { enabled: boolean; interval_hours: number; plan_supports: boolean };
 type SlackConfig = { configured: boolean; webhook_url_masked: string };
 type JiraConfig = { jira_url: string; jira_email: string; jira_api_token_set: boolean; jira_project_key: string };
-type GitHubConfig = { github_token_set: boolean; github_default_repo: string };
+type GitHubConfig = { github_token_set: boolean; github_default_repo: string; github_org: string };
 
 export default function SettingsPage() {
   const [user, setUser] = useState<AuthMe["user"] | null>(null);
@@ -40,7 +40,7 @@ export default function SettingsPage() {
   const [jiraSaving, setJiraSaving] = useState(false);
 
   const [github, setGithub] = useState<GitHubConfig | null>(null);
-  const [githubInput, setGithubInput] = useState({ token: "", repo: "" });
+  const [githubInput, setGithubInput] = useState({ token: "", repo: "", org: "" });
   const [githubSaving, setGithubSaving] = useState(false);
 
   useEffect(() => {
@@ -220,10 +220,10 @@ export default function SettingsPage() {
     try {
       await api<{ ok: boolean }>("/integrations/github", {
         method: "PUT",
-        body: JSON.stringify({ github_token: githubInput.token, github_default_repo: githubInput.repo }),
+        body: JSON.stringify({ github_token: githubInput.token, github_default_repo: githubInput.repo, github_org: githubInput.org }),
       });
-      setGithub({ github_token_set: !!githubInput.token, github_default_repo: githubInput.repo });
-      setGithubInput({ token: "", repo: "" });
+      setGithub({ github_token_set: !!githubInput.token || !!github?.github_token_set, github_default_repo: githubInput.repo, github_org: githubInput.org });
+      setGithubInput({ token: "", repo: "", org: "" });
       setMessage("GitHub integration saved.");
       setTimeout(() => setMessage(""), 3000);
     } catch (e) {
@@ -710,14 +710,15 @@ export default function SettingsPage() {
             <div className="space-y-3">{[...Array(2)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-white/[0.04]" />)}</div>
           ) : (
             <div className="space-y-3">
-              {github?.github_default_repo && (
-                <div className="flex items-center justify-between rounded-xl border border-white/20 bg-white/[0.04] px-4 py-3">
+              {(github?.github_token_set || github?.github_org) && (
+                <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-3">
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Default repository</div>
-                    <div className="mt-0.5 font-mono text-sm text-neutral-200">{github.github_default_repo}</div>
-                    <div className="mt-0.5 text-xs text-neutral-500">Token {github.github_token_set ? "configured ✓" : "not set"}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">GitHub Connected</div>
+                    {github.github_org && <div className="mt-0.5 font-mono text-sm text-neutral-200">Org: {github.github_org}</div>}
+                    {github.github_default_repo && <div className="mt-0.5 font-mono text-xs text-neutral-400">Repo: {github.github_default_repo}</div>}
+                    <div className="mt-1 text-xs text-emerald-400">Token configured — GitHub checks run on next scan</div>
                   </div>
-                  <span className="shrink-0 rounded-full border border-white/20 bg-white/5 px-2.5 py-1 text-[10px] font-bold text-neutral-300">Active</span>
+                  <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold text-emerald-300">Active</span>
                 </div>
               )}
               <div className="space-y-2">
@@ -727,17 +728,28 @@ export default function SettingsPage() {
                     type="password"
                     value={githubInput.token}
                     onChange={e => setGithubInput(prev => ({ ...prev, token: e.target.value }))}
-                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    placeholder={github?.github_token_set ? "••••••••••••••••••• (leave blank to keep current)" : "ghp_xxxxxxxxxxxxxxxxxxxx"}
                     className="mt-1 w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-white/20 focus:outline-none transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Default Repository</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">GitHub Organization</label>
+                  <input
+                    type="text"
+                    value={githubInput.org}
+                    onChange={e => setGithubInput(prev => ({ ...prev, org: e.target.value }))}
+                    placeholder={github?.github_org || "my-org-name"}
+                    className="mt-1 w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-white/20 focus:outline-none transition-colors"
+                  />
+                  <p className="mt-0.5 text-[10px] text-neutral-600">Your GitHub org name — used for branch protection and 2FA checks</p>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Default Repository (for issues)</label>
                   <input
                     type="text"
                     value={githubInput.repo}
                     onChange={e => setGithubInput(prev => ({ ...prev, repo: e.target.value }))}
-                    placeholder="owner/repository"
+                    placeholder={github?.github_default_repo || "owner/repository"}
                     className="mt-1 w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-white/20 focus:outline-none transition-colors"
                   />
                 </div>
@@ -745,12 +757,12 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={saveGitHub}
-                disabled={!githubInput.token.trim() || !githubInput.repo.trim() || githubSaving}
+                disabled={(!githubInput.token.trim() && !github?.github_token_set) || githubSaving}
                 className="w-full rounded-xl bg-neutral-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-600 disabled:opacity-40 transition-colors"
               >
-                {githubSaving ? "Saving…" : github?.github_default_repo ? "Update GitHub Config" : "Connect GitHub"}
+                {githubSaving ? "Saving…" : github?.github_token_set ? "Update GitHub Config" : "Connect GitHub"}
               </button>
-              <p className="text-[10px] text-neutral-600">Create a token at github.com → Settings → Developer settings → Personal access tokens. Needs <span className="font-mono">repo</span> scope.</p>
+              <p className="text-[10px] text-neutral-600">Token needs <span className="font-mono">repo</span>, <span className="font-mono">read:org</span>, and <span className="font-mono">admin:org</span> scopes for full compliance checks.</p>
             </div>
           )}
         </section>

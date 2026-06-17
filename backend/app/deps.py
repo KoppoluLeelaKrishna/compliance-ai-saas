@@ -1047,6 +1047,21 @@ def run_account_scan(account: Dict[str, Any], user: Dict[str, Any]) -> None:
         env["AWS_SECRET_ACCESS_KEY"] = creds["aws_secret_access_key"]
         env["AWS_SESSION_TOKEN"] = creds["aws_session_token"]
 
+        # Inject per-user GitHub token if configured
+        try:
+            _gh_conn = get_conn()
+            gh_row = _gh_conn.execute(
+                "SELECT github_token, github_org FROM users WHERE id = ?", (user["id"],)
+            ).fetchone()
+            _gh_conn.close()
+            if gh_row and gh_row["github_token"]:
+                gh_token = decrypt_secret(gh_row["github_token"])
+                if gh_token:
+                    env["GITHUB_TOKEN"] = gh_token
+                    env["GITHUB_ORG"] = gh_row.get("github_org") or ""
+        except Exception:
+            pass
+
         p = subprocess.run(
             [PYTHON_EXE, str(SCANNER_PATH)],
             capture_output=True, text=True, env=env, timeout=300,

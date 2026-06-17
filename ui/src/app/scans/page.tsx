@@ -895,7 +895,7 @@ export default function ScansPage() {
                 { key: "nist", label: "NIST" },
               ] as const
             ).map(({ key, label }) => {
-              const fw = coverage.frameworks[key];
+              const fw = coverage.coverage[key];
               const pct = fw?.pct ?? 0;
               const textColor = pct >= 80 ? "text-emerald-400" : pct >= 60 ? "text-yellow-400" : "text-red-400";
               const barColor = pct >= 80 ? "bg-emerald-500" : pct >= 60 ? "bg-yellow-500" : "bg-red-500";
@@ -908,7 +908,7 @@ export default function ScansPage() {
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
                     <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${pct}%` }} />
                   </div>
-                  <div className="mt-1.5 text-[10px] text-neutral-600">{fw?.passed ?? 0}/{fw?.total ?? 0} controls</div>
+                  <div className="mt-1.5 text-[10px] text-neutral-600">{fw?.passing ?? 0}/{fw?.total_controls ?? 0} controls</div>
                 </div>
               );
             })}

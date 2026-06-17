@@ -225,13 +225,21 @@ export type RiskScore = {
   counts: Record<string, number>;
 };
 
+export type CoverageFramework = {
+  framework: string;
+  total_controls: number;
+  passing: number;
+  failing: number;
+  pct: number;
+};
+
 export type ComplianceCoverage = {
   scan_id: string;
-  frameworks: {
-    soc2: { passed: number; total: number; pct: number };
-    iso27001: { passed: number; total: number; pct: number };
-    pci_dss: { passed: number; total: number; pct: number };
-    nist: { passed: number; total: number; pct: number };
+  coverage: {
+    soc2: CoverageFramework;
+    iso27001: CoverageFramework;
+    pci_dss: CoverageFramework;
+    nist: CoverageFramework;
   };
 };
 

@@ -215,3 +215,30 @@ export type HealthResponse = {
     checkout_ready: boolean;
   };
 };
+
+export type RiskScore = {
+  scan_id: string;
+  score: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+  penalty: number;
+  total_findings: number;
+  counts: Record<string, number>;
+};
+
+export type ComplianceCoverage = {
+  scan_id: string;
+  frameworks: {
+    soc2: { passed: number; total: number; pct: number };
+    iso27001: { passed: number; total: number; pct: number };
+    pci_dss: { passed: number; total: number; pct: number };
+    nist: { passed: number; total: number; pct: number };
+  };
+};
+
+export type AdminUser = {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+  created_at: string;
+};

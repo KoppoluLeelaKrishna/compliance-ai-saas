@@ -8,11 +8,13 @@ import {
   ActionsResponse,
   ApprovalEvent,
   BillingMe,
+  ComplianceCoverage,
   DriftSummary,
   Finding,
   FindingsResponse,
   FixGuidance,
   IacSnippets,
+  RiskScore,
   ScanHistoryItem,
   ScanItem,
 } from "@/types";
@@ -78,6 +80,12 @@ export default function ScansPage() {
   const [togglingSchedule, setTogglingSchedule] = useState(false);
   const [scanSummary, setScanSummary] = useState<{ total: number; newCount: number; critical: number } | null>(null);
   const [hoveredSev, setHoveredSev] = useState<string | null>(null);
+
+  const [riskScore, setRiskScore] = useState<RiskScore | null>(null);
+  const [coverage, setCoverage] = useState<ComplianceCoverage | null>(null);
+  const [shareUrl, setShareUrl] = useState<string>("");
+  const [sharing, setSharing] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const findingsRef = useRef<HTMLDivElement>(null);
 
@@ -170,7 +178,12 @@ export default function ScansPage() {
   useEffect(() => {
     if (selectedScanId) {
       setIac(null);
+      setRiskScore(null);
+      setCoverage(null);
+      setShareUrl("");
       loadFindings(selectedScanId);
+      api<RiskScore>(`/scans/${selectedScanId}/risk-score`).then(setRiskScore).catch(() => {});
+      api<ComplianceCoverage>(`/compliance/scans/${selectedScanId}/coverage`).then(setCoverage).catch(() => {});
     }
   }, [selectedScanId]);
 
@@ -389,6 +402,20 @@ export default function ScansPage() {
     }
   }
 
+  async function handleShareReport() {
+    if (!selectedScanId || sharing) return;
+    setSharing(true);
+    setShareUrl("");
+    try {
+      const data = await api<{ url: string }>(`/scans/${selectedScanId}/share`, { method: "POST" });
+      setShareUrl(data.url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create share link");
+    } finally {
+      setSharing(false);
+    }
+  }
+
   async function handleGenerateQuestionnaire() {
     if (!selectedScanId || loadingQuestionnaire) return;
     setLoadingQuestionnaire(true);
@@ -568,7 +595,20 @@ export default function ScansPage() {
                 </button>
               ))}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {riskScore && (
+                <div className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold ${
+                  riskScore.grade === "A" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : riskScore.grade === "B" ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
+                  : riskScore.grade === "C" ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
+                  : riskScore.grade === "D" ? "border-orange-500/30 bg-orange-500/10 text-orange-300"
+                  : "border-red-500/30 bg-red-500/10 text-red-300"
+                }`}>
+                  <span className="text-base font-black">{riskScore.grade}</span>
+                  <span className="text-neutral-500">·</span>
+                  <span>{riskScore.score}/100</span>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handleAiAnalysis}
@@ -576,6 +616,14 @@ export default function ScansPage() {
                 className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 transition-colors"
               >
                 {loadingAi ? "Analyzing…" : "✦ AI Analysis"}
+              </button>
+              <button
+                type="button"
+                onClick={handleShareReport}
+                disabled={!selectedScanId || sharing}
+                className="rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/20 disabled:opacity-40 transition-colors"
+              >
+                {sharing ? "Sharing…" : "Share Report"}
               </button>
               <button
                 type="button"
@@ -591,6 +639,21 @@ export default function ScansPage() {
                 ) : "Run Scan"}
               </button>
             </div>
+
+            {/* Share link display */}
+            {shareUrl && (
+              <div className="flex items-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.06] px-3 py-2">
+                <span className="flex-1 truncate text-[11px] text-indigo-300">{shareUrl}</span>
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard.writeText(shareUrl); setShareCopied(true); setTimeout(() => setShareCopied(false), 1800); }}
+                  className="shrink-0 rounded-lg border border-indigo-500/25 px-2.5 py-1 text-[11px] font-semibold text-indigo-300 hover:bg-indigo-500/15 transition-colors"
+                >
+                  {shareCopied ? "Copied ✓" : "Copy"}
+                </button>
+                <button type="button" onClick={() => setShareUrl("")} className="text-neutral-600 hover:text-neutral-400 text-xs">✕</button>
+              </div>
+            )}
 
             {/* Auto-scan toggle */}
             <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5">
@@ -818,6 +881,40 @@ export default function ScansPage() {
           </div>
         );
       })()}
+
+      {/* ── Compliance Framework Coverage ───────────────────────────────── */}
+      {coverage && (
+        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
+          <div className="mb-4 text-sm font-semibold text-neutral-300">Compliance Coverage</div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(
+              [
+                { key: "soc2", label: "SOC 2" },
+                { key: "iso27001", label: "ISO 27001" },
+                { key: "pci_dss", label: "PCI DSS" },
+                { key: "nist", label: "NIST" },
+              ] as const
+            ).map(({ key, label }) => {
+              const fw = coverage.frameworks[key];
+              const pct = fw?.pct ?? 0;
+              const textColor = pct >= 80 ? "text-emerald-400" : pct >= 60 ? "text-yellow-400" : "text-red-400";
+              const barColor = pct >= 80 ? "bg-emerald-500" : pct >= 60 ? "bg-yellow-500" : "bg-red-500";
+              return (
+                <div key={key} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-neutral-400">{label}</span>
+                    <span className={`text-sm font-bold ${textColor}`}>{pct}%</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                    <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="mt-1.5 text-[10px] text-neutral-600">{fw?.passed ?? 0}/{fw?.total ?? 0} controls</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
       <ScanFilters

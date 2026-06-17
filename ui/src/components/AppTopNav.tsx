@@ -19,6 +19,7 @@ export default function AppTopNav() {
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [userName, setUserName] = useState("User");
+  const [userRole, setUserRole] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -30,6 +31,7 @@ export default function AppTopNav() {
         const auth = await api<AuthMe>("/auth/me");
         setAuthenticated(!!auth.authenticated);
         setUserName(auth.user?.name || "User");
+        setUserRole(auth.user?.role || "");
       } catch {
         setAuthenticated(false);
       } finally {
@@ -60,6 +62,7 @@ export default function AppTopNav() {
     { href: "/plans", label: "Plans" },
     { href: "/onboarding", label: "Get Started" },
     { href: "/launch", label: "Launch" },
+    ...(userRole === "admin" ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
   return (

@@ -17,85 +17,165 @@ router = APIRouter(prefix="/compliance")
 # ---------------------------------------------------------------------------
 
 COMPLIANCE_CONTROLS: Dict[str, Dict[str, Any]] = {
-    "S3_PUBLIC_ACCESS_001": {
-        "title": "S3 Block Public Access",
+    # ── S3 ──────────────────────────────────────────────────────────────────
+    "S3_PUBLIC_ACCESS_BLOCK_OFF": {
+        "title": "S3 Block Public Access Disabled",
         "soc2": ["CC6.1", "CC6.6", "CC6.7"],
         "iso27001": ["A.13.1.3", "A.14.1.2"],
         "pci_dss": ["1.3", "7.1"],
         "nist": ["AC-3", "AC-6", "SC-7"],
-        "description": "Ensures S3 buckets are not publicly accessible",
+        "description": "S3 bucket does not have Block Public Access enabled",
     },
-    "IAM_ADMIN_ACCESS_001": {
-        "title": "IAM Least Privilege",
+    "S3_BUCKET_ACL_PUBLIC": {
+        "title": "S3 Bucket ACL Allows Public Access",
+        "soc2": ["CC6.1", "CC6.6"],
+        "iso27001": ["A.13.1.3"],
+        "pci_dss": ["1.3"],
+        "nist": ["AC-3", "SC-7"],
+        "description": "S3 bucket ACL grants public read or write access",
+    },
+    "S3_BUCKET_POLICY_PUBLIC": {
+        "title": "S3 Bucket Policy Allows Public Access",
+        "soc2": ["CC6.1", "CC6.6"],
+        "iso27001": ["A.13.1.3"],
+        "pci_dss": ["1.3"],
+        "nist": ["AC-3", "SC-7"],
+        "description": "S3 bucket policy allows unauthenticated public access",
+    },
+    # ── IAM ─────────────────────────────────────────────────────────────────
+    "IAM_ADMIN_MANAGED_POLICY": {
+        "title": "IAM Role Has Admin Managed Policy",
         "soc2": ["CC6.1", "CC6.3"],
         "iso27001": ["A.9.2.3", "A.9.4.1"],
         "pci_dss": ["7.1", "7.2"],
         "nist": ["AC-2", "AC-6"],
-        "description": "Ensures IAM roles do not have excessive admin permissions",
+        "description": "IAM role has AdministratorAccess or equivalent attached",
     },
-    "IAM_MFA_001": {
-        "title": "MFA Enforcement",
-        "soc2": ["CC6.1", "CC6.2"],
-        "iso27001": ["A.9.4.2"],
-        "pci_dss": ["8.3"],
-        "nist": ["IA-2"],
-        "description": "Ensures MFA is enabled for all IAM users",
-    },
-    "IAM_ROOT_ACCESS_KEYS_001": {
-        "title": "Root Access Keys",
+    "IAM_ROOT_ACCESS_KEY_ACTIVE": {
+        "title": "Root Account Has Active Access Keys",
         "soc2": ["CC6.1", "CC6.2"],
         "iso27001": ["A.9.2.3"],
         "pci_dss": ["8.1"],
         "nist": ["AC-2", "IA-2"],
-        "description": "Ensures the AWS root account has no active access keys",
+        "description": "AWS root account has active programmatic access keys",
     },
-    "EC2_OPEN_SECURITY_GROUPS_001": {
-        "title": "EC2 Security Group Restrictions",
+    "IAM_ROOT_NO_MFA": {
+        "title": "Root Account MFA Not Enabled",
+        "soc2": ["CC6.1", "CC6.2"],
+        "iso27001": ["A.9.4.2"],
+        "pci_dss": ["8.3"],
+        "nist": ["IA-2"],
+        "description": "MFA is not enabled on the root account",
+    },
+    "IAM_USER_NO_MFA": {
+        "title": "IAM User MFA Not Enabled",
+        "soc2": ["CC6.1", "CC6.2"],
+        "iso27001": ["A.9.4.2"],
+        "pci_dss": ["8.3"],
+        "nist": ["IA-2"],
+        "description": "IAM user with console access does not have MFA enabled",
+    },
+    # ── EC2 / Security Groups ────────────────────────────────────────────────
+    "EC2_SG_ALL_TRAFFIC_OPEN": {
+        "title": "Security Group Allows All Inbound Traffic",
         "soc2": ["CC6.6", "CC6.7"],
         "iso27001": ["A.13.1.1", "A.13.1.3"],
         "pci_dss": ["1.2", "1.3"],
         "nist": ["SC-7", "AC-4"],
-        "description": "Ensures security groups do not allow unrestricted inbound access",
+        "description": "Security group allows unrestricted inbound traffic (0.0.0.0/0)",
     },
-    "EBS_ENCRYPTION_001": {
-        "title": "EBS Volume Encryption",
+    "EC2_SG_SSH_RDP_OPEN": {
+        "title": "Security Group Exposes SSH/RDP",
+        "soc2": ["CC6.6", "CC6.7"],
+        "iso27001": ["A.13.1.1", "A.13.1.3"],
+        "pci_dss": ["1.2", "1.3"],
+        "nist": ["SC-7", "AC-4"],
+        "description": "Security group allows public SSH (22) or RDP (3389) access",
+    },
+    # ── EBS ─────────────────────────────────────────────────────────────────
+    "EC2_EBS_DEFAULT_ENCRYPTION_OFF": {
+        "title": "EBS Default Encryption Disabled",
         "soc2": ["CC6.1", "CC9.1"],
         "iso27001": ["A.10.1.1", "A.18.1.3"],
         "pci_dss": ["3.4"],
         "nist": ["SC-28"],
-        "description": "Ensures EBS volumes are encrypted at rest",
+        "description": "EBS encryption by default is not enabled for this region",
     },
-    "CLOUDTRAIL_001": {
-        "title": "CloudTrail Logging",
-        "soc2": ["CC7.1", "CC7.2", "CC4.1"],
-        "iso27001": ["A.12.4.1", "A.16.1.2"],
-        "pci_dss": ["10.1", "10.2"],
-        "nist": ["AU-2", "AU-12"],
-        "description": "Ensures CloudTrail is enabled and logging to all regions",
-    },
-    "RDS_ENCRYPTION_001": {
-        "title": "RDS Encryption at Rest",
+    "EC2_EBS_VOLUME_UNENCRYPTED": {
+        "title": "Unencrypted EBS Volume",
         "soc2": ["CC6.1", "CC9.1"],
         "iso27001": ["A.10.1.1"],
         "pci_dss": ["3.4"],
         "nist": ["SC-28"],
-        "description": "Ensures RDS instances have encryption enabled",
+        "description": "EBS volume is not encrypted at rest",
     },
-    "VPC_FLOW_LOGS_001": {
-        "title": "VPC Flow Logs",
+    # ── CloudTrail ───────────────────────────────────────────────────────────
+    "CLOUDTRAIL_NO_TRAIL": {
+        "title": "No CloudTrail Trail Configured",
+        "soc2": ["CC7.1", "CC7.2", "CC4.1"],
+        "iso27001": ["A.12.4.1", "A.16.1.2"],
+        "pci_dss": ["10.1", "10.2"],
+        "nist": ["AU-2", "AU-12"],
+        "description": "No CloudTrail trail exists in this account",
+    },
+    "CLOUDTRAIL_NOT_LOGGING": {
+        "title": "CloudTrail Not Actively Logging",
+        "soc2": ["CC7.1", "CC7.2"],
+        "iso27001": ["A.12.4.1"],
+        "pci_dss": ["10.1"],
+        "nist": ["AU-2", "AU-12"],
+        "description": "CloudTrail trail exists but logging is disabled",
+    },
+    "CLOUDTRAIL_LOG_VALIDATION_DISABLED": {
+        "title": "CloudTrail Log File Validation Disabled",
+        "soc2": ["CC7.2", "CC4.1"],
+        "iso27001": ["A.12.4.2"],
+        "pci_dss": ["10.5"],
+        "nist": ["AU-9"],
+        "description": "CloudTrail log file integrity validation is not enabled",
+    },
+    "CLOUDTRAIL_NOT_MULTI_REGION": {
+        "title": "CloudTrail Not Multi-Region",
+        "soc2": ["CC7.1", "CC4.1"],
+        "iso27001": ["A.12.4.1"],
+        "pci_dss": ["10.1"],
+        "nist": ["AU-2"],
+        "description": "CloudTrail is not capturing events from all regions",
+    },
+    # ── VPC ─────────────────────────────────────────────────────────────────
+    "VPC_FLOW_LOGS_DISABLED": {
+        "title": "VPC Flow Logs Disabled",
         "soc2": ["CC7.1", "CC7.2"],
         "iso27001": ["A.12.4.1", "A.13.1.1"],
         "pci_dss": ["10.2", "10.7"],
         "nist": ["AU-2", "SI-4"],
-        "description": "Ensures VPC flow logs are enabled for network visibility",
+        "description": "VPC flow logs are not enabled — network traffic is not captured",
     },
-    "KMS_KEY_ROTATION_001": {
-        "title": "KMS Key Rotation",
+    # ── KMS ─────────────────────────────────────────────────────────────────
+    "KMS_KEY_ROTATION_DISABLED": {
+        "title": "KMS Key Rotation Disabled",
         "soc2": ["CC6.1", "CC9.1"],
         "iso27001": ["A.10.1.2"],
         "pci_dss": ["3.6"],
         "nist": ["SC-12"],
-        "description": "Ensures KMS customer-managed keys have automatic rotation enabled",
+        "description": "KMS customer-managed key does not have automatic rotation enabled",
+    },
+    # ── RDS ─────────────────────────────────────────────────────────────────
+    "RDS_STORAGE_NOT_ENCRYPTED": {
+        "title": "RDS Instance Storage Not Encrypted",
+        "soc2": ["CC6.1", "CC9.1"],
+        "iso27001": ["A.10.1.1"],
+        "pci_dss": ["3.4"],
+        "nist": ["SC-28"],
+        "description": "RDS instance does not have storage encryption enabled",
+    },
+    "RDS_PUBLICLY_ACCESSIBLE": {
+        "title": "RDS Instance Publicly Accessible",
+        "soc2": ["CC6.1", "CC6.6"],
+        "iso27001": ["A.13.1.3", "A.14.1.2"],
+        "pci_dss": ["1.3"],
+        "nist": ["AC-3", "SC-7"],
+        "description": "RDS instance has PubliclyAccessible set to true",
     },
 }
 

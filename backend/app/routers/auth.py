@@ -4,9 +4,12 @@ Auth router — /auth/* endpoints.
 from __future__ import annotations
 
 import json as _json
+import secrets as _secrets
 import urllib.parse as _urlparse
 import urllib.request as _urlrequest
 import threading
+from base64 import b64encode as _b64encode
+from datetime import datetime as _datetime, timedelta as _timedelta, timezone as _timezone
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Header, HTTPException, Query, Request
@@ -51,6 +54,17 @@ from app.deps import (
 
 router = APIRouter()
 
+# Sign-in reads the user's verified email address and nothing else. Keep this in
+# lockstep with the disclosure shown on the sign-in and sign-up pages.
+GITHUB_OAUTH_SCOPE = "user:email"
+
+# CSRF nonce binding the authorize redirect to the callback that follows it.
+GITHUB_STATE_COOKIE = "gh_oauth_state"
+GITHUB_STATE_TTL_SECONDS = 600
+
+# One-time code swapped for the session cookie by the frontend callback page.
+EXCHANGE_CODE_TTL_SECONDS = 120
+
 
 # ---------------------------------------------------------------------------
 # GitHub OAuth helpers
@@ -73,6 +87,88 @@ def _gh_get(url: str, token: str) -> object:
     )
     with _urlrequest.urlopen(req, timeout=10) as resp:
         return _json.loads(resp.read().decode())
+
+
+def _gh_revoke_token(access_token: str) -> None:
+    """
+    Hand the OAuth token straight back to GitHub once we are done with it.
+
+    Sign-in only ever needs the user's verified email, so there is no reason for
+    VigiliCloud to keep a usable GitHub credential afterwards. Revoking makes
+    that guarantee verifiable rather than a promise — the grant disappears from
+    the user's GitHub authorizations immediately. Best-effort: a failure here
+    must never block a successful sign-in.
+    """
+    if not (GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET and access_token):
+        return
+    try:
+        basic = _b64encode(f"{GITHUB_CLIENT_ID}:{GITHUB_CLIENT_SECRET}".encode()).decode()
+        req = _urlrequest.Request(
+            f"https://api.github.com/applications/{GITHUB_CLIENT_ID}/token",
+            data=_json.dumps({"access_token": access_token}).encode(),
+            method="DELETE",
+            headers={
+                "Authorization": f"Basic {basic}",
+                "Accept": "application/vnd.github+json",
+                "Content-Type": "application/json",
+                "User-Agent": "VigiliCloud",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        with _urlrequest.urlopen(req, timeout=10):
+            pass
+    except Exception:
+        pass
+
+
+def _create_exchange_code(session_token: str) -> str:
+    """
+    Mint a single-use, short-lived code standing in for the session token.
+
+    The session token itself must never travel in a redirect URL: it would be
+    captured by backend access logs, proxies, and the browser address bar while
+    still being valid for the session's full lifetime. This code is good for one
+    POST within EXCHANGE_CODE_TTL_SECONDS.
+    """
+    code = _secrets.token_urlsafe(32)
+    expires_at = (
+        _datetime.now(_timezone.utc) + _timedelta(seconds=EXCHANGE_CODE_TTL_SECONDS)
+    ).isoformat()
+
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO oauth_exchange_codes (code, session_token, expires_at) VALUES (?, ?, ?)",
+        (code, session_token, expires_at),
+    )
+    # Opportunistic cleanup so expired rows do not accumulate.
+    conn.execute(
+        "DELETE FROM oauth_exchange_codes WHERE expires_at < ?",
+        (_datetime.now(_timezone.utc).isoformat(),),
+    )
+    conn.commit()
+    conn.close()
+    return code
+
+
+def _consume_exchange_code(code: str) -> Optional[str]:
+    """Redeem an exchange code, returning its session token. Single use."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT session_token, expires_at FROM oauth_exchange_codes WHERE code = ?",
+        (code,),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+
+    # Delete first: even an expired or racing redemption burns the code.
+    conn.execute("DELETE FROM oauth_exchange_codes WHERE code = ?", (code,))
+    conn.commit()
+    conn.close()
+
+    if row["expires_at"] < _datetime.now(_timezone.utc).isoformat():
+        return None
+    return row["session_token"]
 
 
 @router.post("/auth/login")
@@ -213,15 +309,22 @@ def auth_logout(
 
 
 @router.post("/auth/exchange")
-def auth_exchange(token: str = Query(...)):
-    """Exchange a raw session token (from OAuth redirect URL) for a session cookie."""
+def auth_exchange(request: Request, code: str = Query(...)):
+    """Redeem a single-use OAuth exchange code for a session cookie."""
+    enforce_rate_limit(f"oauth_exchange:{client_ip(request)}", LOGIN_RATE_LIMIT[0], LOGIN_RATE_LIMIT[1])
+
+    token = _consume_exchange_code(code)
+    if not token:
+        raise HTTPException(status_code=401, detail="Invalid or expired code")
+
     conn = get_conn()
     row = conn.execute(
         "SELECT user_id FROM auth_sessions WHERE session_token = ?", (token,)
     ).fetchone()
     conn.close()
     if not row:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(status_code=401, detail="Invalid or expired code")
+
     response = JSONResponse({"ok": True})
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
@@ -237,90 +340,155 @@ def auth_exchange(token: str = Query(...)):
 
 @router.get("/auth/github")
 def github_oauth_start():
-    if not GITHUB_CLIENT_ID:
-        raise HTTPException(status_code=503, detail="GitHub OAuth is not configured.")
+    if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
+        # This is reached by a browser navigation, so send the user back to a
+        # page that can explain itself rather than a raw JSON error body.
+        return RedirectResponse(f"{FRONTEND_URL}/signin?error=github_not_configured")
+
+    # Bind this authorize request to the callback that comes back, so a callback
+    # forged by an attacker (which would otherwise log the victim into the
+    # attacker's account) cannot be accepted.
+    state = _secrets.token_urlsafe(32)
+
     params = _urlparse.urlencode({
         "client_id": GITHUB_CLIENT_ID,
         "redirect_uri": GITHUB_CALLBACK_URL,
-        "scope": "user:email",
+        "scope": GITHUB_OAUTH_SCOPE,
+        "state": state,
     })
-    return RedirectResponse(f"https://github.com/login/oauth/authorize?{params}")
+    response = RedirectResponse(f"https://github.com/login/oauth/authorize?{params}")
+    response.set_cookie(
+        key=GITHUB_STATE_COOKIE,
+        value=state,
+        httponly=True,
+        # Must be 'lax', not 'strict': the callback arrives as a top-level
+        # navigation from github.com and 'strict' would withhold the cookie.
+        samesite="lax",
+        secure=COOKIE_SECURE,
+        max_age=GITHUB_STATE_TTL_SECONDS,
+        path="/",
+    )
+    return response
 
 
 @router.get("/auth/github/callback")
-def github_oauth_callback(code: str = Query(...)):
+def github_oauth_callback(
+    code: str = Query(...),
+    state: str = Query(default=""),
+    state_cookie: Optional[str] = Cookie(default=None, alias=GITHUB_STATE_COOKIE),
+):
+    def _fail(reason: str) -> RedirectResponse:
+        resp = RedirectResponse(f"{FRONTEND_URL}/signin?error={reason}")
+        resp.delete_cookie(GITHUB_STATE_COOKIE, path="/")
+        return resp
+
     if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
-        return RedirectResponse(f"{FRONTEND_URL}/signin?error=github_not_configured")
+        return _fail("github_not_configured")
+
+    # CSRF check — constant-time, and both halves must actually be present.
+    if not state or not state_cookie or not _secrets.compare_digest(state, state_cookie):
+        return _fail("github_state_mismatch")
 
     # Exchange code → access token
     try:
         token_data = _gh_post(
             "https://github.com/login/oauth/access_token",
-            {"client_id": GITHUB_CLIENT_ID, "client_secret": GITHUB_CLIENT_SECRET, "code": code},
+            {
+                "client_id": GITHUB_CLIENT_ID,
+                "client_secret": GITHUB_CLIENT_SECRET,
+                "code": code,
+                "redirect_uri": GITHUB_CALLBACK_URL,
+            },
         )
     except Exception:
-        return RedirectResponse(f"{FRONTEND_URL}/signin?error=github_failed")
+        return _fail("github_failed")
 
     access_token = token_data.get("access_token") if isinstance(token_data, dict) else None
     if not access_token:
-        return RedirectResponse(f"{FRONTEND_URL}/signin?error=github_failed")
+        return _fail("github_failed")
 
-    # Get GitHub user profile
     try:
         user_data = _gh_get("https://api.github.com/user", access_token)
-    except Exception:
-        return RedirectResponse(f"{FRONTEND_URL}/signin?error=github_failed")
+        if not isinstance(user_data, dict) or not user_data.get("id"):
+            return _fail("github_failed")
 
-    if not isinstance(user_data, dict):
-        return RedirectResponse(f"{FRONTEND_URL}/signin?error=github_failed")
-
-    # Resolve primary verified email
-    email = user_data.get("email")
-    if not email:
+        # Only ever trust /user/emails, and only entries GitHub reports as both
+        # primary and verified. The profile email on /user is not a safe basis
+        # for matching an existing account.
+        email = None
         try:
             emails = _gh_get("https://api.github.com/user/emails", access_token)
             if isinstance(emails, list):
                 email = next(
-                    (e["email"] for e in emails if e.get("primary") and e.get("verified")),
-                    next((e["email"] for e in emails if e.get("verified")), None),
+                    (
+                        e["email"] for e in emails
+                        if isinstance(e, dict)
+                        and e.get("primary") and e.get("verified") and e.get("email")
+                    ),
+                    None,
                 )
         except Exception:
-            pass
-    if not email:
-        email = f"github_{user_data.get('id', 'unknown')}@users.noreply.github.com"
+            email = None
+    finally:
+        # We have everything sign-in needs; give the credential back.
+        _gh_revoke_token(access_token)
 
+    if not email:
+        # No verified primary email means we cannot safely identify this person.
+        return _fail("github_email_unverified")
+
+    github_id = str(user_data["id"])
     email = email.lower().strip()
     name = (user_data.get("name") or user_data.get("login") or "GitHub User").strip()[:100]
 
-    # Find or create user
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id FROM users WHERE lower(email) = ?", (email,))
-    row = cur.fetchone()
 
+    # Match on the immutable GitHub account id first; fall back to the verified
+    # email only for users who predate github_id or signed up with a password.
+    cur.execute("SELECT id FROM users WHERE github_id = ?", (github_id,))
+    row = cur.fetchone()
     if row:
         user_id = row["id"]
     else:
-        cur.execute(
-            """
-            INSERT INTO users (
-                email, password_hash, name, role, created_at,
-                subscription_status, razorpay_customer_id, razorpay_subscription_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (email, "", name, "user", now_utc_iso(), "free", "", ""),
-        )
-        conn.commit()
-        user_id = cur.lastrowid
+        cur.execute("SELECT id, github_id FROM users WHERE lower(email) = ?", (email,))
+        row = cur.fetchone()
+        if row and not row["github_id"]:
+            # Link this GitHub identity to the existing account, permanently.
+            user_id = row["id"]
+            cur.execute("UPDATE users SET github_id = ? WHERE id = ?", (github_id, user_id))
+            conn.commit()
+        elif row:
+            # Email already claimed by a different GitHub identity — refuse
+            # rather than hand over someone else's account.
+            conn.close()
+            return _fail("github_account_conflict")
+        else:
+            cur.execute(
+                """
+                INSERT INTO users (
+                    email, password_hash, name, role, created_at,
+                    subscription_status, razorpay_customer_id, razorpay_subscription_id,
+                    github_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (email, "", name, "user", now_utc_iso(), "free", "", "", github_id),
+            )
+            conn.commit()
+            user_id = cur.lastrowid
     conn.close()
 
     session = create_session(user_id)
-    # Redirect to frontend exchange page — cookie is set via credentialed XHR
-    # from there, which works reliably cross-origin unlike redirect+Set-Cookie.
-    return RedirectResponse(
-        f"{FRONTEND_URL}/auth/callback?token={session['token']}",
+    # Redirect carries a single-use code, never the session token itself. The
+    # frontend swaps it for the cookie via credentialed XHR, which works
+    # reliably cross-origin unlike redirect+Set-Cookie.
+    exchange_code = _create_exchange_code(session["token"])
+    response = RedirectResponse(
+        f"{FRONTEND_URL}/auth/callback?code={_urlparse.quote(exchange_code)}",
         status_code=302,
     )
+    response.delete_cookie(GITHUB_STATE_COOKIE, path="/")
+    return response
 
 
 @router.get("/auth/me")

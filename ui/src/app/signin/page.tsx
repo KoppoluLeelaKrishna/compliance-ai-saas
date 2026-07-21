@@ -27,6 +27,9 @@ export default function SignInPage() {
     const e = params.get("error");
     if (e === "github_failed") setError("GitHub sign-in failed. Please try again or use email.");
     if (e === "github_not_configured") setError("GitHub sign-in is not yet enabled.");
+    if (e === "github_state_mismatch") setError("GitHub sign-in expired or was interrupted. Please try again.");
+    if (e === "github_email_unverified") setError("Your GitHub account has no verified primary email. Verify one on GitHub, or sign in with email.");
+    if (e === "github_account_conflict") setError("That email already belongs to another account. Sign in with your email and password instead.");
   }, []);
 
   async function handleSubmit(e: FormEvent) {
@@ -113,6 +116,12 @@ export default function SignInPage() {
             </svg>
             Continue with GitHub
           </a>
+
+          <p className="mb-4 text-center text-[11px] leading-relaxed text-neutral-500">
+            Reads your verified email address only — no repository access.
+            <br />
+            We revoke the GitHub token immediately after sign-in.
+          </p>
 
           <div className="mb-4 flex items-center gap-3">
             <div className="h-px flex-1 bg-white/[0.06]" />

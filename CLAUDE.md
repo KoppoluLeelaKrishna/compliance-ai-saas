@@ -37,7 +37,13 @@ RAZORPAY_PLAN_STARTER=plan_...
 RAZORPAY_PLAN_PRO=plan_...
 RAZORPAY_PLAN_MSP=plan_...
 FRONTEND_URL=https://vigilicloud-ui.onrender.com
+
+GITHUB_CLIENT_ID=Iv1_...           # GitHub OAuth App — sign-in only
+GITHUB_CLIENT_SECRET=...
+GITHUB_CALLBACK_URL=https://vigilicloud-api.onrender.com/auth/github/callback
 ```
+Without `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`, `/auth/github` redirects to
+`/signin?error=github_not_configured` — the button stays visible but degrades cleanly.
 
 ## Database
 - Local dev: SQLite fallback when `DATABASE_URL` is unset and `APP_ENV != production`

@@ -114,6 +114,12 @@ export default function SignUpPage() {
             Continue with GitHub
           </a>
 
+          <p className="mb-4 text-center text-[11px] leading-relaxed text-neutral-500">
+            Reads your verified email address only — no repository access.
+            <br />
+            We revoke the GitHub token immediately after sign-in.
+          </p>
+
           <div className="mb-4 flex items-center gap-3">
             <div className="h-px flex-1 bg-white/[0.06]" />
             <span className="text-[10px] font-medium uppercase tracking-widest text-neutral-600">or</span>

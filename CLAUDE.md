@@ -36,12 +36,15 @@ RAZORPAY_WEBHOOK_SECRET=...
 RAZORPAY_PLAN_STARTER=plan_...
 RAZORPAY_PLAN_PRO=plan_...
 RAZORPAY_PLAN_MSP=plan_...
-FRONTEND_URL=https://vigilicloud-ui.onrender.com
+FRONTEND_URL=https://app.vigilicloud.com
 
-GITHUB_CLIENT_ID=Iv1_...           # GitHub OAuth App — sign-in only
+GITHUB_CLIENT_ID=Ov23li...         # GitHub OAuth App — sign-in only
 GITHUB_CLIENT_SECRET=...
 GITHUB_CALLBACK_URL=https://vigilicloud-api.onrender.com/auth/github/callback
 ```
+`GITHUB_CALLBACK_URL` still points at the `onrender.com` hostname, not `api.vigilicloud.com` —
+this is deliberate: it must byte-match the callback URL registered in the GitHub OAuth App.
+Change both together or sign-in breaks with `redirect_uri_mismatch`.
 Without `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`, `/auth/github` redirects to
 `/signin?error=github_not_configured` — the button stays visible but degrades cleanly.
 
@@ -73,6 +76,26 @@ Requires `ANTHROPIC_API_KEY` env var. Returns executive summary + prioritized re
 `/` home · `/signin` · `/signup` · `/accounts` · `/scans` · `/plans` · `/settings` · `/launch` · `/onboarding`
 
 ## Deployment
-- Backend + UI + DB on Render (free tier — db expires in 90 days)
+
+| Piece | Host | Production URL |
+|---|---|---|
+| UI (Next.js) | **Vercel** | `https://app.vigilicloud.com` |
+| Backend (FastAPI) | Render | `https://api.vigilicloud.com` → `vigilicloud-api.onrender.com` |
+| Database | Render Postgres | `vigilicloud-db2` (free tier) |
+
 - Auto-deploys from `main` branch on push
-- Frontend env var: `NEXT_PUBLIC_API_BASE=https://vigilicloud-api.onrender.com`
+- Frontend env var: `NEXT_PUBLIC_API_BASE=https://api.vigilicloud.com`
+- DNS is managed at **Namecheap** (`dns1/dns2.registrar-servers.com`). `app` is a CNAME to
+  Vercel; `api` is a CNAME to `vigilicloud-api.onrender.com`.
+
+### Known DNS gap
+The apex `vigilicloud.com` and `www` still point at the registrar parking IP `192.64.119.204`,
+which answers on port 80 but **not 443** — so `https://vigilicloud.com` times out with
+`ERR_CONNECTION_TIMED_OUT`. The app is unaffected; only the bare domain is dead. Fix by either
+redirecting the apex to `https://app.vigilicloud.com` at Namecheap, or adding the apex as a
+Vercel domain. Use `app.vigilicloud.com` in any docs, demos, or decks until this is resolved.
+
+### Legacy frontend
+`vigilicloud-ui.onrender.com` is still live and serving an **older build** than Vercel. It
+remains in the backend CORS allowlist (`build_cors_origins()` in `backend/app/config.py`).
+Retire it once nothing depends on it — two live frontends drift apart silently.

@@ -485,6 +485,76 @@ button, input, select, textarea { font: inherit; }
 }
 .ap-rise.ap-visible { opacity: 1; transform: none; filter: blur(0); }
 
+/* ════════════════════════════════════════════════════════════
+   HERO — headline left, product right, audit strip beneath
+════════════════════════════════════════════════════════════ */
+.ap-hero-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: center;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  text-align: left;
+}
+.ap-hero-copy { min-width: 0; }
+
+/* Trust line under the CTAs — check, label, check, label. */
+.ap-hero-trust {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 22px;
+  font-family: var(--fft); font-size: 13px;
+  color: rgba(233,238,248,0.55);
+}
+.ap-hero-trust > span { display: inline-flex; align-items: center; gap: 8px; }
+.ap-hero-trust svg { flex: none; }
+
+/* Audit marquee: two identical tracks sliding one full track-width left, so
+   the loop is seamless. Duplicated content lives in the markup. */
+.ap-audit-strip {
+  position: relative;
+  margin-top: 64px;
+  padding: 22px 0;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.ap-audit-track {
+  display: flex; align-items: center; width: max-content;
+  animation: ap-audit-scroll 32s linear infinite;
+}
+.ap-audit-strip:hover .ap-audit-track { animation-play-state: paused; }
+.ap-audit-item {
+  display: inline-flex; align-items: center; gap: 14px;
+  padding: 0 28px; white-space: nowrap;
+  font-family: var(--fft); font-size: 13px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: rgba(233,238,248,0.46);
+}
+.ap-audit-item::before {
+  content: ""; width: 5px; height: 5px; border-radius: 50%;
+  background: #2997ff; opacity: 0.75; flex: none;
+}
+.ap-audit-item.is-lead { color: rgba(233,238,248,0.30); letter-spacing: 0.1em; }
+.ap-audit-item.is-lead::before { display: none; }
+
+@keyframes ap-audit-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@media (max-width: 980px) {
+  .ap-hero-split { grid-template-columns: minmax(0, 1fr); gap: 44px; }
+  .ap-hero-copy  { text-align: center; }
+  .ap-hero-trust { justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-audit-track { animation: none; }
+}
+
 .vc-checks-sec  { padding: 128px 0 132px; }
 .vc-checks-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
 
@@ -536,7 +606,7 @@ button, input, select, textarea { font: inherit; }
   position: relative; flex: 1; min-width: 0; overflow: hidden; isolation: isolate;
   display: flex; flex-direction: column;
   border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.075);
+  border: 1px solid rgba(255,255,255,0.17);
   background:
     radial-gradient(130% 100% at 50% -25%, rgba(255,255,255,0.055), transparent 62%),
     rgba(255,255,255,0.022);

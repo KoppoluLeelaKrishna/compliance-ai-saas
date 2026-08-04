@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import Link from "next/link";
 import { AuthMe } from "@/types";
+import TopbarActions from "@/components/app/TopbarActions";
 
 type AccountSummary = {
   id: number;
@@ -38,6 +40,30 @@ type MspData = {
   clients: ClientGroup[];
   ungrouped: AccountSummary[];
 };
+
+/** Sentinel used while a fan-out across every client is in flight. */
+const ALL_CLIENTS = "__all__";
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function gradeFor(score: number) {
+  if (score >= 90) return "A";
+  if (score >= 80) return "B";
+  if (score >= 70) return "C";
+  if (score >= 60) return "D";
+  return "F";
+}
+
+function scoreTone(score: number) {
+  if (score >= 80) return "vc-ok";
+  if (score >= 60) return "vc-sev-high";
+  return "vc-sev-critical";
+}
 
 export default function MspPage() {
   const router = useRouter();
@@ -111,169 +137,205 @@ export default function MspPage() {
     return new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
 
+  /** Checks passing across every scanned account in the group, as a 0-100 score. */
+  function groupScore(group: ClientGroup) {
+    const scanned = group.accounts.filter(a => a.latest_scan && a.latest_scan.total > 0);
+    if (scanned.length === 0) return null;
+    const total = scanned.reduce((n, a) => n + a.latest_scan!.total, 0);
+    const fail = scanned.reduce((n, a) => n + a.latest_scan!.fail, 0);
+    return Math.round(((total - fail) / total) * 100);
+  }
+
+  /** Fan a sweep out across every client group in one action. */
+  async function scanAllClients() {
+    if (!data || data.clients.length === 0) return;
+    setScanningGroup(ALL_CLIENTS);
+    setError("");
+    setMessage("");
+    try {
+      const results = await Promise.allSettled(
+        data.clients.map(c =>
+          api(`/msp/clients/${encodeURIComponent(c.client_group)}/scan`, { method: "POST" }),
+        ),
+      );
+      const failed = results.filter(r => r.status === "rejected").length;
+      setMessage(
+        failed === 0
+          ? `Sweep started across all ${data.clients.length} clients.`
+          : `Sweep started for ${data.clients.length - failed} of ${data.clients.length} clients.`,
+      );
+      setTimeout(() => setMessage(""), 6000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to start scans");
+    } finally {
+      setScanningGroup(null);
+    }
+  }
+
+  const clients = data?.clients ?? [];
+  const ungrouped = data?.ungrouped ?? [];
+  const totalAccounts = clients.reduce((n, c) => n + c.total_accounts, 0) + ungrouped.length;
+  const atRisk = clients.filter(c => c.critical > 0).length;
+
   return (
-    <main className="space-y-5 pb-24">
-      {/* Header */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] via-transparent to-violet-500/[0.02] p-6">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-500/[0.05] blur-3xl" />
-        <div className="relative flex items-start gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-500/25 bg-violet-500/10">
-            <svg className="h-5 w-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">MSP Dashboard</h1>
-            <p className="mt-0.5 text-sm text-neutral-500">Manage multiple client environments from a single view</p>
+    <>
+      <TopbarActions>
+        <Link href="/findings" className="vc-btn">
+          Client report
+        </Link>
+        <button
+          type="button"
+          className="vc-btn-primary"
+          onClick={scanAllClients}
+          disabled={!!scanningGroup || clients.length === 0}
+        >
+          {scanningGroup === ALL_CLIENTS ? "Starting…" : "Scan all clients"}
+        </button>
+      </TopbarActions>
+
+      <div className="vc-page-head">
+        <div>
+          <h1 className="vc-h1">Clients</h1>
+          <p className="vc-sub">
+            One grade per relationship. Group accounts by client to roll findings up the way you bill.
+          </p>
+        </div>
+      </div>
+
+      {error && <div className="vc-note vc-note-error">{error}</div>}
+      {message && !error && <div className="vc-note vc-note-success">{message}</div>}
+
+      <div className="vc-grid vc-grid-4">
+        <div className="vc-card">
+          <div className="vc-stat-label">Clients</div>
+          <div className="vc-stat vc-stat-sm">{loading ? "—" : clients.length}</div>
+        </div>
+        <div className="vc-card">
+          <div className="vc-stat-label">Accounts</div>
+          <div className="vc-stat vc-stat-sm">{loading ? "—" : totalAccounts}</div>
+        </div>
+        <div className="vc-card">
+          <div className="vc-stat-label">Clients at risk</div>
+          <div className={`vc-stat vc-stat-sm ${atRisk > 0 ? "vc-sev-critical" : ""}`}>{loading ? "—" : atRisk}</div>
+        </div>
+        <div className="vc-card">
+          <div className="vc-stat-label">Ungrouped</div>
+          <div className={`vc-stat vc-stat-sm ${ungrouped.length > 0 ? "vc-sev-medium" : ""}`}>
+            {loading ? "—" : ungrouped.length}
           </div>
         </div>
       </div>
 
-      {/* Status */}
-      {(message || error) && (
-        <div className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${error ? "border-red-500/20 bg-red-500/[0.07] text-red-300" : "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-300"}`}>
-          <span className="mt-0.5">{error ? "✕" : "✓"}</span>
-          <span>{error || message}</span>
-        </div>
-      )}
-
       {loading ? (
-        <div className="space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-32 animate-pulse rounded-3xl bg-white/[0.03]" />
-          ))}
+        <div className="vc-grid vc-grid-2">
+          {[0, 1].map(i => <div key={i} className="vc-skel h-64" />)}
+        </div>
+      ) : clients.length === 0 && ungrouped.length === 0 ? (
+        <div className="vc-card flex flex-col items-center gap-4 py-14 text-center">
+          <div className="vc-card-title">No accounts connected yet</div>
+          <p className="vc-sub max-w-sm">Connect an AWS account, then group it under a client name.</p>
+          <Link href="/accounts" className="vc-btn-primary vc-btn-lg">Connect account</Link>
         </div>
       ) : (
-        <div className="space-y-5">
-          {/* Client groups */}
-          {data?.clients.map(group => (
-            <section key={group.client_group} className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-violet-500/25 bg-violet-500/10">
-                    <svg className="h-4 w-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
-                    </svg>
+        <div className="vc-grid vc-grid-2">
+          {clients.map(group => {
+            const score = groupScore(group);
+            const tone = score == null ? "vc-neutral" : scoreTone(score);
+            return (
+              <div key={group.client_group} className="vc-card vc-card-flush flex flex-col">
+                <div className="flex items-center gap-3.5 border-b border-[var(--vc-hairline)] px-[22px] py-[18px]">
+                  <div className={`flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[10px] text-[13px] font-semibold ${tone}`}
+                       style={{ background: "color-mix(in srgb, currentColor 12%, transparent)" }}>
+                    {initials(group.client_group)}
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold">{group.client_group}</h2>
-                    <p className="text-xs text-neutral-500">{group.total_accounts} account{group.total_accounts !== 1 ? "s" : ""} · Last scan: {fmtDate(group.last_scan_at)}</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="vc-card-title truncate">{group.client_group}</div>
+                    <div className="mt-0.5 text-xs text-[var(--vc-muted)]">
+                      {group.total_accounts} account{group.total_accounts !== 1 ? "s" : ""} · last sweep {fmtDate(group.last_scan_at)}
+                    </div>
                   </div>
+                  {score != null && (
+                    <span className={`vc-pill flex-none !px-[11px] !py-1 !text-xs ${tone}`}>
+                      {gradeFor(score)} · {score}
+                    </span>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-3">
-                  {group.critical > 0 && (
-                    <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-bold text-red-400">
-                      {group.critical} CRITICAL
+                {group.accounts.map(acct => (
+                  <div key={acct.id} className="flex items-center gap-3.5 border-b border-[var(--vc-hairline-soft)] px-[22px] py-[13px]">
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--vc-text)]">
+                      {acct.account_name || acct.customer_name}{" "}
+                      <span className="vc-mono text-[11.5px] text-[var(--vc-dim)]">{acct.region}</span>
                     </span>
-                  )}
-                  {group.high > 0 && (
-                    <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-1 text-xs font-bold text-orange-400">
-                      {group.high} HIGH
+                    <span className={`text-xs font-semibold ${acct.latest_scan?.critical ? "vc-sev-critical" : "text-[var(--vc-dim)]"}`}>
+                      {acct.latest_scan?.critical ?? 0} critical
                     </span>
-                  )}
+                    <span className="text-xs text-[var(--vc-muted)]">
+                      {acct.latest_scan ? `${acct.latest_scan.fail} open` : "No scan"}
+                    </span>
+                  </div>
+                ))}
+
+                <div className="mt-auto flex flex-wrap items-center gap-2.5 px-[22px] py-3.5">
                   <button
                     type="button"
+                    className="vc-btn-secondary"
                     onClick={() => scanGroup(group.client_group)}
                     disabled={scanningGroup === group.client_group}
-                    className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-40 transition-colors"
                   >
-                    {scanningGroup === group.client_group ? "Starting…" : "Scan All"}
+                    {scanningGroup === group.client_group ? "Starting…" : "Scan client"}
                   </button>
+                  <Link href="/findings" className="vc-btn-secondary">Open findings</Link>
+                  {group.high > 0 && (
+                    <span className="vc-pill vc-sev-high ml-auto">{group.high} high</span>
+                  )}
                 </div>
               </div>
-
-              <div className="space-y-2">
-                {group.accounts.map(acct => (
-                  <div key={acct.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-black/30 px-4 py-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-white truncate">{acct.account_name || acct.customer_name}</span>
-                        <span className="font-mono text-xs text-neutral-500">{acct.aws_account_id}</span>
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-3 text-xs text-neutral-500">
-                        <span>{acct.region}</span>
-                        {acct.latest_scan && (
-                          <>
-                            <span>{acct.latest_scan.critical > 0 && <span className="text-red-400">{acct.latest_scan.critical} crit</span>}</span>
-                            <span>{fmtDate(acct.latest_scan.created_at)}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <input
-                        type="text"
-                        value={groupInputs[acct.id] ?? acct.client_group}
-                        onChange={e => setGroupInputs(prev => ({ ...prev, [acct.id]: e.target.value }))}
-                        placeholder="Client group"
-                        className="w-32 rounded-lg border border-white/[0.07] bg-black/40 px-2 py-1 text-xs text-white placeholder-neutral-600 focus:border-violet-500/40 focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => assignGroup(acct.id)}
-                        disabled={assigningAccountId === acct.id}
-                        className="rounded-lg border border-white/[0.07] px-2.5 py-1 text-xs text-neutral-400 hover:bg-white/[0.05] hover:text-white disabled:opacity-40 transition-colors"
-                      >
-                        {assigningAccountId === acct.id ? "…" : "Save"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-
-          {/* Ungrouped accounts */}
-          {data && data.ungrouped.length > 0 && (
-            <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-              <div className="mb-4 flex items-center gap-3">
-                <h2 className="text-lg font-bold text-neutral-400">Ungrouped Accounts</h2>
-                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-neutral-500">{data.ungrouped.length}</span>
-              </div>
-              <p className="mb-4 text-sm text-neutral-500">Assign a client group name to organize these accounts into a client view.</p>
-              <div className="space-y-2">
-                {data.ungrouped.map(acct => (
-                  <div key={acct.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-black/30 px-4 py-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-white truncate">{acct.account_name || acct.customer_name}</span>
-                        <span className="font-mono text-xs text-neutral-500">{acct.aws_account_id}</span>
-                      </div>
-                      <div className="mt-0.5 text-xs text-neutral-500">{acct.region}</div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <input
-                        type="text"
-                        value={groupInputs[acct.id] ?? ""}
-                        onChange={e => setGroupInputs(prev => ({ ...prev, [acct.id]: e.target.value }))}
-                        onKeyDown={e => e.key === "Enter" && assignGroup(acct.id)}
-                        placeholder="Enter client group"
-                        className="w-36 rounded-lg border border-white/[0.07] bg-black/40 px-2 py-1 text-xs text-white placeholder-neutral-600 focus:border-violet-500/40 focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => assignGroup(acct.id)}
-                        disabled={assigningAccountId === acct.id || !(groupInputs[acct.id] || "").trim()}
-                        className="rounded-lg bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-40 transition-colors"
-                      >
-                        {assigningAccountId === acct.id ? "…" : "Assign"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {data?.clients.length === 0 && data?.ungrouped.length === 0 && (
-            <div className="rounded-3xl border border-dashed border-white/[0.07] p-16 text-center">
-              <p className="text-neutral-500">No accounts connected yet.</p>
-              <a href="/accounts" className="mt-2 inline-block text-sm text-emerald-400 hover:underline">Connect an AWS account →</a>
-            </div>
-          )}
+            );
+          })}
         </div>
       )}
-    </main>
+
+      {/* ── Ungrouped accounts ───────────────────────────────────────────── */}
+      {ungrouped.length > 0 && (
+        <div className="vc-card vc-card-flush">
+          <div className="vc-card-head">
+            <div>
+              <div className="vc-card-title">Ungrouped accounts</div>
+              <div className="vc-card-sub">
+                Assign a client name to roll these up into a client view.
+              </div>
+            </div>
+            <span className="vc-tag">{ungrouped.length}</span>
+          </div>
+
+          {ungrouped.map(acct => (
+            <div key={acct.id} className="vc-list-row">
+              <div className="min-w-0 flex-1">
+                <div className="vc-cell-strong truncate">{acct.account_name || acct.customer_name}</div>
+                <div className="vc-mono vc-cell-sub">{acct.aws_account_id} · {acct.region}</div>
+              </div>
+              <input
+                type="text"
+                className="vc-input !h-8 !w-40"
+                value={groupInputs[acct.id] ?? ""}
+                onChange={e => setGroupInputs(prev => ({ ...prev, [acct.id]: e.target.value }))}
+                onKeyDown={e => { if (e.key === "Enter") assignGroup(acct.id); }}
+                placeholder="Client name"
+                aria-label={`Client group for ${acct.account_name}`}
+              />
+              <button
+                type="button"
+                className="vc-btn-primary"
+                onClick={() => assignGroup(acct.id)}
+                disabled={assigningAccountId === acct.id || !(groupInputs[acct.id] || "").trim()}
+              >
+                {assigningAccountId === acct.id ? "…" : "Assign"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }

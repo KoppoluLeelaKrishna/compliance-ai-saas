@@ -41,38 +41,38 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-80px)]">
+    <div className="flex min-h-screen">
 
       {/* ── Left panel (hidden on mobile) ──────────────────────────────── */}
-      <div className="relative hidden overflow-hidden lg:flex lg:w-[42%] lg:flex-col lg:justify-between bg-gradient-to-b from-emerald-500/[0.07] via-transparent to-transparent border-r border-white/[0.06] p-10">
-        <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-emerald-500/[0.07] blur-3xl" />
+      <div className="relative hidden overflow-hidden lg:flex lg:w-[42%] lg:flex-col lg:justify-between bg-[var(--vc-side)] border-r border-[var(--vc-hairline-soft)] p-10">
+        <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[var(--vc-accent)]/[0.07] blur-3xl" />
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-base font-black text-emerald-400">V</div>
-            <span className="text-lg font-black tracking-tight">VigiliCloud</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-accent-wash)] text-base font-semibold text-[var(--vc-accent-text)]">V</div>
+            <span className="text-lg font-semibold tracking-tight">VigiliCloud</span>
           </Link>
           <div className="mt-12">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-emerald-500">Get started in 5 minutes</div>
-            <h2 className="text-3xl font-black leading-tight">You're 4 steps away from a secure AWS account.</h2>
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--vc-accent-text)]">Get started in 5 minutes</div>
+            <h2 className="text-3xl font-semibold leading-tight">You&rsquo;re 4 steps away from a secure AWS account.</h2>
           </div>
           <div className="mt-8 space-y-4">
             {STEPS.map((s, i) => (
               <div key={s.n} className="flex items-start gap-3">
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${i === 0 ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400" : "border-white/[0.08] text-neutral-600"}`}>
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${i === 0 ? "border-[var(--vc-accent)] bg-[var(--vc-accent-wash)] text-[var(--vc-accent-text)]" : "border-[var(--vc-hairline)] text-[var(--vc-dim)]"}`}>
                   {s.n}
                 </div>
                 <div>
-                  <div className={`font-medium ${i === 0 ? "text-white" : "text-neutral-500"}`}>{s.label}</div>
-                  <div className="text-xs text-neutral-600">{s.desc}</div>
+                  <div className={`font-medium ${i === 0 ? "text-[var(--vc-text)]" : "text-[var(--vc-muted)]"}`}>{s.label}</div>
+                  <div className="text-xs text-[var(--vc-dim)]">{s.desc}</div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-8 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4 text-sm text-emerald-200">
+          <div className="mt-8 rounded-[14px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-4 text-sm text-[var(--vc-text-2)]">
             Free 2-week trial · No credit card · Read-only AWS access
           </div>
         </div>
-        <div className="relative text-xs text-neutral-700">© 2026 VigiliCloud</div>
+        <div className="relative text-xs text-[var(--vc-faint)]">© 2026 VigiliCloud</div>
       </div>
 
       {/* ── Right panel — form ──────────────────────────────────────────── */}
@@ -82,31 +82,31 @@ export default function SignUpPage() {
           {/* Logo (mobile only) */}
           <div className="mb-8 lg:hidden text-center">
             <Link href="/" className="inline-flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-base font-black text-emerald-400">V</div>
-              <span className="text-lg font-black tracking-tight">VigiliCloud</span>
+              <div className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-accent-wash)] text-base font-semibold text-[var(--vc-accent-text)]">V</div>
+              <span className="text-lg font-semibold tracking-tight">VigiliCloud</span>
             </Link>
           </div>
 
           <div className="mb-7">
             <h1 className="text-2xl font-bold tracking-tight">Create your account</h1>
-            <p className="mt-1 text-sm text-neutral-500">Start securing your AWS environment</p>
+            <p className="mt-1 text-sm text-[var(--vc-muted)]">Start securing your AWS environment</p>
           </div>
 
           {slowWarning && (
-            <div className="mb-5 rounded-2xl border border-yellow-500/20 bg-yellow-500/[0.07] px-4 py-3 text-sm text-yellow-300">
+            <div className="mb-5 rounded-[14px] border vc-note vc-note-info !text-[var(--vc-medium)]">
               Server is starting up — can take up to a minute on first use. Please wait…
             </div>
           )}
 
           {error && (
-            <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300">
+            <div className="mb-5 flex items-start gap-3 rounded-[14px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] px-4 py-3 text-sm text-[var(--vc-critical)]">
               <span className="mt-0.5">✕</span><span>{error}</span>
             </div>
           )}
 
           <a
             href={`${process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000"}/auth/github`}
-            className="mb-4 flex w-full items-center justify-center gap-2.5 rounded-2xl border border-white/[0.10] bg-white/[0.04] py-3 text-sm font-medium text-white hover:bg-white/[0.08] transition-colors"
+            className="mb-4 flex w-full items-center justify-center gap-2.5 rounded-[14px] border border-white/[0.10] bg-[var(--vc-chip)] py-3 text-sm font-medium text-[var(--vc-text)] hover:bg-white/[0.08] transition-colors"
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
@@ -114,7 +114,7 @@ export default function SignUpPage() {
             Continue with GitHub
           </a>
 
-          <p className="mb-4 text-center text-[11px] leading-relaxed text-neutral-500">
+          <p className="mb-4 text-center text-[11px] leading-relaxed text-[var(--vc-muted)]">
             Reads your verified email address only — no repository access.
             <br />
             We revoke the GitHub token immediately after sign-in.
@@ -122,13 +122,13 @@ export default function SignUpPage() {
 
           <div className="mb-4 flex items-center gap-3">
             <div className="h-px flex-1 bg-white/[0.06]" />
-            <span className="text-[10px] font-medium uppercase tracking-widest text-neutral-600">or</span>
+            <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--vc-dim)]">or</span>
             <div className="h-px flex-1 bg-white/[0.06]" />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Full Name</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--vc-muted)]">Full Name</label>
               <input
                 type="text"
                 value={name}
@@ -136,12 +136,12 @@ export default function SignUpPage() {
                 placeholder="Jane Smith"
                 autoComplete="name"
                 required
-                className="w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/40 focus:outline-none transition-colors"
+                className="w-full rounded-[10px] border border-[var(--vc-hairline-strong)] bg-[var(--vc-fill)] px-4 py-2.5 text-sm text-[var(--vc-text)] placeholder-[var(--vc-dim)] focus:border-[var(--vc-accent)] focus:outline-none transition-colors"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Email</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--vc-muted)]">Email</label>
               <input
                 type="email"
                 value={email}
@@ -149,13 +149,13 @@ export default function SignUpPage() {
                 placeholder="you@company.com"
                 autoComplete="email"
                 required
-                className="w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/40 focus:outline-none transition-colors"
+                className="w-full rounded-[10px] border border-[var(--vc-hairline-strong)] bg-[var(--vc-fill)] px-4 py-2.5 text-sm text-[var(--vc-text)] placeholder-[var(--vc-dim)] focus:border-[var(--vc-accent)] focus:outline-none transition-colors"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                Password <span className="text-[9px] font-normal normal-case text-neutral-600">min. 6 characters</span>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--vc-muted)]">
+                Password <span className="text-[9px] font-normal normal-case text-[var(--vc-dim)]">min. 6 characters</span>
               </label>
               <div className="flex gap-2">
                 <input
@@ -165,12 +165,12 @@ export default function SignUpPage() {
                   placeholder="••••••••"
                   autoComplete="new-password"
                   required
-                  className="w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/40 focus:outline-none transition-colors"
+                  className="w-full rounded-[10px] border border-[var(--vc-hairline-strong)] bg-[var(--vc-fill)] px-4 py-2.5 text-sm text-[var(--vc-text)] placeholder-[var(--vc-dim)] focus:border-[var(--vc-accent)] focus:outline-none transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(p => !p)}
-                  className="rounded-xl border border-white/[0.07] px-3 text-xs text-neutral-400 hover:bg-white/[0.05] hover:text-white transition-colors"
+                  className="rounded-[10px] border border-[var(--vc-hairline)] px-3 text-xs text-[var(--vc-muted)] hover:bg-[var(--vc-chip)] hover:text-[var(--vc-text)] transition-colors"
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
@@ -180,17 +180,17 @@ export default function SignUpPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-1 w-full rounded-2xl bg-emerald-500 py-3 font-bold text-black hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+              className="mt-1 w-full rounded-[14px] bg-[var(--vc-accent)] py-3 font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
             >
               {loading ? "Creating account…" : "Create Account →"}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-neutral-500">
+          <p className="mt-6 text-center text-sm text-[var(--vc-muted)]">
             Already have an account?{" "}
-            <Link href="/signin" className="font-medium text-emerald-400 hover:text-emerald-300 transition-colors">Sign in</Link>
+            <Link href="/signin" className="font-medium text-[var(--vc-accent-text)] hover:text-[var(--vc-accent-text)] transition-colors">Sign in</Link>
           </p>
-          <p className="mt-4 text-center text-xs text-neutral-700">By creating an account you agree to our terms of service.</p>
+          <p className="mt-4 text-center text-xs text-[var(--vc-faint)]">By creating an account you agree to our terms of service.</p>
         </div>
       </div>
     </div>

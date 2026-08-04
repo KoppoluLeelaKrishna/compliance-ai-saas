@@ -1,5 +1,5 @@
 import { Finding } from "@/types";
-import { badgeClasses } from "@/lib/api";
+import { severityTone, shortAge, stateLabel, stateTone } from "@/lib/ui";
 
 interface FindingsTableProps {
   findings: Finding[];
@@ -8,6 +8,9 @@ interface FindingsTableProps {
   search?: string;
 }
 
+/** Column track shared by the header and every row. */
+const COLS = "1fr 150px 220px 190px 84px 120px";
+
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query) return <>{text}</>;
   const idx = text.toLowerCase().indexOf(query.toLowerCase());
@@ -15,7 +18,9 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-violet-500/30 text-violet-200 rounded px-0.5">{text.slice(idx, idx + query.length)}</mark>
+      <mark className="rounded bg-[var(--vc-accent-wash)] px-0.5 text-[var(--vc-accent-text)]">
+        {text.slice(idx, idx + query.length)}
+      </mark>
       {text.slice(idx + query.length)}
     </>
   );
@@ -24,9 +29,11 @@ function Highlight({ text, query }: { text: string; query: string }) {
 export function FindingsTable({ findings, onOpenFinding, loading, search = "" }: FindingsTableProps) {
   if (loading) {
     return (
-      <div className="space-y-4">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-16 w-full animate-pulse rounded-2xl bg-white/5" />
+      <div className="vc-card vc-card-flush">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="border-b border-[var(--vc-hairline-soft)] p-4 last:border-b-0">
+            <div className="vc-skel h-6 w-full" />
+          </div>
         ))}
       </div>
     );
@@ -34,66 +41,74 @@ export function FindingsTable({ findings, onOpenFinding, loading, search = "" }:
 
   if (findings.length === 0) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center">
-        <p className="text-neutral-400">No findings found matching your filters.</p>
+      <div className="vc-card vc-card-flush">
+        <div className="vc-empty">No findings match these filters.</div>
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-white/10 bg-white/5 text-xs uppercase tracking-wider text-neutral-500">
-            <th className="px-6 py-4 font-medium">Severity</th>
-            <th className="px-6 py-4 font-medium">Service</th>
-            <th className="px-6 py-4 font-medium">Finding</th>
-            <th className="px-6 py-4 font-medium">Resource</th>
-            <th className="px-6 py-4 font-medium">Resolution</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/5">
-          {findings.map((f) => (
-            <tr
-              key={`${f.check_id}-${f.resource_id}`}
-              onClick={() => onOpenFinding(f)}
-              className="group cursor-pointer hover:bg-white/5"
-            >
-              <td className="px-6 py-4">
-                <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${badgeClasses(f.severity)}`}>
-                  {f.severity}
-                </span>
-              </td>
-              <td className="px-6 py-4 font-medium text-neutral-300">{f.service}</td>
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-white">
-                    <Highlight text={f.title} query={search} />
-                  </span>
-                  {f.drift_status === "NEW" && (
-                    <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-cyan-400">
-                      NEW
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 text-xs text-neutral-500">
-                  <Highlight text={f.check_id} query={search} />
-                </div>
-              </td>
-              <td className="px-6 py-4 font-mono text-xs text-neutral-400 max-w-[200px]">
-                <span className="break-all">
-                  <Highlight text={f.resource_id} query={search} />
-                </span>
-              </td>
-              <td className="px-6 py-4">
-                <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${badgeClasses(f.resolution || "OPEN")}`}>
-                  {f.resolution || "OPEN"}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="vc-card vc-card-flush">
+      <div className="vc-thead" style={{ gridTemplateColumns: COLS }}>
+        <span>Finding</span>
+        <span>Check</span>
+        <span>Resource</span>
+        <span>Account</span>
+        <span>Age</span>
+        <span className="text-right">State</span>
+      </div>
+
+      {findings.map((f) => {
+        const resolved = f.resolution === "FIXED" || f.status === "PASS";
+        const state = f.resolution || f.approval_status || (f.status === "PASS" ? "PASS" : "OPEN");
+        return (
+          <div
+            key={`${f.scan_id}-${f.check_id}-${f.resource_id}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpenFinding(f)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpenFinding(f);
+              }
+            }}
+            className={`vc-tr vc-tr-hover${resolved ? " is-done" : ""}`}
+            style={{ gridTemplateColumns: COLS }}
+          >
+            <div className="flex min-w-0 items-center gap-[11px]">
+              <span className={`vc-dot ${resolved ? "vc-ok" : severityTone(f.severity)}`} />
+              <span
+                className={`vc-cell-strong truncate ${resolved ? "line-through" : ""}`}
+                title={f.title}
+              >
+                <Highlight text={f.title} query={search} />
+              </span>
+              {f.drift_status === "NEW" && (
+                <span className="vc-tag flex-none !text-[var(--vc-accent-text)]">New</span>
+              )}
+            </div>
+
+            <span className="vc-mono truncate text-[11.5px] text-[var(--vc-muted)]" title={f.check_id}>
+              <Highlight text={f.check_id} query={search} />
+            </span>
+
+            <span className="vc-mono truncate text-[11.5px] text-[var(--vc-text-2)]" title={f.resource_id}>
+              <Highlight text={f.resource_id} query={search} />
+            </span>
+
+            <span className="vc-cell truncate">
+              {f.customer_name ? `${f.customer_name} · ${f.account_name ?? ""}` : f.account_name || "—"}
+            </span>
+
+            <span className="text-[12.5px] text-[var(--vc-muted)]">{resolved ? "—" : shortAge(f.created_at)}</span>
+
+            <span className={`text-right text-[11.5px] font-semibold ${stateTone(state)}`}>
+              {stateLabel(state)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

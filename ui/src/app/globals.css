@@ -168,16 +168,25 @@ button, input, select, textarea { font: inherit; }
   position: relative;
   z-index: 0;
 }
+/* Masked to a 2px ring rather than a filled rectangle. The old version
+   relied on the card having an opaque background to hide its middle —
+   on the glass cards that left a solid blue slab. */
 .ap-glow-border::before {
   content: '';
   position: absolute;
   inset: -2px;
+  padding: 2px;
   border-radius: inherit;
   background: conic-gradient(
     from var(--ap-angle) at 50% 50%,
     #0066cc 0deg, #2997ff 90deg, #00d4ff 180deg, #2997ff 270deg, #0066cc 360deg
   );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
   animation: ap-border-spin 3s linear infinite;
+  pointer-events: none;
   z-index: -1;
 }
 
@@ -362,10 +371,6 @@ button, input, select, textarea { font: inherit; }
   /* Stats strip: 4-col → 2×2 */
   .ap-stats-grid              { grid-template-columns: repeat(2,1fr) !important; gap: 20px !important; }
 
-  /* Bento grids: force single column, cancel all span-2 */
-  .ap-bento-grid              { grid-template-columns: 1fr !important; }
-  .ap-bento-grid > *          { grid-column: span 1 !important; }
-
   /* 3-column sections → single column */
   .ap-grid-3col               { grid-template-columns: 1fr !important; }
 
@@ -380,12 +385,747 @@ button, input, select, textarea { font: inherit; }
 }
 
 /* ════════════════════════════════════════════════════════════
-   WATER BUBBLE CARD — organic border-radius morphing
+   PAGE BACKDROP — the landing page's single background layer
+
+   Fixed to the viewport and z-index:-1, so it paints above the root
+   element's own background but below every in-flow section. All
+   sections are transparent and float over this.
 ════════════════════════════════════════════════════════════ */
-@keyframes bubble-morph {
-  0%,100% { border-radius: 52px; }
-  15%  { border-radius: 74px 36px 66px 40px / 40px 76px 34px 66px; }
-  35%  { border-radius: 36px 76px 36px 72px / 70px 34px 78px 32px; }
-  55%  { border-radius: 68px 36px 78px 34px / 34px 70px 36px 76px; }
-  75%  { border-radius: 34px 70px 38px 74px / 74px 36px 70px 38px; }
+.vc-backdrop {
+  position: fixed; inset: 0; z-index: -1;
+  pointer-events: none; overflow: hidden;
+}
+
+.vc-backdrop-base {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(115% 78% at 50% -12%, #0d1734 0%, #070d1f 34%, transparent 72%),
+    linear-gradient(180deg, #060b1a 0%, #04070f 52%, #020409 100%);
+}
+
+.vc-aurora {
+  position: absolute; pointer-events: none;
+  filter: blur(90px);
+  will-change: transform;
+}
+.vc-aurora-1 {
+  width: 46vw; height: 46vw; min-width: 480px; min-height: 480px;
+  top: -14%; left: -12%;
+  background: radial-gradient(circle at 45% 50%, rgba(120,40,255,0.20), rgba(60,0,180,0.08) 46%, transparent 70%);
+}
+.vc-aurora-2 {
+  width: 42vw; height: 42vw; min-width: 440px; min-height: 440px;
+  top: -6%; right: -12%;
+  background: radial-gradient(circle at 55% 45%, rgba(0,140,255,0.19), rgba(0,80,200,0.07) 50%, transparent 70%);
+  animation-delay: -6s;
+}
+.vc-aurora-3 {
+  width: 40vw; height: 40vw; min-width: 420px; min-height: 420px;
+  bottom: -18%; left: 26%;
+  background: radial-gradient(circle at 50% 55%, rgba(0,200,210,0.13), rgba(0,160,180,0.05) 50%, transparent 70%);
+  animation-delay: -11s;
+}
+.vc-aurora-4 {
+  width: 34vw; height: 34vw; min-width: 360px; min-height: 360px;
+  top: 34%; right: 22%;
+  background: radial-gradient(circle at 50% 50%, rgba(180,0,255,0.09), transparent 66%);
+  animation-delay: -3s;
+}
+
+.vc-backdrop-dots {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle, rgba(120,160,255,0.055) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 100% 80% at 50% 40%, #000 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse 100% 80% at 50% 40%, #000 30%, transparent 78%);
+}
+
+.vc-backdrop-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 90% 75% at 50% 45%, transparent 42%, rgba(0,0,0,0.55) 100%);
+}
+
+/* Aurora parallax — the whole field drifts across the page scroll,
+   so the atmosphere keeps changing even though the layer is fixed. */
+@supports (animation-timeline: scroll()) {
+  /* Two animations per blob: ap-morph on the normal clock, plus a pan
+     driven by document scroll. `translate` is used rather than transform
+     so it composes with ap-morph instead of overwriting it. */
+  .vc-aurora {
+    animation: ap-morph 16s ease-in-out infinite, vc-aurora-pan linear both;
+    animation-timeline: auto, scroll(root);
+  }
+  .vc-aurora-2,
+  .vc-aurora-4 { animation-direction: normal, reverse; }
+
+  @keyframes vc-aurora-pan {
+    from { translate: 0 -14vh; }
+    to   { translate: 0  14vh; }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   SECURITY CHECKS — dark glass grid + scroll reveal
+
+   Cards are uniform glass tiles on black. Each one carries a
+   --sev RGB triple ("239,68,68") so every accent — hairline,
+   spotlight, border, glow, dot — is derived from one value.
+════════════════════════════════════════════════════════════ */
+
+/* Scroll entrance: blur + rise + settle. Lives on a wrapper div so
+   it never fights the hover transform on .vc-check itself. */
+.ap-rise {
+  opacity: 0;
+  transform: translateY(38px) scale(0.97);
+  filter: blur(9px);
+  transition: opacity   0.85s cubic-bezier(0.22,1,0.36,1),
+              transform 0.85s cubic-bezier(0.22,1,0.36,1),
+              filter    0.85s cubic-bezier(0.22,1,0.36,1);
+  will-change: transform, opacity, filter;
+}
+.ap-rise.ap-visible { opacity: 1; transform: none; filter: blur(0); }
+
+.vc-checks-sec  { padding: 128px 0 132px; }
+.vc-checks-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+/* Ambient glow behind the grid — parallaxes on scroll where supported */
+.vc-checks-aura {
+  position: absolute; top: 18%; left: 50%; width: 900px; height: 620px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(41,151,255,0.11), transparent 68%);
+  filter: blur(30px); pointer-events: none;
+}
+@supports (animation-timeline: view()) {
+  .vc-checks-aura {
+    animation: vc-aura-drift linear both;
+    animation-timeline: view();
+    animation-range: entry 0% exit 100%;
+  }
+  @keyframes vc-aura-drift {
+    from { transform: translate(-50%, 90px)  scale(0.9); opacity: 0.4; }
+    to   { transform: translate(-50%, -90px) scale(1.1); opacity: 1;   }
+  }
+}
+
+.vc-checks-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+/* Reveal wrappers flex so every card fills its row height */
+.vc-checks-grid > .ap-rise { display: flex; }
+
+/* Section rule with a centred caption */
+.vc-checks-rule {
+  display: flex; align-items: center; gap: 18px;
+  margin: 56px 0 24px;
+}
+.vc-checks-rule::before,
+.vc-checks-rule::after {
+  content: ""; flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.13), transparent);
+}
+.vc-checks-rule > span {
+  font-family: var(--fft); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: rgba(255,255,255,0.34); white-space: nowrap;
+}
+
+/* ── The card ─── */
+.vc-check {
+  position: relative; flex: 1; min-width: 0; overflow: hidden; isolation: isolate;
+  display: flex; flex-direction: column;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.075);
+  background:
+    radial-gradient(130% 100% at 50% -25%, rgba(255,255,255,0.055), transparent 62%),
+    rgba(255,255,255,0.022);
+  padding: 26px 26px 22px;
+  transition: transform    0.45s cubic-bezier(0.22,1,0.36,1),
+              border-color 0.45s ease,
+              box-shadow   0.45s ease;
+}
+
+/* Severity hairline along the top edge */
+.vc-check::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 1px; z-index: 2;
+  background: linear-gradient(90deg, transparent, rgb(var(--sev)), transparent);
+  opacity: 0.4; transition: opacity 0.45s ease;
+}
+
+/* Cursor-tracking spotlight — --mx/--my are set from React.
+   Sits at z-index 0 (not -1, which would paint behind the card's
+   own background); content is lifted to z-index 1 below. */
+.vc-check::after {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 0%),
+                              rgba(var(--sev), 0.15), transparent 62%);
+  opacity: 0; transition: opacity 0.4s ease;
+}
+.vc-check > * { position: relative; z-index: 1; }
+
+.vc-check:hover {
+  transform: translateY(-6px);
+  border-color: rgba(var(--sev), 0.40);
+  box-shadow: 0 26px 60px -26px rgba(var(--sev), 0.55);
+}
+.vc-check:hover::after  { opacity: 1; }
+.vc-check:hover::before { opacity: 1; }
+
+.vc-check-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.vc-check-icon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 21px; line-height: 1;
+  border-radius: 13px;
+  background: rgba(var(--sev), 0.10);
+  border: 1px solid rgba(var(--sev), 0.20);
+  transition: transform 0.45s cubic-bezier(0.34,1.56,0.64,1), background-color 0.45s ease;
+}
+.vc-check:hover .vc-check-icon {
+  transform: scale(1.08) rotate(-4deg);
+  background: rgba(var(--sev), 0.17);
+}
+.vc-check-idx {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px; letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.20);
+  transition: color 0.45s ease;
+}
+.vc-check:hover .vc-check-idx { color: rgba(var(--sev), 0.75); }
+
+.vc-check-title {
+  font-weight: 600; color: #fff; line-height: 1.22;
+  letter-spacing: -0.2px; margin: 0 0 8px;
+}
+.vc-check-desc {
+  font-size: 13.5px; line-height: 1.55; letter-spacing: -0.15px;
+  color: rgba(255,255,255,0.48); margin: 0 0 20px;
+}
+
+.vc-check-foot {
+  margin-top: auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.vc-check-tag {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase;
+  color: rgba(255,255,255,0.42);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 6px; padding: 3px 8px;
+  white-space: nowrap;
+}
+.vc-check-sev {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  color: rgb(var(--sev)); white-space: nowrap;
+}
+/* Pulse ring animates transform/opacity only — no per-frame repaint */
+.vc-check-dot {
+  position: relative;
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: rgb(var(--sev));
+}
+.vc-check-dot::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  border: 1px solid rgba(var(--sev), 0.6);
+  animation: vc-sev-pulse 2.4s ease-out infinite;
+}
+@keyframes vc-sev-pulse {
+  0%   { transform: scale(1);   opacity: 0.85; }
+  70%  { transform: scale(3.2); opacity: 0;    }
+  100% { transform: scale(3.2); opacity: 0;    }
+}
+
+/* Tablet: 2-up, span-2 tiles stay full width */
+@media (max-width: 900px) {
+  .vc-checks-sec  { padding: 88px 0 92px; }
+  .vc-checks-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .vc-checks-grid    { grid-template-columns: 1fr; gap: 12px; }
+  .vc-checks-grid > * { grid-column: span 1 !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-rise         { opacity: 1; transform: none; filter: none; transition: none; }
+  .vc-check,
+  .vc-check-icon   { transition: none; }
+  .vc-check:hover  { transform: none; }
+  .vc-check-dot    { animation: none; }
+  .vc-checks-aura  { animation: none; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   APP DESIGN SYSTEM — "VigiliCloud Redesign"
+
+   Apple-derived: Action Blue is the only accent, 600 for display
+   and 400 for body, hairline borders instead of glow, and a single
+   elevation reserved for overlays. Dark is the default surface;
+   html[data-theme="light"] swaps the same variables for the
+   parchment counterpart. Every app class below is prefixed .vc-.
+════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Surfaces */
+  --vc-canvas:  #000000;
+  --vc-raised:  #1c1c1e;
+  --vc-side:    #0a0a0b;
+  --vc-inset:   rgba(0,0,0,0.40);
+  --vc-hairline: rgba(255,255,255,0.08);
+  --vc-hairline-soft: rgba(255,255,255,0.06);
+  --vc-hairline-strong: rgba(255,255,255,0.12);
+  --vc-chip:    rgba(255,255,255,0.06);
+  --vc-fill:    rgba(255,255,255,0.03);
+
+  /* Text ramp */
+  --vc-text:    #f5f5f7;
+  --vc-text-2:  #c7c7cc;
+  --vc-muted:   #8e8e93;
+  --vc-dim:     #6e6e73;
+  --vc-faint:   #48484a;
+
+  /* Action Blue — the only accent */
+  --vc-accent:      #0066cc;  /* fills: primary buttons, meters */
+  --vc-accent-text: #2997ff;  /* text and icons on dark */
+  --vc-accent-wash: rgba(0,102,204,0.16);
+
+  /* Severity + state */
+  --vc-critical: #ff453a;
+  --vc-high:     #ff9f0a;
+  --vc-medium:   #ffd60a;
+  --vc-low:      #64d2ff;
+  --vc-ok:       #30d158;
+
+  /* Geometry */
+  --vc-r-card:  18px;
+  --vc-r-panel: 14px;
+  --vc-r-field: 10px;
+  --vc-r-chip:  8px;
+  --vc-topbar:  58px;
+  --vc-sidebar: 248px;
+  --vc-gap:     14px;
+  --vc-pad:     28px;
+}
+
+html[data-theme="light"] {
+  --vc-canvas:  #f5f5f7;
+  --vc-raised:  #ffffff;
+  --vc-side:    #ffffff;
+  --vc-inset:   #fafafc;
+  --vc-hairline: #e5e5e7;
+  --vc-hairline-soft: #f0f0f0;
+  --vc-hairline-strong: #e0e0e0;
+  --vc-chip:    #f0f0f2;
+  --vc-fill:    #fafafc;
+
+  --vc-text:    #1d1d1f;
+  --vc-text-2:  #1d1d1f;
+  --vc-muted:   #6e6e73;
+  --vc-dim:     #8e8e93;
+  --vc-faint:   #c7c7cc;
+
+  --vc-accent-text: #0066cc;
+  --vc-accent-wash: rgba(0,102,204,0.10);
+
+  --vc-critical: #d70015;
+  --vc-high:     #c2410c;
+  --vc-medium:   #b45309;
+  --vc-low:      #0071e3;
+  --vc-ok:       #1a7f37;
+}
+
+/* ── Shell ───────────────────────────────────────────────── */
+.vc-app {
+  display: flex;
+  min-height: 100vh;
+  background: var(--vc-canvas);
+  font-family: var(--fft);
+}
+.vc-main {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  background: var(--vc-canvas);
+}
+.vc-content {
+  flex: 1;
+  padding: var(--vc-pad);
+  display: flex; flex-direction: column; gap: var(--vc-gap);
+}
+
+/* ── Top bar ─────────────────────────────────────────────── */
+.vc-topbar {
+  height: var(--vc-topbar); flex: none;
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 var(--vc-pad);
+  border-bottom: 1px solid var(--vc-hairline);
+  background: color-mix(in srgb, var(--vc-canvas) 82%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+.vc-crumbs {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 13px; letter-spacing: -0.15px; min-width: 0;
+}
+.vc-crumbs-root { color: var(--vc-dim); white-space: nowrap; }
+.vc-crumbs-sep  { color: var(--vc-faint); }
+.vc-crumbs-leaf { color: var(--vc-text); font-weight: 600; white-space: nowrap; }
+.vc-topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.vc-side {
+  width: var(--vc-sidebar); flex: none;
+  position: sticky; top: 0; align-self: flex-start;
+  height: 100vh;
+  display: flex; flex-direction: column;
+  background: var(--vc-side);
+  border-right: 1px solid var(--vc-hairline);
+  z-index: 40;
+}
+.vc-side-brand { display: flex; align-items: center; gap: 10px; padding: 20px 20px 16px; }
+.vc-side-mark {
+  width: 28px; height: 28px; flex: none; border-radius: 8px;
+  background: var(--vc-accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; letter-spacing: -0.3px;
+}
+.vc-side-wordmark { font-size: 15px; font-weight: 600; letter-spacing: -0.35px; color: var(--vc-text); line-height: 1.1; }
+.vc-side-wordsub  { font-size: 10.5px; letter-spacing: 0.04em; color: var(--vc-dim); line-height: 1.1; }
+
+.vc-ws {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 12px 20px; padding: 9px 11px;
+  border-radius: 11px; border: 1px solid var(--vc-hairline);
+  background: var(--vc-fill);
+  text-align: left; width: calc(100% - 24px);
+}
+.vc-ws-avatar {
+  width: 26px; height: 26px; flex: none; border-radius: 7px;
+  background: var(--vc-chip); color: var(--vc-text);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+}
+.vc-ws-name { font-size: 12.5px; font-weight: 600; letter-spacing: -0.15px; color: var(--vc-text); line-height: 1.25; }
+.vc-ws-plan { font-size: 10.5px; color: var(--vc-dim); line-height: 1.3; }
+
+.vc-nav { flex: 1; display: flex; flex-direction: column; gap: 22px; padding: 4px 12px 0; overflow-y: auto; }
+.vc-nav-group { display: flex; flex-direction: column; gap: 2px; }
+.vc-nav-title {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.13em;
+  text-transform: uppercase; color: var(--vc-dim); padding: 0 11px 6px;
+}
+.vc-nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 8px 11px; border-radius: 9px;
+  color: var(--vc-muted); background: transparent;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.vc-nav-item:hover { background: var(--vc-chip); color: var(--vc-text); }
+.vc-nav-item svg { flex: none; stroke: currentColor; }
+.vc-nav-label { flex: 1; font-size: 13.5px; font-weight: 400; letter-spacing: -0.15px; }
+.vc-nav-item.is-active { background: var(--vc-accent-wash); color: var(--vc-accent-text); }
+.vc-nav-item.is-active .vc-nav-label { font-weight: 600; }
+.vc-nav-badge {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--vc-dim); background: var(--vc-chip);
+  border-radius: 999px; padding: 2px 7px;
+}
+.vc-nav-item.is-active .vc-nav-badge { color: var(--vc-accent-text); }
+
+.vc-side-foot { padding: 14px 12px 16px; border-top: 1px solid var(--vc-hairline); }
+.vc-side-user { display: flex; align-items: center; gap: 10px; padding: 6px 8px; width: 100%; text-align: left; border-radius: 9px; }
+.vc-side-user:hover { background: var(--vc-chip); }
+.vc-side-avatar {
+  width: 28px; height: 28px; flex: none; border-radius: 999px;
+  background: var(--vc-chip); color: var(--vc-text);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600;
+}
+.vc-side-name { font-size: 12.5px; font-weight: 600; letter-spacing: -0.15px; color: var(--vc-text); line-height: 1.25; }
+.vc-side-role {
+  font-size: 10.5px; color: var(--vc-dim); line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Page heading ────────────────────────────────────────── */
+.vc-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.vc-h1 {
+  margin: 0 0 6px; font-size: 30px; font-weight: 600;
+  line-height: 1.1; letter-spacing: -0.7px; color: var(--vc-text);
+}
+.vc-h1-lg { font-size: 36px; letter-spacing: -0.9px; line-height: 1.08; margin-bottom: 8px; }
+.vc-sub  { margin: 0; font-size: 14px; line-height: 1.45; letter-spacing: -0.2px; color: var(--vc-muted); text-wrap: pretty; }
+.vc-sub-lg { font-size: 17px; line-height: 1.47; letter-spacing: -0.374px; }
+.vc-eyebrow {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--vc-muted);
+}
+
+/* ── Surfaces ────────────────────────────────────────────── */
+.vc-card {
+  background: var(--vc-raised);
+  border: 1px solid var(--vc-hairline);
+  border-radius: var(--vc-r-card);
+  padding: 20px 22px;
+}
+.vc-card-flush { padding: 0; overflow: hidden; }
+.vc-card-title { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; color: var(--vc-text); }
+.vc-card-sub   { margin-top: 3px; font-size: 12.5px; color: var(--vc-muted); }
+.vc-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 18px 22px 14px; border-bottom: 1px solid var(--vc-hairline);
+}
+.vc-card-foot { padding: 14px 22px; border-top: 1px solid var(--vc-hairline); }
+
+/* Stat tile */
+.vc-stat-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--vc-muted); margin-bottom: 10px; }
+.vc-stat { font-size: 36px; font-weight: 600; letter-spacing: -1px; line-height: 1; color: var(--vc-text); }
+.vc-stat-sm { font-size: 30px; letter-spacing: -0.8px; }
+.vc-stat-note { margin-top: 9px; font-size: 12.5px; color: var(--vc-muted); }
+
+/* ── Controls ────────────────────────────────────────────── */
+.vc-btn {
+  height: 32px; padding: 0 12px; border-radius: var(--vc-r-chip);
+  border: 1px solid var(--vc-hairline-strong); background: transparent;
+  color: var(--vc-muted); font-family: inherit; font-size: 12.5px;
+  font-weight: 400; letter-spacing: -0.15px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  white-space: nowrap;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.vc-btn:hover:not(:disabled) { color: var(--vc-text); background: var(--vc-chip); }
+.vc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.vc-btn-primary {
+  height: 32px; padding: 0 16px; border-radius: 999px;
+  border: none; background: var(--vc-accent); color: #ffffff;
+  font-family: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: -0.15px;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  white-space: nowrap; transition: filter 0.18s ease;
+}
+.vc-btn-primary:hover:not(:disabled) { filter: brightness(1.12); }
+.vc-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.vc-btn-secondary {
+  height: 32px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--vc-hairline-strong); background: transparent;
+  color: var(--vc-text); font-family: inherit; font-size: 12.5px; font-weight: 600;
+  letter-spacing: -0.15px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  white-space: nowrap; transition: background-color 0.18s ease;
+}
+.vc-btn-secondary:hover:not(:disabled) { background: var(--vc-chip); }
+.vc-btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.vc-btn-lg { height: 40px; padding: 0 22px; font-size: 13.5px; }
+.vc-btn-xs { height: 28px; padding: 0 13px; font-size: 12px; font-weight: 600; color: var(--vc-text); }
+.vc-btn-block { width: 100%; }
+
+.vc-link { color: var(--vc-accent-text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.vc-link:hover { text-decoration: underline; }
+
+/* Filter row */
+.vc-filters {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  background: var(--vc-raised); border: 1px solid var(--vc-hairline);
+  border-radius: var(--vc-r-panel); padding: 12px 16px;
+}
+.vc-search {
+  display: flex; align-items: center; gap: 8px;
+  height: 32px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--vc-hairline-strong); background: var(--vc-fill);
+  flex: 1; min-width: 220px;
+}
+.vc-search input {
+  flex: 1; min-width: 0; border: none; outline: none; background: transparent;
+  font-size: 12.5px; color: var(--vc-text);
+}
+.vc-search input::placeholder { color: var(--vc-dim); }
+
+.vc-chip {
+  height: 32px; display: inline-flex; align-items: center; gap: 8px;
+  padding: 0 14px; border-radius: var(--vc-r-chip);
+  border: 1px solid var(--vc-hairline-strong); background: transparent;
+  font-family: inherit; font-size: 12.5px; color: var(--vc-text-2);
+  cursor: pointer; white-space: nowrap;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.vc-chip:hover { background: var(--vc-chip); }
+.vc-chip.is-on {
+  border-color: transparent; background: var(--vc-accent-wash);
+  color: var(--vc-accent-text); font-weight: 600;
+}
+
+/* Segmented control */
+.vc-seg { display: flex; border: 1px solid var(--vc-hairline-strong); border-radius: 9px; overflow: hidden; }
+.vc-seg > button {
+  padding: 7px 15px; font-family: inherit; font-size: 12.5px;
+  color: var(--vc-muted); background: transparent; border: none; cursor: pointer;
+}
+.vc-seg > button + button { border-left: 1px solid var(--vc-hairline-strong); }
+.vc-seg > button.is-on { font-weight: 600; color: var(--vc-text); background: var(--vc-chip); }
+
+/* Fields */
+.vc-label {
+  display: block; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--vc-muted); margin-bottom: 7px;
+}
+.vc-input, .vc-select {
+  width: 100%; height: 38px; border-radius: var(--vc-r-field);
+  border: 1px solid var(--vc-hairline-strong); background: var(--vc-fill);
+  padding: 0 13px; font-family: inherit; font-size: 13.5px; color: var(--vc-text);
+  outline: none; transition: border-color 0.18s ease;
+}
+.vc-textarea {
+  width: 100%; min-height: 62px; border-radius: var(--vc-r-field);
+  border: 1px solid var(--vc-hairline-strong); background: var(--vc-fill);
+  padding: 11px 13px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px; line-height: 1.6; color: var(--vc-text);
+  outline: none; resize: vertical; word-break: break-all;
+}
+.vc-input:focus, .vc-select:focus, .vc-textarea:focus { border-color: var(--vc-accent); }
+.vc-input::placeholder, .vc-textarea::placeholder { color: var(--vc-dim); }
+.vc-input-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
+.vc-select { appearance: none; padding-right: 32px; cursor: pointer; }
+
+/* Toggle */
+.vc-toggle {
+  width: 44px; height: 26px; border-radius: 999px; position: relative;
+  flex: none; border: none; cursor: pointer;
+  background: var(--vc-chip); transition: background-color 0.2s ease;
+}
+.vc-toggle::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 999px; background: #fff;
+  transition: transform 0.2s cubic-bezier(0.22,1,0.36,1);
+}
+.vc-toggle.is-on { background: var(--vc-accent); }
+.vc-toggle.is-on::after { transform: translateX(18px); }
+
+/* ── Tables ──────────────────────────────────────────────── */
+.vc-thead {
+  display: grid; gap: 16px; padding: 13px 22px;
+  border-bottom: 1px solid var(--vc-hairline);
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--vc-dim);
+}
+.vc-tr {
+  display: grid; gap: 16px; padding: 15px 22px; align-items: center;
+  border-bottom: 1px solid var(--vc-hairline-soft);
+  transition: background-color 0.15s ease;
+}
+.vc-tr:last-child { border-bottom: none; }
+.vc-tr-hover:hover { background: var(--vc-fill); cursor: pointer; }
+.vc-tr.is-selected { background: rgba(0,102,204,0.05); }
+.vc-tr.is-error    { background: rgba(255,69,58,0.04); }
+.vc-tr.is-done     { opacity: 0.55; }
+.vc-cell-strong { font-size: 13.5px; font-weight: 600; letter-spacing: -0.2px; color: var(--vc-text); }
+.vc-cell        { font-size: 12.5px; color: var(--vc-text-2); }
+.vc-cell-sub    { margin-top: 2px; font-size: 11.5px; color: var(--vc-dim); }
+
+/* List rows (non-grid) */
+.vc-list-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 22px; border-bottom: 1px solid var(--vc-hairline-soft);
+}
+.vc-list-row:last-child { border-bottom: none; }
+
+.vc-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.vc-empty { padding: 40px 22px; text-align: center; font-size: 13.5px; color: var(--vc-muted); }
+
+/* ── Severity + status ───────────────────────────────────── */
+.vc-sev-critical { color: var(--vc-critical); }
+.vc-sev-high     { color: var(--vc-high); }
+.vc-sev-medium   { color: var(--vc-medium); }
+.vc-sev-low      { color: var(--vc-low); }
+.vc-ok           { color: var(--vc-ok); }
+.vc-neutral      { color: var(--vc-muted); }
+
+.vc-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; background: currentColor; }
+.vc-dot-lg { width: 7px; height: 7px; }
+
+/* Severity count chip — "4 C". Colour comes from the .vc-sev-* class. */
+.vc-count {
+  font-size: 11.5px; font-weight: 600; border-radius: 6px; padding: 3px 8px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  white-space: nowrap;
+}
+.vc-count-zero { color: var(--vc-faint); background: var(--vc-fill); }
+
+.vc-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 600; border-radius: 999px; padding: 3px 9px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  white-space: nowrap;
+}
+.vc-pill-outline {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  border: 1px solid currentColor; border-radius: 999px; padding: 3px 10px;
+}
+.vc-tag {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--vc-muted); border: 1px solid var(--vc-hairline-strong);
+  border-radius: 6px; padding: 3px 7px; white-space: nowrap;
+}
+
+/* ── Meters ──────────────────────────────────────────────── */
+.vc-meter { height: 5px; border-radius: 999px; background: var(--vc-chip); overflow: hidden; }
+.vc-meter > i { display: block; height: 100%; border-radius: 999px; background: currentColor; }
+.vc-meter-thin { height: 3px; }
+.vc-meter-thick { height: 6px; }
+
+/* ── Messages ────────────────────────────────────────────── */
+.vc-note {
+  display: flex; align-items: flex-start; gap: 12px;
+  border-radius: var(--vc-r-panel); padding: 13px 16px;
+  font-size: 13px; line-height: 1.5; border: 1px solid var(--vc-hairline);
+  background: var(--vc-raised); color: var(--vc-text-2);
+}
+.vc-note-error   { border-color: rgba(255,69,58,0.35);  background: rgba(255,69,58,0.07);  color: var(--vc-critical); }
+.vc-note-success { border-color: rgba(48,209,88,0.35);  background: rgba(48,209,88,0.07);  color: var(--vc-ok); }
+.vc-note-info    { border-color: rgba(0,102,204,0.35);  background: rgba(0,102,204,0.07);  color: var(--vc-accent-text); }
+
+/* ── Skeletons ───────────────────────────────────────────── */
+.vc-skel { border-radius: var(--vc-r-chip); background: var(--vc-chip); animation: vc-pulse 1.5s ease-in-out infinite; }
+@keyframes vc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.vc-spinner {
+  width: 12px; height: 12px; border-radius: 999px; display: inline-block; flex: none;
+  border: 2px solid color-mix(in srgb, var(--vc-accent-text) 30%, transparent);
+  border-top-color: var(--vc-accent-text);
+  animation: vc-spin 0.8s linear infinite;
+}
+@keyframes vc-spin { to { transform: rotate(360deg); } }
+
+/* ── Grid helpers ────────────────────────────────────────── */
+.vc-grid    { display: grid; gap: var(--vc-gap); }
+.vc-grid-2  { grid-template-columns: repeat(2, 1fr); }
+.vc-grid-3  { grid-template-columns: repeat(3, 1fr); }
+.vc-grid-4  { grid-template-columns: repeat(4, 1fr); }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .vc-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 1024px) {
+  :root { --vc-pad: 20px; }
+  .vc-side { position: fixed; left: 0; top: 0; transform: translateX(-100%); transition: transform 0.24s cubic-bezier(0.22,1,0.36,1); }
+  .vc-side.is-open { transform: none; box-shadow: 0 24px 60px rgba(0,0,0,0.6); }
+  .vc-side-scrim { position: fixed; inset: 0; z-index: 35; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
+  .vc-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .vc-thead  { display: none; }
+  .vc-tr     { grid-template-columns: 1fr !important; gap: 6px; }
+}
+@media (max-width: 720px) {
+  .vc-grid-2, .vc-grid-3, .vc-grid-4 { grid-template-columns: 1fr; }
+  .vc-page-head { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .vc-h1 { font-size: 26px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vc-skel, .vc-spinner { animation: none; }
+  .vc-side { transition: none; }
 }

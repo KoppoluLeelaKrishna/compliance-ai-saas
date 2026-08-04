@@ -9,11 +9,11 @@ interface CardProps {
 
 export function Card({ children, className = "", title, subtitle }: CardProps) {
   return (
-    <div className={`rounded-3xl border border-white/10 bg-white/5 p-6 ${className}`}>
+    <div className={`vc-card ${className}`}>
       {(title || subtitle) && (
         <div className="mb-4">
-          {title && <h3 className="text-xl font-bold">{title}</h3>}
-          {subtitle && <p className="text-sm text-neutral-400">{subtitle}</p>}
+          {title && <h3 className="vc-card-title">{title}</h3>}
+          {subtitle && <p className="vc-card-sub">{subtitle}</p>}
         </div>
       )}
       {children}
@@ -21,17 +21,31 @@ export function Card({ children, className = "", title, subtitle }: CardProps) {
   );
 }
 
-export function Badge({ children, className = "", variant = "neutral" }: { children: React.ReactNode, className?: string, variant?: string }) {
-  const variants: Record<string, string> = {
-    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-    yellow: "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
-    red: "border-red-500/30 bg-red-500/10 text-red-300",
-    neutral: "border-white/10 bg-white/5 text-neutral-300",
+/**
+ * Status pill. Variants name a meaning, not a colour — the tone class maps onto
+ * the design tokens. The legacy palette names stay as aliases so existing
+ * callers keep working.
+ */
+export function Badge({
+  children,
+  className = "",
+  variant = "neutral",
+}: {
+  children: React.ReactNode;
+  className?: string;
+  variant?: string;
+}) {
+  const tones: Record<string, string> = {
+    accent: "text-[var(--vc-accent-text)]",
+    success: "vc-ok",
+    warning: "vc-sev-high",
+    danger: "vc-sev-critical",
+    neutral: "vc-neutral",
+    // legacy aliases
+    emerald: "vc-ok",
+    yellow: "vc-sev-high",
+    red: "vc-sev-critical",
   };
 
-  return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${variants[variant] || variants.neutral} ${className}`}>
-      {children}
-    </span>
-  );
+  return <span className={`vc-pill ${tones[variant] ?? tones.neutral} ${className}`}>{children}</span>;
 }

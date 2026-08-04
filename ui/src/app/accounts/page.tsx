@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import Link from "next/link";
 import { Account, BillingMe } from "@/types";
+import TopbarActions from "@/components/app/TopbarActions";
 
 type AccountForm = {
   customer_name: string;
@@ -24,16 +26,24 @@ const emptyForm: AccountForm = {
   is_active: true,
 };
 
-const STATUS_CONFIG: Record<string, { border: string; bg: string; text: string }> = {
-  ACTIVE:   { border: "border-emerald-500/30", bg: "bg-emerald-500/10", text: "text-emerald-400" },
-  PENDING:  { border: "border-yellow-500/30",  bg: "bg-yellow-500/10",  text: "text-yellow-400"  },
-  INACTIVE: { border: "border-red-500/30",     bg: "bg-red-500/10",     text: "text-red-400"     },
-  ERROR:    { border: "border-red-500/30",     bg: "bg-red-500/10",     text: "text-red-400"     },
+const STATUS_TONE: Record<string, string> = {
+  ACTIVE: "vc-ok",
+  PENDING: "vc-sev-medium",
+  INACTIVE: "vc-neutral",
+  ERROR: "vc-sev-critical",
 };
 
-function statusCfg(status?: string) {
-  return STATUS_CONFIG[status?.toUpperCase() ?? ""] ?? STATUS_CONFIG.PENDING;
+function statusTone(status?: string) {
+  return STATUS_TONE[status?.toUpperCase() ?? ""] ?? "vc-sev-medium";
 }
+
+function statusLabel(status?: string) {
+  const s = (status || "PENDING").toUpperCase();
+  return s[0] + s.slice(1).toLowerCase();
+}
+
+/** Column track for the connected-accounts register. */
+const ACCOUNT_COLS = "1fr 160px 130px 120px 190px";
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -175,277 +185,249 @@ export default function AccountsPage() {
   }
 
   return (
-    <main className="space-y-5 pb-24">
+    <>
+      <TopbarActions>
+        <Link href="/onboarding" className="vc-btn">
+          CloudFormation template
+        </Link>
+        <button type="button" className="vc-btn-primary" onClick={startCreate} disabled={limitReached}>
+          Connect account
+        </button>
+      </TopbarActions>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] via-transparent to-emerald-500/[0.02] p-6">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-emerald-500/[0.05] blur-3xl" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/25 bg-emerald-500/10">
-              <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Account Management</h1>
-              <p className="mt-0.5 text-sm text-neutral-500">Connect and manage customer AWS accounts for compliance scanning</p>
-              {!loading && (
-                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <span className="text-neutral-500">{accounts.length} connected</span>
-                  <span className="font-medium text-emerald-400">{activeCount} active</span>
-                  {!loadingBilling && <span className="font-medium text-violet-400">{currentPlan} plan</span>}
-                </div>
-              )}
-            </div>
+      <div className="vc-page-head">
+        <div>
+          <h1 className="vc-h1">Accounts</h1>
+          <p className="vc-sub">
+            Read-only IAM roles. Credentials are never stored — access is assumed per scan.
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="mb-1.5 text-[12.5px] text-[var(--vc-muted)]">
+            {loadingBilling ? "Checking plan…" : `${accountsUsed} of ${accountLimit} on the ${currentPlan} plan`}
           </div>
-          <button
-            type="button"
-            onClick={loadAccounts}
-            disabled={loading}
-            className="shrink-0 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-2 text-xs font-medium text-neutral-400 hover:bg-white/[0.06] hover:text-white disabled:opacity-40 transition-colors"
-          >
-            {loading ? "Refreshing…" : "↺ Refresh"}
-          </button>
+          <div className={`vc-meter vc-meter-thin w-[200px] ${usagePct >= 100 ? "vc-sev-critical" : usagePct >= 75 ? "vc-sev-high" : "text-[var(--vc-accent)]"}`}>
+            <i style={{ width: `${Math.min(usagePct, 100)}%` }} />
+          </div>
         </div>
       </div>
 
-      {/* ── Stat tiles ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Total Accounts", value: loading ? "…" : accounts.length, color: "text-white" },
-          { label: "Active Accounts", value: loading ? "…" : activeCount, color: "text-emerald-400" },
-          { label: "Current Plan",   value: loadingBilling ? "…" : currentPlan, color: "text-violet-400" },
-          { label: "Account Usage",  value: loadingBilling ? "…" : `${accountsUsed}/${accountLimit}`, color: usagePct >= 100 ? "text-red-400" : usagePct >= 75 ? "text-yellow-400" : "text-emerald-400" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{label}</div>
-            <div className={`mt-2 text-3xl font-bold ${color}`}>{value}</div>
-            {label === "Account Usage" && !loadingBilling && (
-              <div className="mt-3 h-[2px] rounded-full bg-white/5">
-                <div
-                  className={`h-[2px] rounded-full transition-all duration-700 ${usagePct >= 100 ? "bg-red-500" : usagePct >= 75 ? "bg-yellow-500" : "bg-emerald-500"}`}
-                  style={{ width: `${Math.min(usagePct, 100)}%` }}
-                />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      {error && <div className="vc-note vc-note-error">{error}</div>}
+      {message && !error && <div className="vc-note vc-note-success">{message}</div>}
 
-      {/* ── Status banner ───────────────────────────────────────────────── */}
-      {(message || error) && (
-        <div className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${error ? "border-red-500/20 bg-red-500/[0.07] text-red-300" : "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-300"}`}>
-          <span className="mt-0.5">{error ? "✕" : "✓"}</span>
-          <span>{error || message}</span>
-        </div>
-      )}
-
-      {/* ── Limit warning ───────────────────────────────────────────────── */}
       {limitReached && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-yellow-500/20 bg-yellow-500/[0.06] p-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="font-semibold text-yellow-300">Account limit reached</div>
-            <div className="mt-0.5 text-sm text-yellow-100/70">
-              Your {currentPlan} plan allows up to {accountLimit} connected account{accountLimit !== 1 ? "s" : ""}. Upgrade to add more.
+        <div className="vc-note items-center">
+          <div className="flex-1">
+            <div className="font-semibold text-[var(--vc-text)]">Account limit reached</div>
+            <div className="mt-0.5 text-[12.5px] text-[var(--vc-muted)]">
+              The {currentPlan} plan allows up to {accountLimit} connected account{accountLimit !== 1 ? "s" : ""}.
             </div>
           </div>
-          <a href="/plans" className="shrink-0 rounded-xl bg-yellow-500/20 px-4 py-2 text-sm font-medium text-yellow-300 hover:bg-yellow-500/30 transition-colors">
-            Upgrade plan →
-          </a>
+          <Link href="/plans" className="vc-btn-primary">Upgrade plan</Link>
         </div>
       )}
 
-      {/* ── Main layout ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[420px_1fr]">
+      <div className="vc-grid" style={{ gridTemplateColumns: "400px 1fr" }}>
 
-        {/* ── Add / Edit form ──────────────────────────────────────────── */}
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-5 flex items-center justify-between">
+        {/* ── Connect / edit panel ─────────────────────────────────────── */}
+        <form onSubmit={submitForm} className="vc-card !p-6 flex flex-col">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold">{editing ? "Edit Account" : "Connect Account"}</h2>
-              <p className="mt-0.5 text-xs text-neutral-500">{editing ? "Update the account configuration below." : "Fill in the AWS account details to connect."}</p>
+              <div className="text-[17px] font-semibold tracking-[-0.374px] text-[var(--vc-text)]">
+                {editing ? "Edit account" : "Connect an account"}
+              </div>
+              <div className="mt-1.5 text-[12.5px] leading-[1.5] text-[var(--vc-muted)]">
+                {editing
+                  ? "Update the role and region VigiliCloud assumes for this account."
+                  : "Deploy the role with one CloudFormation stack, then paste the ARN."}
+              </div>
             </div>
             {editing && (
-              <button type="button" onClick={startCreate} className="text-xs text-neutral-500 hover:text-white transition-colors">
-                ✕ Clear
+              <button type="button" onClick={startCreate} className="vc-link !text-[var(--vc-muted)]">
+                Clear
               </button>
             )}
           </div>
 
-          <form onSubmit={submitForm} className="space-y-4">
-            {[
-              { key: "customer_name" as const, label: "Customer Name", placeholder: "e.g. Acme Corp" },
-              { key: "account_name" as const,  label: "Account Name",  placeholder: "e.g. Production" },
-              { key: "aws_account_id" as const, label: "AWS Account ID", placeholder: "12-digit ID" },
-            ].map(({ key, label, placeholder }) => (
-              <div key={key} className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{label}</label>
-                <input
-                  value={form[key] as string}
-                  onChange={e => onChange(key, e.target.value)}
-                  className="w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/40 focus:outline-none transition-colors"
-                  placeholder={placeholder}
-                  required
-                  disabled={!editing && limitReached}
-                />
-              </div>
-            ))}
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Role ARN</label>
-              <textarea
-                value={form.role_arn}
-                onChange={e => onChange("role_arn", e.target.value)}
-                className="min-h-[72px] w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/40 focus:outline-none transition-colors resize-none"
-                placeholder="arn:aws:iam::123456789012:role/VigiliCloud"
+          <div className="mt-5 flex flex-col gap-4">
+            <div>
+              <label className="vc-label" htmlFor="acct-client">Client</label>
+              <input
+                id="acct-client"
+                className="vc-input"
+                value={form.customer_name}
+                onChange={e => onChange("customer_name", e.target.value)}
+                placeholder="Acme Retail"
                 required
                 disabled={!editing && limitReached}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Region</label>
+            <div>
+              <label className="vc-label" htmlFor="acct-name">Account name</label>
+              <input
+                id="acct-name"
+                className="vc-input"
+                value={form.account_name}
+                onChange={e => onChange("account_name", e.target.value)}
+                placeholder="Production"
+                required
+                disabled={!editing && limitReached}
+              />
+            </div>
+
+            <div className="vc-grid vc-grid-2 !gap-3">
+              <div>
+                <label className="vc-label" htmlFor="acct-aws-id">AWS account ID</label>
                 <input
+                  id="acct-aws-id"
+                  className="vc-input vc-input-mono"
+                  value={form.aws_account_id}
+                  onChange={e => onChange("aws_account_id", e.target.value)}
+                  placeholder="489411223344"
+                  inputMode="numeric"
+                  required
+                  disabled={!editing && limitReached}
+                />
+              </div>
+              <div>
+                <label className="vc-label" htmlFor="acct-region">Region</label>
+                <input
+                  id="acct-region"
+                  className="vc-input"
                   value={form.region}
                   onChange={e => onChange("region", e.target.value)}
-                  className="w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/40 focus:outline-none transition-colors"
                   placeholder="us-east-1"
                   required
                   disabled={!editing && limitReached}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">External ID</label>
-                <input
-                  value={form.external_id}
-                  onChange={e => onChange("external_id", e.target.value)}
-                  className="w-full rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/40 focus:outline-none transition-colors"
-                  placeholder="Optional"
-                  disabled={!editing && limitReached}
-                />
-              </div>
             </div>
 
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5 transition-colors hover:bg-white/[0.04]">
+            <div>
+              <label className="vc-label" htmlFor="acct-arn">Role ARN</label>
+              <textarea
+                id="acct-arn"
+                className="vc-textarea"
+                value={form.role_arn}
+                onChange={e => onChange("role_arn", e.target.value)}
+                placeholder="arn:aws:iam::489411223344:role/VigiliCloudReadOnly"
+                required
+                disabled={!editing && limitReached}
+              />
+            </div>
+
+            <div>
+              <label className="vc-label" htmlFor="acct-ext">External ID</label>
+              <input
+                id="acct-ext"
+                className="vc-input vc-input-mono"
+                value={form.external_id}
+                onChange={e => onChange("external_id", e.target.value)}
+                placeholder="Optional"
+                disabled={!editing && limitReached}
+              />
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-[var(--vc-hairline-strong)] bg-[var(--vc-fill)] px-3.5 py-3">
               <input
                 type="checkbox"
                 checked={form.is_active}
                 onChange={e => onChange("is_active", e.target.checked)}
                 disabled={!editing && limitReached}
-                className="h-4 w-4 rounded border-white/20 bg-black text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                className="h-4 w-4 accent-[var(--vc-accent)]"
               />
-              <span className="text-sm font-medium">Account is active</span>
+              <span className="text-[13.5px] text-[var(--vc-text)]">Account is active</span>
             </label>
+          </div>
 
-            <button
-              type="submit"
-              disabled={saving || (!editing && limitReached)}
-              className="w-full rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-bold text-black hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-            >
-              {saving ? "Saving…" : editing ? "Update Account" : "Connect Account"}
+          <div className="mt-auto flex gap-2.5 pt-6">
+            <button type="submit" className="vc-btn-primary vc-btn-lg flex-1" disabled={saving || (!editing && limitReached)}>
+              {saving ? "Saving…" : editing ? "Update account" : "Connect account"}
             </button>
-          </form>
-        </section>
+            {editing && (
+              <button
+                type="button"
+                className="vc-btn-secondary vc-btn-lg"
+                onClick={() => testConnection(editing.id)}
+                disabled={testingId === editing.id}
+              >
+                {testingId === editing.id ? "Testing…" : "Test"}
+              </button>
+            )}
+          </div>
+        </form>
 
-        {/* ── Connected accounts table ──────────────────────────────────── */}
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-5 flex items-center justify-between">
+        {/* ── Connected accounts register ──────────────────────────────── */}
+        <div className="vc-card vc-card-flush flex flex-col">
+          <div className="vc-card-head">
             <div>
-              <h2 className="text-lg font-bold">Connected Accounts</h2>
-              <p className="mt-0.5 text-xs text-neutral-500">
-                {accounts.length} account{accounts.length !== 1 ? "s" : ""} configured
-              </p>
+              <div className="vc-card-title">Connected accounts</div>
+              <div className="vc-card-sub">
+                {accounts.length} configured · {activeCount} active
+              </div>
             </div>
+            <button type="button" className="vc-btn" onClick={loadAccounts} disabled={loading}>
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+
+          <div className="vc-thead" style={{ gridTemplateColumns: ACCOUNT_COLS }}>
+            <span>Client / account</span>
+            <span>AWS ID</span>
+            <span>Region</span>
+            <span>Status</span>
+            <span className="text-right">Actions</span>
           </div>
 
           {loading ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-20 w-full animate-pulse rounded-2xl bg-white/[0.04]" />
-              ))}
-            </div>
+            <div className="p-5"><div className="vc-skel h-14 w-full" /></div>
           ) : accounts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-white/[0.07] py-16 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.03]">
-                <svg className="h-6 w-6 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              </div>
-              <div>
-                <div className="font-semibold text-white">No accounts connected</div>
-                <p className="mt-1 text-sm text-neutral-500">Connect your first AWS account to start running compliance scans.</p>
-              </div>
+            <div className="vc-empty">
+              No accounts connected yet — fill in the panel on the left to add your first.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-white/[0.06] text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                    <th className="pb-3 pr-4 font-medium">Customer / Account</th>
-                    <th className="pb-3 pr-4 font-medium">AWS ID</th>
-                    <th className="pb-3 pr-4 font-medium">Region</th>
-                    <th className="pb-3 pr-4 font-medium">Status</th>
-                    <th className="pb-3 text-right font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04]">
-                  {accounts.map(account => {
-                    const cfg = statusCfg(account.status);
-                    return (
-                      <tr key={account.id} className="group transition-colors hover:bg-white/[0.02]">
-                        <td className="py-4 pr-4">
-                          <div className="font-semibold text-white">{account.customer_name}</div>
-                          <div className="mt-0.5 text-xs text-neutral-500">{account.account_name}</div>
-                        </td>
-                        <td className="py-4 pr-4 font-mono text-xs text-neutral-400">
-                          {account.aws_account_id}
-                        </td>
-                        <td className="py-4 pr-4 text-xs text-neutral-400">
-                          {account.region || "—"}
-                        </td>
-                        <td className="py-4 pr-4">
-                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${cfg.border} ${cfg.bg} ${cfg.text}`}>
-                            {account.status || "PENDING"}
-                          </span>
-                        </td>
-                        <td className="py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => startEdit(account)}
-                              className="rounded-lg border border-white/[0.07] px-3 py-1.5 text-xs font-medium text-neutral-400 hover:bg-white/[0.05] hover:text-white transition-colors"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => testConnection(account.id)}
-                              disabled={testingId === account.id}
-                              className="rounded-lg border border-white/[0.07] px-3 py-1.5 text-xs font-medium text-neutral-400 hover:bg-white/[0.05] hover:text-white disabled:opacity-40 transition-colors"
-                            >
-                              {testingId === account.id ? "Testing…" : "Test"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteAccount(account.id)}
-                              disabled={deletingId === account.id}
-                              className="rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-colors"
-                            >
-                              {deletingId === account.id ? "…" : "Delete"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            accounts.map(account => (
+              <div
+                key={account.id}
+                className={`vc-tr${account.status?.toUpperCase() === "ERROR" ? " is-error" : ""}`}
+                style={{ gridTemplateColumns: ACCOUNT_COLS }}
+              >
+                <div className="min-w-0">
+                  <div className="vc-cell-strong truncate">{account.customer_name}</div>
+                  <div className="vc-cell-sub truncate">{account.account_name}</div>
+                </div>
+                <span className="vc-mono truncate text-[11.5px] text-[var(--vc-text-2)]">{account.aws_account_id}</span>
+                <span className="vc-cell">{account.region || "—"}</span>
+                <span className={`text-[11.5px] font-semibold ${statusTone(account.status)}`}>
+                  {statusLabel(account.status)}
+                </span>
+                <div className="flex justify-end gap-2">
+                  <button type="button" className="vc-link !text-[var(--vc-muted)]" onClick={() => startEdit(account)}>
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="vc-link"
+                    onClick={() => testConnection(account.id)}
+                    disabled={testingId === account.id}
+                  >
+                    {testingId === account.id ? "Testing…" : "Test"}
+                  </button>
+                  <button
+                    type="button"
+                    className="vc-link vc-sev-critical"
+                    onClick={() => deleteAccount(account.id)}
+                    disabled={deletingId === account.id}
+                  >
+                    {deletingId === account.id ? "…" : "Delete"}
+                  </button>
+                </div>
+              </div>
+            ))
           )}
-        </section>
+        </div>
       </div>
-    </main>
+    </>
   );
 }

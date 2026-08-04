@@ -6,15 +6,26 @@ import { api } from "@/lib/api";
 import { ApprovalEvent, AuthMe, Finding, FixGuidance } from "@/types";
 import { FindingsTable } from "@/components/scans/FindingsTable";
 import { FindingDetail } from "@/components/scans/FindingDetail";
+import TopbarActions from "@/components/app/TopbarActions";
+import { severityTone } from "@/lib/ui";
 
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
 
-const SEV_CONFIG = {
-  CRITICAL: { border: "border-red-500/20", from: "from-red-500/[0.08]", text: "text-red-400", bar: "bg-red-500" },
-  HIGH:     { border: "border-orange-500/20", from: "from-orange-500/[0.08]", text: "text-orange-400", bar: "bg-orange-500" },
-  MEDIUM:   { border: "border-yellow-500/20", from: "from-yellow-500/[0.08]", text: "text-yellow-400", bar: "bg-yellow-500" },
-  LOW:      { border: "border-blue-500/20", from: "from-blue-500/[0.08]", text: "text-blue-400", bar: "bg-blue-500" },
-} as const;
+const SEV_LABEL: Record<(typeof SEVERITIES)[number], string> = {
+  CRITICAL: "Critical",
+  HIGH: "High",
+  MEDIUM: "Medium",
+  LOW: "Low",
+};
+
+const CSV_COLUMNS = ["severity", "status", "check_id", "title", "resource_id", "service", "customer_name", "account_name", "resolution"] as const;
+
+function toCsv(rows: Finding[]) {
+  const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const header = CSV_COLUMNS.join(",");
+  const body = rows.map(r => CSV_COLUMNS.map(c => escape(r[c])).join(",")).join("\n");
+  return `${header}\n${body}`;
+}
 
 export default function FindingsPage() {
   const router = useRouter();
@@ -153,72 +164,53 @@ export default function FindingsPage() {
     }
   }
 
+  /** Download the currently filtered rows — what you see is what you export. */
+  function exportCsv() {
+    const blob = new Blob([toCsv(filtered)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vigilicloud-findings-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const hasActiveFilters = search || severityFilter !== "ALL" || serviceFilter !== "ALL" || statusFilter !== "ALL";
   const failCount = findings.filter(f => f.status === "FAIL").length;
   const passCount = findings.filter(f => f.status === "PASS").length;
 
-  if (loading) {
-    return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
-          <div className="text-sm text-neutral-500">Loading findings…</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <main className="space-y-5 pb-24">
+    <>
+      <TopbarActions>
+        <button type="button" className="vc-btn" onClick={exportCsv} disabled={filtered.length === 0}>
+          Export CSV
+        </button>
+        <button type="button" className="vc-btn-primary" onClick={loadFindings} disabled={loading}>
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
+      </TopbarActions>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] via-transparent to-violet-500/[0.02] p-6">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-500/[0.05] blur-3xl" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-500/25 bg-violet-500/10">
-              <svg className="h-5 w-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">All Findings</h1>
-              <p className="mt-0.5 text-sm text-neutral-500">Aggregated view across all scans and accounts</p>
-              {!loading && (
-                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <span className="text-neutral-500">{total} total</span>
-                  <span className="font-medium text-red-400">{failCount} failing</span>
-                  <span className="font-medium text-emerald-400">{passCount} passing</span>
-                  {filtered.length !== findings.length && (
-                    <span className="text-violet-400">{filtered.length} shown (filtered)</span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={loadFindings}
-            disabled={loading}
-            className="shrink-0 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-2 text-xs font-medium text-neutral-400 hover:bg-white/[0.06] hover:text-white disabled:opacity-40 transition-colors"
-          >
-            {loading ? "Refreshing…" : "↺ Refresh"}
-          </button>
+      <div className="vc-page-head">
+        <div>
+          <h1 className="vc-h1">Findings</h1>
+          <p className="vc-sub">
+            {failCount} open across every connected account · {passCount} check
+            {passCount === 1 ? "" : "s"} passing
+          </p>
         </div>
+        <span className="text-[12.5px] text-[var(--vc-muted)]">
+          Showing <span className="font-semibold text-[var(--vc-text)]">{filtered.length}</span> of {total}
+          {hasActiveFilters ? " · filtered" : ""}
+        </span>
       </div>
 
-      {/* ── Status ─────────────────────────────────────────────────────── */}
-      {(message || error) && (
-        <div className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${error ? "border-red-500/20 bg-red-500/[0.07] text-red-300" : "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-300"}`}>
-          <span className="mt-0.5">{error ? "✕" : "✓"}</span>
-          <span>{error || message}</span>
-        </div>
-      )}
+      {error && <div className="vc-note vc-note-error">{error}</div>}
+      {message && !error && <div className="vc-note vc-note-success">{message}</div>}
 
-      {/* ── Severity tiles (clickable to filter) ───────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* ── Severity tiles — each one filters the table ─────────────────── */}
+      <div className="vc-grid vc-grid-4">
         {SEVERITIES.map(sev => {
-          const cfg = SEV_CONFIG[sev];
+          const tone = severityTone(sev);
           const count = severityCounts[sev] || 0;
           const pct = sevTotal > 0 ? Math.round((count / sevTotal) * 100) : 0;
           const active = severityFilter === sev;
@@ -226,56 +218,69 @@ export default function FindingsPage() {
             <button
               key={sev}
               type="button"
+              aria-pressed={active}
               onClick={() => setSeverityFilter(active ? "ALL" : sev)}
-              className={`relative overflow-hidden rounded-2xl border text-left transition-all ${cfg.border} bg-gradient-to-br ${cfg.from} to-transparent p-5 ${active ? "ring-1 ring-white/20 scale-[1.02]" : "hover:scale-[1.01]"}`}
+              className={`vc-card text-left ${tone}`}
+              style={active ? { borderColor: "currentColor", borderWidth: 1.5 } : undefined}
             >
-              <div className="text-[10px] font-bold tracking-widest text-neutral-500">{sev}</div>
-              <div className={`mt-1 text-4xl font-bold ${cfg.text}`}>{count}</div>
-              <div className="mt-3 h-[2px] rounded-full bg-white/5">
-                <div className={`h-[2px] rounded-full transition-all duration-700 ${cfg.bar}`} style={{ '--w': `${pct}%`, width: 'var(--w)' } as React.CSSProperties} />
+              <div className={`vc-stat-label ${active ? "!text-current" : ""}`}>{SEV_LABEL[sev]}</div>
+              <div className={`vc-stat ${count > 0 ? "" : "!text-[var(--vc-faint)]"}`}>{count}</div>
+              <div className="vc-meter vc-meter-thin mt-3">
+                <i style={{ width: `${pct}%` }} />
               </div>
-              <div className="mt-1.5 text-[10px] text-neutral-600">{pct}% of findings</div>
-              {active && <div className="absolute right-3 top-3 text-[10px] font-bold text-white/40">ACTIVE</div>}
+              <div className="mt-2 text-[11.5px] text-[var(--vc-muted)]">
+                {active ? "Filtering · click to clear" : `${pct}% of open findings`}
+              </div>
             </button>
           );
         })}
       </div>
 
-      {/* ── Filters ────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
-        <div className="flex flex-wrap gap-3">
+      {/* ── Filter row ─────────────────────────────────────────────────── */}
+      <div className="vc-filters">
+        <label className="vc-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vc-dim)" strokeWidth={1.8} strokeLinecap="round">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
           <input
             type="text"
-            placeholder="Search by title, check ID, resource, account…"
+            placeholder="Search title, check ID, resource, account"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="min-w-[220px] flex-1 rounded-xl border border-white/[0.07] bg-black/40 px-4 py-2 text-sm text-white placeholder-neutral-600 focus:border-violet-500/40 focus:outline-none transition-colors"
           />
-          {[
-            { label: "Severity", value: severityFilter, onChange: setSeverityFilter, options: [["ALL", "All Severities"], ...SEVERITIES.map(s => [s, s])] },
-            { label: "Service", value: serviceFilter, onChange: setServiceFilter, options: [["ALL", "All Services"], ...services.map(s => [s, s])] },
-            { label: "Status", value: statusFilter, onChange: setStatusFilter, options: [["ALL", "All Statuses"], ["FAIL", "FAIL"], ["PASS", "PASS"]] },
-          ].map(({ label, value, onChange, options }) => (
-            <select
-              key={label}
-              aria-label={label}
-              value={value}
-              onChange={e => onChange(e.target.value)}
-              className="rounded-xl border border-white/[0.07] bg-black/40 px-3 py-2 text-sm text-white focus:border-violet-500/40 focus:outline-none transition-colors"
-            >
-              {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          ))}
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={() => { setSearch(""); setSeverityFilter("ALL"); setServiceFilter("ALL"); setStatusFilter("ALL"); }}
-              className="rounded-xl border border-white/[0.07] px-4 py-2 text-sm text-neutral-500 hover:text-white hover:bg-white/[0.05] transition-colors"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
+        </label>
+
+        {severityFilter !== "ALL" && (
+          <button
+            type="button"
+            className={`vc-chip is-on ${severityTone(severityFilter)} !bg-[color-mix(in_srgb,currentColor_16%,transparent)]`}
+            onClick={() => setSeverityFilter("ALL")}
+          >
+            {SEV_LABEL[severityFilter as (typeof SEVERITIES)[number]] ?? severityFilter} ✕
+          </button>
+        )}
+
+        <select aria-label="Service" className="vc-chip" value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}>
+          <option value="ALL">All services</option>
+          {services.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <select aria-label="Status" className="vc-chip" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <option value="ALL">All states</option>
+          <option value="FAIL">Open</option>
+          <option value="PASS">Passing</option>
+        </select>
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="vc-link px-2"
+            onClick={() => { setSearch(""); setSeverityFilter("ALL"); setServiceFilter("ALL"); setStatusFilter("ALL"); }}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* ── Findings table ─────────────────────────────────────────────── */}
@@ -299,6 +304,6 @@ export default function FindingsPage() {
           approvalSaving={approvalSaving}
         />
       )}
-    </main>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import TopbarActions from "@/components/app/TopbarActions";
 
 type RazorpayConfig = {
   configured: boolean;
@@ -23,10 +24,10 @@ const PLAN_CARDS = [
   {
     key: "starter",
     title: "Starter",
-    price: "₹8,299/mo",
+    price: "₹8,299",
     usd: "$99",
     period: "/mo",
-    description: "For solo teams starting AWS compliance checks.",
+    description: "For solo consultants and small teams.",
     bullets: [
       "Up to 3 AWS accounts",
       "All 10 security checks",
@@ -35,15 +36,14 @@ const PLAN_CARDS = [
       "Email alerts on CRITICAL",
     ],
     highlighted: false,
-    color: "border-white/[0.07]",
   },
   {
     key: "pro",
     title: "Pro",
-    price: "₹24,999/mo",
+    price: "₹24,999",
     usd: "$299",
     period: "/mo",
-    description: "For growing teams managing multiple customer environments.",
+    description: "For teams running several AWS environments.",
     bullets: [
       "Up to 10 AWS accounts",
       "Everything in Starter",
@@ -52,13 +52,12 @@ const PLAN_CARDS = [
       "Approval gate workflows",
     ],
     highlighted: true,
-    color: "border-emerald-500/40",
   },
   {
     key: "msp",
     title: "MSP",
-    price: "₹83,499+/mo",
-    usd: "$999+",
+    price: "₹83,499",
+    usd: "$999",
     period: "/mo",
     description: "For agencies and managed service providers.",
     bullets: [
@@ -69,7 +68,6 @@ const PLAN_CARDS = [
       "Priority support",
     ],
     highlighted: false,
-    color: "border-white/[0.07]",
   },
 ];
 
@@ -100,6 +98,19 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.detail || "Request failed");
   return data as T;
+}
+
+/** Cheapest to richest — used to label a switch as an upgrade or a downgrade. */
+const PLAN_ORDER = ["free", "starter", "pro", "msp"];
+
+function planTitle(key: string) {
+  const hit = PLAN_CARDS.find(p => p.key === key);
+  return hit ? hit.title : "Free";
+}
+
+function currentPlanPrice(key: string) {
+  const hit = PLAN_CARDS.find(p => p.key === key);
+  return hit ? `${hit.usd} / month · ${hit.price} in INR` : "No subscription";
 }
 
 export default function PlansPage() {
@@ -164,7 +175,7 @@ export default function PlansPage() {
         subscription_id: data.subscription_id,
         name: "VigiliCloud",
         description: `VigiliCloud ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
-        theme: { color: "#10b981" },
+        theme: { color: "#0066cc" },
         handler: async (response: {
           razorpay_payment_id: string;
           razorpay_subscription_id: string;
@@ -218,194 +229,183 @@ export default function PlansPage() {
   const isPaidPlan = currentPlanKey !== "free";
   const rzConfig = billing?.razorpay;
 
-  const statusBadge = useMemo(() => {
-    if (!rzConfig?.configured) return { label: "NOT CONFIGURED", cls: "border-red-500/30 bg-red-500/10 text-red-400" };
-    if (rzConfig.checkout_ready) return { label: "READY", cls: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" };
-    return { label: "PARTIAL", cls: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400" };
+  const statusLabel = useMemo(() => {
+    if (!rzConfig?.configured) return "Not configured";
+    if (rzConfig.checkout_ready) return "Ready";
+    return "Partial";
   }, [rzConfig]);
 
   return (
-    <main className="space-y-5 pb-24">
+    <>
+      <TopbarActions>
+        <button type="button" className="vc-btn" onClick={() => syncBilling(true)} disabled={syncLoading}>
+          {syncLoading ? "Syncing…" : "Refresh billing"}
+        </button>
+        {isPaidPlan ? (
+          <button type="button" className="vc-btn-primary" onClick={handleCancel} disabled={cancelLoading}>
+            {cancelLoading ? "Cancelling…" : "Manage subscription"}
+          </button>
+        ) : (
+          <button type="button" className="vc-btn-primary" onClick={() => startCheckout("pro")} disabled={!rzConfig?.checkout_ready}>
+            Choose a plan
+          </button>
+        )}
+      </TopbarActions>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] via-transparent to-emerald-500/[0.02] p-6">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-emerald-500/[0.05] blur-3xl" />
-        <div className="relative flex items-start gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/25 bg-emerald-500/10">
-            <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Plans & Billing</h1>
-            <p className="mt-0.5 text-sm text-neutral-500">Simple pricing for pilots, growing teams, and MSP workflows</p>
-            {!loading && billing && (
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                <span className="font-medium text-violet-400">{(billing.subscription_status || "free").toUpperCase()} plan</span>
-                <span className="text-neutral-500">{billing.connected_accounts_used}/{billing.account_limit} accounts</span>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${statusBadge.cls}`}>{statusBadge.label}</span>
-              </div>
-            )}
-          </div>
+      <div className="vc-page-head">
+        <div>
+          <h1 className="vc-h1">Plans &amp; billing</h1>
+          <p className="vc-sub">
+            Priced per workspace, not per finding. Change tier at any time; billing prorates.
+          </p>
         </div>
       </div>
 
-      {/* ── Status ─────────────────────────────────────────────────────── */}
-      {(successMessage || error) && (
-        <div className={`flex items-start gap-3 rounded-2xl border p-4 text-sm ${error ? "border-red-500/20 bg-red-500/[0.07] text-red-300" : "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-300"}`}>
-          <span className="mt-0.5">{error ? "✕" : "✓"}</span>
-          <span>{error || successMessage}</span>
-        </div>
-      )}
+      {error && <div className="vc-note vc-note-error">{error}</div>}
+      {successMessage && !error && <div className="vc-note vc-note-success">{successMessage}</div>}
 
-      {/* ── Current plan summary ────────────────────────────────────────── */}
-      <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Current Plan</div>
-            <div className="mt-1 text-4xl font-black text-white">
-              {loading ? "…" : (billing?.subscription_status || "free").toUpperCase()}
-            </div>
-            <div className="mt-1 text-sm text-neutral-500">
-              {loading ? "" : `${billing?.connected_accounts_used ?? 0} of ${billing?.account_limit ?? 1} accounts used`}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {isPaidPlan && (
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={cancelLoading}
-                className="rounded-xl border border-red-500/20 bg-red-500/[0.07] px-4 py-2 text-sm text-red-400 hover:bg-red-500/[0.12] disabled:opacity-40 transition-colors"
-              >
-                {cancelLoading ? "Cancelling…" : "Cancel Subscription"}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => syncBilling(true)}
-              disabled={syncLoading}
-              className="rounded-xl border border-white/[0.07] px-4 py-2 text-sm text-neutral-400 hover:bg-white/[0.05] hover:text-white disabled:opacity-40 transition-colors"
-            >
-              {syncLoading ? "Syncing…" : "↺ Refresh Billing"}
-            </button>
+      {/* ── Current plan strip ───────────────────────────────────────────── */}
+      <div className="vc-card !px-6 !py-[22px] flex flex-wrap items-center gap-8">
+        <div className="flex-1 min-w-[220px]">
+          <div className="vc-stat-label !mb-2">Current plan</div>
+          <div className="flex items-baseline gap-3">
+            <span className="text-[26px] font-semibold tracking-[-0.6px] text-[var(--vc-text)]">
+              {loading ? "…" : planTitle(currentPlanKey)}
+            </span>
+            <span className="text-sm text-[var(--vc-muted)]">
+              {loading ? "" : currentPlanPrice(currentPlanKey)}
+            </span>
           </div>
         </div>
 
-        {/* Razorpay status strip */}
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: "Payment Provider", value: "Razorpay", color: "text-white" },
-            { label: "Checkout Ready", value: loading ? "…" : rzConfig?.checkout_ready ? "Yes" : "No", color: rzConfig?.checkout_ready ? "text-emerald-400" : "text-red-400" },
-            { label: "Webhook", value: loading ? "…" : rzConfig?.webhook_configured ? "Configured" : "Missing", color: rzConfig?.webhook_configured ? "text-emerald-400" : "text-yellow-400" },
-            { label: "Status", value: loading ? "…" : statusBadge.label, color: rzConfig?.checkout_ready ? "text-emerald-400" : "text-yellow-400" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="rounded-xl border border-white/[0.06] bg-black/30 px-4 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{label}</div>
-              <div className={`mt-1 font-semibold ${color}`}>{value}</div>
-            </div>
-          ))}
+        <div className="h-11 w-px bg-[var(--vc-hairline)]" />
+
+        <div>
+          <div className="vc-stat-label !mb-2">Accounts</div>
+          <div className="text-xl font-semibold tracking-[-0.4px] text-[var(--vc-text)]">
+            {loading ? "…" : billing?.connected_accounts_used ?? 0}{" "}
+            <span className="text-sm font-normal text-[var(--vc-muted)]">
+              of {billing?.account_limit ?? 1}
+            </span>
+          </div>
         </div>
+
+        <div className="h-11 w-px bg-[var(--vc-hairline)]" />
+
+        <div>
+          <div className="vc-stat-label !mb-2">Checkout</div>
+          <div className={`text-xl font-semibold tracking-[-0.4px] ${rzConfig?.checkout_ready ? "vc-ok" : "vc-sev-high"}`}>
+            {loading ? "…" : rzConfig?.checkout_ready ? "Ready" : rzConfig?.configured ? "Partial" : "Not configured"}
+          </div>
+        </div>
+
+        {isPaidPlan && (
+          <button type="button" className="vc-btn-secondary !h-9" onClick={handleCancel} disabled={cancelLoading}>
+            {cancelLoading ? "Cancelling…" : "Cancel plan"}
+          </button>
+        )}
       </div>
 
-      {/* ── Plan cards ──────────────────────────────────────────────────── */}
-      <p className="text-xs text-neutral-600">All plans billed in INR via Razorpay. USD prices shown for reference — the INR amount is fixed.</p>
-
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* ── Plan ladder ──────────────────────────────────────────────────── */}
+      <div className="vc-grid vc-grid-3">
         {PLAN_CARDS.map((plan) => {
           const isCurrent = currentPlanKey === plan.key;
           const checkoutBlocked = !rzConfig?.checkout_ready;
+          const rank = PLAN_ORDER.indexOf(plan.key);
+          const currentRank = PLAN_ORDER.indexOf(currentPlanKey);
+          const isDowngrade = currentRank > -1 && rank > -1 && rank < currentRank;
 
           return (
             <div
               key={plan.key}
-              className={`relative rounded-3xl border bg-white/[0.02] p-7 transition-all ${plan.highlighted ? "border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] to-transparent" : "border-white/[0.07]"} ${isCurrent ? "ring-1 ring-emerald-500/30" : ""}`}
+              className="vc-card !p-7 flex flex-col"
+              style={isCurrent ? { borderColor: "var(--vc-accent)", borderWidth: 1.5 } : undefined}
             >
-              {plan.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-4 py-1 text-[10px] font-bold text-black">
-                  MOST POPULAR
-                </div>
-              )}
-
-              <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-500">{plan.title}</div>
-              <div className="flex items-end gap-1.5">
-                <span className={`text-4xl font-black ${plan.highlighted ? "text-emerald-400" : "text-white"}`}>{plan.usd}</span>
-                <span className="mb-1 text-sm text-neutral-500">{plan.period}</span>
+              <div className="flex items-center justify-between gap-2.5">
+                <span className="text-[21px] font-semibold tracking-[-0.4px] text-[var(--vc-text)]">{plan.title}</span>
+                {isCurrent ? (
+                  <span className="vc-pill-outline !border-none !bg-[var(--vc-accent)] !text-white">Current</span>
+                ) : plan.highlighted ? (
+                  <span className="vc-pill-outline text-[var(--vc-accent-text)]">Most chosen</span>
+                ) : null}
               </div>
-              <div className="mt-0.5 text-xs text-neutral-600">{plan.price} · INR · billed monthly</div>
-              <p className="mt-4 text-sm text-neutral-400">{plan.description}</p>
 
-              <div className="my-5 h-px bg-white/[0.06]" />
+              <div className="mt-1.5 text-[13.5px] leading-[1.5] text-[var(--vc-muted)]">{plan.description}</div>
 
-              <ul className="space-y-2.5">
-                {plan.bullets.map(bullet => (
-                  <li key={bullet} className="flex items-center gap-2.5 text-sm text-neutral-300">
-                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] ${plan.highlighted ? "bg-emerald-500/20 text-emerald-400" : "bg-white/[0.08] text-neutral-400"}`}>✓</span>
-                    {bullet}
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-[22px] mb-1 flex items-baseline gap-2">
+                <span className="text-[40px] font-semibold tracking-[-1.2px] text-[var(--vc-text)]">{plan.usd}</span>
+                <span className="text-sm text-[var(--vc-muted)]">{plan.period}</span>
+              </div>
+              <div className="mb-6 text-[12.5px] text-[var(--vc-dim)]">{plan.price} billed in INR</div>
+
+              <div className="flex flex-col gap-[11px] text-[13.5px] leading-[1.45] text-[var(--vc-text-2)]">
+                {plan.bullets.map(bullet => <span key={bullet}>{bullet}</span>)}
+              </div>
 
               <button
                 type="button"
                 onClick={() => startCheckout(plan.key)}
                 disabled={checkoutLoading === plan.key || isCurrent || checkoutBlocked}
-                className={`mt-7 w-full rounded-2xl py-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                  isCurrent
-                    ? "border border-emerald-500/30 text-emerald-400"
-                    : plan.highlighted
-                    ? "bg-emerald-500 text-black hover:bg-emerald-400"
-                    : "border border-white/[0.10] text-white hover:bg-white/[0.06]"
-                }`}
+                className={`mt-auto pt-6 ${isCurrent || plan.highlighted ? "" : ""}`}
               >
-                {isCurrent ? "Current Plan" : checkoutLoading === plan.key ? "Opening checkout…" : `Upgrade to ${plan.title}`}
+                <span
+                  className={`flex h-10 w-full items-center justify-center rounded-full text-[13.5px] font-semibold ${
+                    isCurrent
+                      ? "bg-[var(--vc-accent)] text-white"
+                      : "border border-[var(--vc-hairline-strong)] text-[var(--vc-text)]"
+                  } ${checkoutLoading === plan.key || checkoutBlocked ? "opacity-45" : ""}`}
+                >
+                  {isCurrent
+                    ? "Your plan"
+                    : checkoutLoading === plan.key
+                    ? "Opening checkout…"
+                    : isDowngrade
+                    ? "Downgrade"
+                    : `Upgrade to ${plan.title}`}
+                </span>
               </button>
 
               {!isCurrent && checkoutBlocked && !loading && (
-                <p className="mt-2 text-center text-xs text-red-400">Configure Razorpay keys to enable checkout</p>
+                <p className="mt-2 text-center text-[11.5px] vc-sev-critical">
+                  Configure Razorpay keys to enable checkout
+                </p>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* ── Bottom context sections ─────────────────────────────────────── */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-500">Pilot Positioning</div>
-          <h2 className="mt-1 text-xl font-bold">Use this in a VigiliCloud pilot conversation</h2>
-          <p className="mt-3 text-sm leading-6 text-neutral-400">
-            VigiliCloud is easiest to position as an AWS-native security posture workflow for early-stage teams, consultants, and MSPs that want fast visibility and actionable remediation guidance.
-          </p>
-          <div className="mt-4 rounded-2xl border border-white/[0.06] bg-black/30 p-4">
-            <div className="font-semibold text-white">₹2,00,000 pilot example</div>
-            <div className="mt-2 text-sm leading-6 text-neutral-400">
-              Up to 2 AWS accounts, misconfiguration review, remediation workflow, evidence exports, and a live founder-led walkthrough.
-            </div>
-          </div>
-        </section>
+      <p className="text-[12.5px] text-[var(--vc-dim)]">
+        All plans are billed in INR via Razorpay. USD prices are shown for reference — the INR amount is what is charged.
+      </p>
 
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-500">Before Full Launch</div>
-          <h2 className="mt-1 text-xl font-bold">Remaining Razorpay setup</h2>
-          <ul className="mt-4 space-y-2.5">
-            {[
-              "Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to Render env vars",
-              "Create starter, pro, msp plans in Razorpay dashboard",
-              "Set webhook URL → /billing/webhook in Razorpay",
-              "Add RAZORPAY_PLAN_STARTER, _PRO, _MSP env vars",
-            ].map((item, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-sm text-neutral-400">
-                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-yellow-500/30 bg-yellow-500/10 text-[9px] font-bold text-yellow-400">{i + 1}</span>
-                {item}
-              </li>
-            ))}
-          </ul>
-          <div className="mt-5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-4 py-3 text-sm text-emerald-300">
-            Pricing page is ready for demos and pilot conversations.
+      {/* ── Provider status ──────────────────────────────────────────────── */}
+      <div className="vc-card vc-card-flush">
+        <div className="vc-card-head">
+          <div>
+            <div className="vc-card-title">Payment provider</div>
+            <div className="vc-card-sub">Razorpay subscription checkout and webhook status</div>
           </div>
-        </section>
+          <span className={`vc-pill ${rzConfig?.checkout_ready ? "vc-ok" : rzConfig?.configured ? "vc-sev-high" : "vc-sev-critical"}`}>
+            {statusLabel}
+          </span>
+        </div>
+
+        <div className="vc-grid vc-grid-3 !gap-0">
+          {[
+            { label: "API keys", ok: !!rzConfig?.configured, yes: "Configured", no: "Missing" },
+            { label: "Checkout", ok: !!rzConfig?.checkout_ready, yes: "Ready", no: "Not ready" },
+            { label: "Webhook", ok: !!rzConfig?.webhook_configured, yes: "Configured", no: "Missing" },
+          ].map(({ label, ok, yes, no }) => (
+            <div key={label} className="border-b border-[var(--vc-hairline-soft)] px-[22px] py-4 last:border-b-0">
+              <div className="vc-stat-label !mb-1.5">{label}</div>
+              <div className={`text-[15px] font-semibold ${ok ? "vc-ok" : "vc-sev-high"}`}>
+                {loading ? "…" : ok ? yes : no}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-    </main>
+    </>
   );
 }

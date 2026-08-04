@@ -2,125 +2,141 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { AuthMe, DashboardResponse, DashboardAccount } from "@/types";
+import TopbarActions from "@/components/app/TopbarActions";
+import {
+  AuthMe,
+  ComplianceCoverage,
+  CoverageFramework,
+  DashboardAccount,
+  DashboardResponse,
+} from "@/types";
 
-const STATUS_CFG: Record<string, { label: string; cls: string }> = {
-  ACTIVE:  { label: "Active",  cls: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" },
-  PENDING: { label: "Pending", cls: "border-yellow-500/30 bg-yellow-500/10  text-yellow-400"  },
-  ERROR:   { label: "Error",   cls: "border-red-500/30    bg-red-500/10     text-red-400"    },
-};
+const SEVERITIES = [
+  { key: "CRITICAL", short: "C", label: "Critical", cls: "vc-sev-critical" },
+  { key: "HIGH", short: "H", label: "High", cls: "vc-sev-high" },
+  { key: "MEDIUM", short: "M", label: "Medium", cls: "vc-sev-medium" },
+  { key: "LOW", short: "L", label: "Low", cls: "vc-sev-low" },
+] as const;
 
-const SEV_CFG = [
-  { key: "CRITICAL", label: "C", cls: "border-red-500/40    bg-red-500/10     text-red-400"    },
-  { key: "HIGH",     label: "H", cls: "border-orange-500/40 bg-orange-500/10  text-orange-400" },
-  { key: "MEDIUM",   label: "M", cls: "border-yellow-500/40 bg-yellow-500/10  text-yellow-400" },
-  { key: "LOW",      label: "L", cls: "border-blue-500/40   bg-blue-500/10    text-blue-400"   },
+const FRAMEWORKS: [keyof ComplianceCoverage["coverage"], string][] = [
+  ["soc2", "SOC 2 Type II"],
+  ["iso27001", "ISO 27001"],
+  ["pci_dss", "PCI DSS 4.0"],
+  ["nist", "NIST CSF"],
 ];
 
-function fmt(iso: string) {
-  try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
-  catch { return iso; }
+/** A–F from a 0–100 posture score, matching the backend's risk-score bands. */
+function gradeFor(score: number) {
+  if (score >= 90) return "A";
+  if (score >= 80) return "B";
+  if (score >= 70) return "C";
+  if (score >= 60) return "D";
+  return "F";
 }
 
-function PassBar({ rate }: { rate: number }) {
-  const color = rate >= 80 ? "bg-emerald-500" : rate >= 50 ? "bg-yellow-500" : "bg-red-500";
+function scoreTone(score: number) {
+  if (score >= 80) return "vc-ok";
+  if (score >= 60) return "vc-sev-high";
+  return "vc-sev-critical";
+}
+
+function relativeTime(iso?: string | null) {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  const mins = Math.round((Date.now() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/** Donut score dial — r=52 on a 128 box, matching the design's 11px ring. */
+function PostureDial({ score, grade, tone }: { score: number; grade: string; tone: string }) {
+  const circumference = 2 * Math.PI * 52;
+  const filled = (Math.max(0, Math.min(100, score)) / 100) * circumference;
+
   return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-[10px]">
-        <span className="text-neutral-500">Pass rate</span>
-        <span className={rate >= 80 ? "text-emerald-400" : rate >= 50 ? "text-yellow-400" : "text-red-400"}>
-          {rate}%
-        </span>
-      </div>
-      <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${rate}%` }} />
+    <div className="relative h-32 w-32 flex-none">
+      <svg width="128" height="128" viewBox="0 0 128 128">
+        <circle cx="64" cy="64" r="52" fill="none" stroke="var(--vc-chip)" strokeWidth="11" />
+        <circle
+          cx="64"
+          cy="64"
+          r="52"
+          fill="none"
+          className={tone}
+          stroke="currentColor"
+          strokeWidth="11"
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${circumference}`}
+          transform="rotate(-90 64 64)"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="text-[40px] font-semibold leading-none tracking-[-1.4px] text-[var(--vc-text)]">{grade}</div>
+        <div className="mt-1 text-xs text-[var(--vc-muted)]">{score} / 100</div>
       </div>
     </div>
   );
 }
 
-function AccountCard({ account, onRunScan, scanning }: {
-  account: DashboardAccount;
-  onRunScan: (id: number) => void;
-  scanning: boolean;
-}) {
-  const status = STATUS_CFG[account.status] ?? STATUS_CFG.PENDING;
+function AccountCard({ account }: { account: DashboardAccount }) {
   const s = account.findings_summary;
-  const hasScan = !!account.latest_scan;
-  const hasFindings = hasScan && s.total > 0;
+  const scanned = relativeTime(account.latest_scan?.created_at);
+  const score = s.total > 0 ? s.pass_rate : null;
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-white/[0.07] bg-white/[0.02] p-5 hover:border-white/[0.12] transition-colors">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
+    <div className="vc-card">
+      <div className="mb-3.5 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-white truncate">{account.account_name}</span>
-            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${status.cls}`}>
-              {status.label}
-            </span>
+          <div className="truncate text-[14.5px] font-semibold tracking-[-0.25px] text-[var(--vc-text)]">
+            {account.customer_name} · {account.account_name}
           </div>
-          <div className="mt-0.5 text-xs text-neutral-500">{account.customer_name}</div>
+          <div className="vc-mono mt-0.5 text-[11.5px] text-[var(--vc-dim)]">
+            {account.aws_account_id} · {account.region}
+          </div>
         </div>
-        <div className="shrink-0 text-right">
-          <div className="text-[10px] font-mono text-neutral-600">{account.aws_account_id}</div>
-          <div className="text-[10px] text-neutral-700">{account.region}</div>
-        </div>
+        {score != null ? (
+          <span className={`vc-pill flex-none ${scoreTone(score)}`}>
+            {gradeFor(score)} · {score}
+          </span>
+        ) : (
+          <span className="vc-tag flex-none">No scan</span>
+        )}
       </div>
 
-      {/* Severity badges */}
-      {hasFindings ? (
-        <div className="flex gap-1.5 flex-wrap">
-          {SEV_CFG.map(({ key, label, cls }) => {
-            const count = s[key as keyof typeof s] as number;
-            return (
-              <span key={key} className={`rounded-lg border px-2.5 py-1 text-xs font-bold ${cls} ${count === 0 ? "opacity-30" : ""}`}>
-                {label}: {count}
-              </span>
-            );
-          })}
-        </div>
-      ) : hasScan ? (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2 text-xs text-emerald-400">
-          No findings — all checks passed
-        </div>
-      ) : (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-neutral-600">
-          No scans yet
-        </div>
-      )}
-
-      {/* Pass rate */}
-      {hasFindings && <PassBar rate={s.pass_rate} />}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.05]">
-        <div className="text-[10px] text-neutral-600">
-          {account.latest_scan
-            ? <>Last scan: <span className="text-neutral-500">{fmt(account.latest_scan.created_at)}</span></>
-            : <span>No scans yet</span>
-          }
-        </div>
-        <div className="flex items-center gap-1.5">
-          {account.latest_scan && (
-            <Link
-              href={`/scans/${account.latest_scan.scan_id}`}
-              className="rounded-lg border border-white/[0.08] px-2.5 py-1 text-[10px] font-medium text-neutral-400 hover:bg-white/[0.05] hover:text-white transition-colors"
+      <div className="mb-3.5 flex gap-1.5">
+        {SEVERITIES.map(({ key, short, cls }) => {
+          const count = s[key] ?? 0;
+          return (
+            <span
+              key={key}
+              className={`vc-count flex-1 text-center ${count > 0 ? cls : "vc-count-zero"}`}
             >
-              View Scan
-            </Link>
-          )}
-          <button
-            type="button"
-            disabled={scanning || !account.is_active}
-            onClick={() => onRunScan(account.id)}
-            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-400 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-          >
-            {scanning ? "Running…" : "Run Scan"}
-          </button>
-        </div>
+              {count} {short}
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 border-t border-[var(--vc-hairline-soft)] pt-3">
+        <span className="text-[11.5px] text-[var(--vc-dim)]">
+          {scanned ? `Scanned ${scanned}` : "Never scanned"}
+        </span>
+        {account.latest_scan ? (
+          <Link href={`/scans/${account.latest_scan.scan_id}`} className="vc-link">
+            Open
+          </Link>
+        ) : (
+          <Link href="/accounts" className="vc-link">
+            Connect
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -129,19 +145,37 @@ function AccountCard({ account, onRunScan, scanning }: {
 export default function DashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<DashboardResponse | null>(null);
+  const [coverage, setCoverage] = useState<ComplianceCoverage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [scanningId, setScanningId] = useState<number | null>(null);
-  const [scanMsg, setScanMsg] = useState("");
+  const [notice, setNotice] = useState("");
+  const [scanning, setScanning] = useState(false);
 
   async function load() {
-    setLoading(true);
     setError("");
     try {
       const auth = await api<AuthMe>("/auth/me");
-      if (!auth.authenticated) { router.push("/signin"); return; }
+      if (!auth.authenticated) {
+        router.push("/signin");
+        return;
+      }
       const d = await api<DashboardResponse>("/dashboard");
       setData(d);
+
+      // Framework coverage is reported per scan; show it for the most recent one.
+      const latest = d.accounts
+        .filter((a) => a.latest_scan)
+        .sort(
+          (a, b) =>
+            new Date(b.latest_scan!.created_at).getTime() - new Date(a.latest_scan!.created_at).getTime(),
+        )[0];
+      if (latest?.latest_scan) {
+        api<ComplianceCoverage>(`/compliance/scans/${latest.latest_scan.scan_id}/coverage`)
+          .then(setCoverage)
+          .catch(() => setCoverage(null));
+      } else {
+        setCoverage(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
     } finally {
@@ -149,114 +183,336 @@ export default function DashboardPage() {
     }
   }
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleRunScan(accountId: number) {
-    setScanningId(accountId);
-    setScanMsg("");
+  const accounts = useMemo(() => data?.accounts ?? [], [data]);
+  const totals = data?.totals;
+
+  /** Sweep every active account that has been connected. */
+  async function runAllScans() {
+    const targets = accounts.filter((a) => a.is_active);
+    if (targets.length === 0) {
+      router.push("/accounts");
+      return;
+    }
+    setScanning(true);
+    setNotice("");
     try {
-      await api("/scans/run", { method: "POST", body: JSON.stringify({ account_id: accountId, region: "us-east-1" }) });
-      setScanMsg("Scan started — refreshing shortly…");
-      setTimeout(() => { setScanMsg(""); load(); }, 3500);
+      await Promise.all(
+        targets.map((a) =>
+          api("/scans/run", {
+            method: "POST",
+            body: JSON.stringify({ account_id: a.id, region: a.region || "us-east-1" }),
+          }),
+        ),
+      );
+      setNotice(`Sweep started across ${targets.length} account${targets.length === 1 ? "" : "s"} — refreshing shortly.`);
+      setTimeout(() => {
+        setNotice("");
+        load();
+      }, 4000);
     } catch (e) {
-      setScanMsg(e instanceof Error ? e.message : "Scan failed");
+      setNotice(e instanceof Error ? e.message : "Could not start the sweep");
     } finally {
-      setScanningId(null);
+      setScanning(false);
     }
   }
 
-  const totals = data?.totals;
-  const accounts = data?.accounts ?? [];
+  const scanned = accounts.filter((a) => a.latest_scan);
+  const lastSweep = relativeTime(
+    scanned
+      .map((a) => a.latest_scan!.created_at)
+      .sort()
+      .reverse()[0],
+  );
+
+  // Portfolio posture: pass rate weighted by checks run, across every scanned account.
+  const portfolio = useMemo(() => {
+    const withFindings = accounts.filter((a) => a.findings_summary.total > 0);
+    if (withFindings.length === 0) return null;
+    const checks = withFindings.reduce((sum, a) => sum + a.findings_summary.total, 0);
+    const passing = withFindings.reduce((sum, a) => sum + a.findings_summary.pass, 0);
+    const score = Math.round((passing / checks) * 100);
+
+    const ranked = [...withFindings].sort(
+      (a, b) => b.findings_summary.pass_rate - a.findings_summary.pass_rate,
+    );
+    return { score, best: ranked[0], worst: ranked[ranked.length - 1], accounts: withFindings.length };
+  }, [accounts]);
+
+  const openTotal = totals ? totals.critical + totals.high + totals.medium + totals.low : 0;
+
+  // Accounts ranked by blast radius — critical first, then high, then total open.
+  const attention = useMemo(
+    () =>
+      accounts
+        .filter((a) => a.findings_summary.CRITICAL + a.findings_summary.HIGH > 0)
+        .sort((a, b) => {
+          const x = a.findings_summary;
+          const y = b.findings_summary;
+          return y.CRITICAL - x.CRITICAL || y.HIGH - x.HIGH || y.total - x.total;
+        })
+        .slice(0, 5),
+    [accounts],
+  );
 
   return (
-    <div className="space-y-8">
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl border border-emerald-500/[0.15] bg-gradient-to-br from-emerald-500/[0.07] via-transparent to-transparent p-8">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-emerald-500/[0.06] blur-3xl" />
-        <div className="relative">
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-emerald-500">Posture Overview</div>
-          <h1 className="text-3xl font-black tracking-tight">Security Dashboard</h1>
-          <p className="mt-2 max-w-lg text-sm text-neutral-500">Multi-account AWS security posture at a glance. Run scans and track findings across all connected accounts.</p>
+    <>
+      <TopbarActions>
+        <button type="button" className="vc-btn" onClick={() => load()} disabled={loading}>
+          Refresh
+        </button>
+        <button type="button" className="vc-btn-primary" onClick={runAllScans} disabled={scanning}>
+          {scanning ? "Starting…" : "Run scan"}
+        </button>
+      </TopbarActions>
+
+      <div className="vc-page-head">
+        <div>
+          <h1 className="vc-h1">Posture overview</h1>
+          <p className="vc-sub">
+            {loading
+              ? "Loading your portfolio…"
+              : `${totals?.accounts ?? 0} AWS account${totals?.accounts === 1 ? "" : "s"} connected${
+                  lastSweep ? ` · last sweep ${lastSweep}` : " · no scans yet"
+                }`}
+          </p>
         </div>
       </div>
 
-      {/* ── Stat tiles ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Accounts",  value: totals?.accounts ?? "—",  cls: "text-white" },
-          { label: "Critical",  value: totals?.critical ?? "—",  cls: totals?.critical ? "text-red-400"    : "text-white" },
-          { label: "High",      value: totals?.high     ?? "—",  cls: totals?.high    ? "text-orange-400" : "text-white" },
-          { label: "Med / Low", value: totals ? `${totals.medium} / ${totals.low}` : "—", cls: "text-white" },
-        ].map((t) => (
-          <div key={t.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{t.label}</div>
-            <div className={`mt-1 text-2xl font-black ${t.cls}`}>{loading ? <span className="animate-pulse text-neutral-700">—</span> : t.value}</div>
+      {notice && <div className="vc-note vc-note-info">{notice}</div>}
+      {error && <div className="vc-note vc-note-error">{error}</div>}
+
+      {/* ── Stat tiles ───────────────────────────────────────────── */}
+      <div className="vc-grid vc-grid-4">
+        <div className="vc-card">
+          <div className="vc-stat-label">Accounts monitored</div>
+          <div className="vc-stat">{loading ? "—" : totals?.accounts ?? 0}</div>
+          <div className="vc-stat-note">
+            {scanned.length} scanned · {accounts.length - scanned.length} awaiting first scan
           </div>
-        ))}
+        </div>
+        <div className="vc-card">
+          <div className="vc-stat-label">Critical open</div>
+          <div className={`vc-stat ${totals?.critical ? "vc-sev-critical" : ""}`}>
+            {loading ? "—" : totals?.critical ?? 0}
+          </div>
+          <div className="vc-stat-note">Fix today</div>
+        </div>
+        <div className="vc-card">
+          <div className="vc-stat-label">High open</div>
+          <div className={`vc-stat ${totals?.high ? "vc-sev-high" : ""}`}>{loading ? "—" : totals?.high ?? 0}</div>
+          <div className="vc-stat-note">Fix this sprint</div>
+        </div>
+        <div className="vc-card">
+          <div className="vc-stat-label">Medium · Low</div>
+          <div className="vc-stat">
+            {loading ? "—" : `${totals?.medium ?? 0} · ${totals?.low ?? 0}`}
+          </div>
+          <div className="vc-stat-note">Track and schedule</div>
+        </div>
       </div>
 
-      {/* ── Scan message ───────────────────────────────────────────────── */}
-      {scanMsg && (
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.07] px-4 py-3 text-sm text-emerald-300">
-          {scanMsg}
+      {/* ── Posture + severity mix ───────────────────────────────── */}
+      <div className="vc-grid" style={{ gridTemplateColumns: "344px 1fr" }}>
+        <div className="vc-card">
+          <div className="vc-stat-label !mb-4">Portfolio posture</div>
+          {portfolio ? (
+            <div className="flex items-center gap-[22px]">
+              <PostureDial
+                score={portfolio.score}
+                grade={gradeFor(portfolio.score)}
+                tone={scoreTone(portfolio.score)}
+              />
+              <div className="flex min-w-0 flex-1 flex-col gap-[11px]">
+                <div className="text-[13.5px] leading-[1.45] tracking-[-0.15px] text-[var(--vc-text-2)] text-pretty">
+                  Checks passing across {portfolio.accounts} scanned account
+                  {portfolio.accounts === 1 ? "" : "s"}.
+                </div>
+                <div className="flex items-center justify-between border-t border-[var(--vc-hairline)] pt-[11px]">
+                  <span className="truncate text-[12.5px] text-[var(--vc-muted)]">
+                    Best · {portfolio.best.customer_name}
+                  </span>
+                  <span className={`text-[12.5px] font-semibold ${scoreTone(portfolio.best.findings_summary.pass_rate)}`}>
+                    {gradeFor(portfolio.best.findings_summary.pass_rate)} · {portfolio.best.findings_summary.pass_rate}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="truncate text-[12.5px] text-[var(--vc-muted)]">
+                    Worst · {portfolio.worst.customer_name}
+                  </span>
+                  <span className={`text-[12.5px] font-semibold ${scoreTone(portfolio.worst.findings_summary.pass_rate)}`}>
+                    {gradeFor(portfolio.worst.findings_summary.pass_rate)} ·{" "}
+                    {portfolio.worst.findings_summary.pass_rate}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="vc-empty !px-0">Run a scan to see your portfolio grade.</div>
+          )}
         </div>
-      )}
 
-      {error && (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300">
-          {error}
+        <div className="vc-card flex flex-col">
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <div className="vc-stat-label !mb-0">Open findings by severity</div>
+            <span className="text-xs text-[var(--vc-muted)]">Across all connected accounts</span>
+          </div>
+          <div className="mb-4 flex items-baseline gap-3">
+            <span className="text-[32px] font-semibold tracking-[-0.9px] text-[var(--vc-text)]">
+              {loading ? "—" : openTotal}
+            </span>
+            <span className="text-[13px] text-[var(--vc-muted)]">open across the portfolio</span>
+          </div>
+
+          <div className="flex flex-1 flex-col justify-center gap-4">
+            {SEVERITIES.map(({ key, label, cls }) => {
+              const count = totals ? (totals[key.toLowerCase() as "critical"] as number) : 0;
+              const pct = openTotal > 0 ? Math.round((count / openTotal) * 100) : 0;
+              return (
+                <div key={key}>
+                  <div className="mb-2 flex items-baseline justify-between">
+                    <span className="text-[13.5px] font-semibold tracking-[-0.2px] text-[var(--vc-text)]">
+                      {label}
+                    </span>
+                    <span className={`text-[13px] font-semibold ${count > 0 ? cls : "text-[var(--vc-dim)]"}`}>
+                      {count}
+                    </span>
+                  </div>
+                  <div className={`vc-meter ${cls}`}>
+                    <i style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="mt-1.5 text-[11.5px] text-[var(--vc-dim)]">{pct}% of open findings</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* ── Account cards ──────────────────────────────────────────────── */}
+      {/* ── Attention list + framework coverage ──────────────────── */}
+      <div className="vc-grid" style={{ gridTemplateColumns: "1fr 380px" }}>
+        <div className="vc-card vc-card-flush">
+          <div className="vc-card-head">
+            <div>
+              <div className="vc-card-title">Needs attention now</div>
+              <div className="vc-card-sub">Ranked by blast radius, then volume</div>
+            </div>
+            <Link href="/findings" className="vc-link">
+              View all {openTotal}
+            </Link>
+          </div>
+
+          {loading ? (
+            <div className="p-5">
+              <div className="vc-skel h-14 w-full" />
+            </div>
+          ) : attention.length === 0 ? (
+            <div className="vc-empty">
+              {scanned.length === 0
+                ? "No scans yet — run a sweep to surface findings."
+                : "Nothing critical or high is open. Clean portfolio."}
+            </div>
+          ) : (
+            attention.map((a) => {
+              const s = a.findings_summary;
+              const tone = s.CRITICAL > 0 ? "vc-sev-critical" : "vc-sev-high";
+              return (
+                <div key={a.id} className="vc-list-row">
+                  <span className={`vc-dot ${tone}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13.5px] font-semibold tracking-[-0.2px] text-[var(--vc-text)]">
+                      {s.CRITICAL > 0
+                        ? `${s.CRITICAL} critical finding${s.CRITICAL === 1 ? "" : "s"} open`
+                        : `${s.HIGH} high finding${s.HIGH === 1 ? "" : "s"} open`}
+                    </div>
+                    <div className="vc-mono mt-0.5 truncate text-xs text-[var(--vc-muted)]">
+                      {a.customer_name} · {a.account_name} · {a.aws_account_id}
+                    </div>
+                  </div>
+                  <span className="hidden w-16 text-right text-xs text-[var(--vc-muted)] sm:block">
+                    {relativeTime(a.latest_scan?.created_at) ?? "—"}
+                  </span>
+                  {a.latest_scan && (
+                    <Link href={`/scans/${a.latest_scan.scan_id}`} className="vc-btn vc-btn-xs">
+                      Fix
+                    </Link>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="vc-card">
+          <div className="vc-card-title">Framework coverage</div>
+          <div className="vc-card-sub mb-5">
+            {coverage ? "Controls satisfied on the latest scan" : "Available after your first scan"}
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {FRAMEWORKS.map(([key, label]) => {
+              const fw: CoverageFramework | undefined = coverage?.coverage[key];
+              const pct = fw?.pct ?? 0;
+              const tone = !fw ? "text-[var(--vc-dim)]" : pct >= 80 ? "vc-ok" : pct >= 60 ? "vc-sev-high" : "vc-sev-critical";
+              return (
+                <div key={key}>
+                  <div className="mb-2 flex items-baseline justify-between">
+                    <span className="text-[13.5px] font-semibold tracking-[-0.2px] text-[var(--vc-text)]">
+                      {label}
+                    </span>
+                    <span className={`text-[13px] font-semibold ${tone}`}>{fw ? `${pct}%` : "—"}</span>
+                  </div>
+                  <div className={`vc-meter ${fw ? tone : ""}`}>
+                    <i style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="mt-1.5 text-[11.5px] text-[var(--vc-dim)]">
+                    {fw ? `${fw.passing} of ${fw.total_controls} controls` : "No data"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <Link href="/scans" className="vc-btn-secondary vc-btn-block mt-5 !h-9">
+            Download evidence pack
+          </Link>
+        </div>
+      </div>
+
+      {/* ── Accounts ─────────────────────────────────────────────── */}
+      <div className="mt-1.5 flex items-center justify-between">
+        <div className="vc-card-title">Accounts</div>
+        <Link href="/accounts" className="vc-link">
+          Manage all {accounts.length}
+        </Link>
+      </div>
+
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-52 animate-pulse rounded-3xl border border-white/[0.07] bg-white/[0.02]" />
+        <div className="vc-grid vc-grid-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="vc-skel h-44" />
           ))}
         </div>
       ) : accounts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-white/[0.07] bg-white/[0.02] py-16 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.03]">
-            <svg className="h-6 w-6 text-neutral-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-            </svg>
-          </div>
-          <div>
-            <div className="font-semibold text-white">No accounts connected</div>
-            <div className="mt-1 text-sm text-neutral-500">Connect an AWS account to start seeing security posture data.</div>
-          </div>
-          <Link href="/accounts" className="rounded-2xl bg-emerald-500 px-5 py-2.5 text-sm font-bold text-black hover:bg-emerald-400 transition-colors">
-            Connect Account →
+        <div className="vc-card flex flex-col items-center gap-4 py-14 text-center">
+          <div className="vc-card-title">No accounts connected</div>
+          <p className="vc-sub max-w-sm">
+            Connect an AWS account with a read-only role to start seeing posture data.
+          </p>
+          <Link href="/accounts" className="vc-btn-primary vc-btn-lg">
+            Connect account
           </Link>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {accounts.map((acct) => (
-            <AccountCard
-              key={acct.id}
-              account={acct}
-              onRunScan={handleRunScan}
-              scanning={scanningId === acct.id}
-            />
+        <div className="vc-grid vc-grid-3">
+          {accounts.map((a) => (
+            <AccountCard key={a.id} account={a} />
           ))}
         </div>
       )}
-
-      {/* ── Quick links ────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2 pt-2 border-t border-white/[0.05]">
-        {[
-          { href: "/accounts", label: "Manage Accounts" },
-          { href: "/scans",    label: "All Scans" },
-          { href: "/findings", label: "All Findings" },
-          { href: "/plans",    label: "Upgrade Plan" },
-        ].map((l) => (
-          <Link key={l.href} href={l.href}
-            className="rounded-xl border border-white/[0.07] px-3 py-1.5 text-xs font-medium text-neutral-400 hover:bg-white/[0.05] hover:text-white transition-colors">
-            {l.label} →
-          </Link>
-        ))}
-      </div>
-    </div>
+    </>
   );
 }

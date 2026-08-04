@@ -257,7 +257,7 @@ export default function AdminPage() {
         </form>
       )}
 
-      <div className="vc-grid" style={{ gridTemplateColumns: "1fr 400px" }}>
+      <div className="vc-grid vc-split-wide">
         {/* ── Members ──────────────────────────────────────────────────── */}
         <div className="vc-card vc-card-flush">
           <div className="vc-card-head">

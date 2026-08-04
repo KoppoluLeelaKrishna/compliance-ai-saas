@@ -965,7 +965,9 @@ html[data-theme="light"] {
   color: var(--vc-muted); background: transparent; border: none; cursor: pointer;
 }
 .vc-seg > button + button { border-left: 1px solid var(--vc-hairline-strong); }
+.vc-seg > button:hover:not(:disabled) { color: var(--vc-text); }
 .vc-seg > button.is-on { font-weight: 600; color: var(--vc-text); background: var(--vc-chip); }
+.vc-seg > button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* Fields */
 .vc-label {
@@ -1106,23 +1108,40 @@ html[data-theme="light"] {
 .vc-grid-3  { grid-template-columns: repeat(3, 1fr); }
 .vc-grid-4  { grid-template-columns: repeat(4, 1fr); }
 
+/* Asymmetric splits from the redesign. These are classes rather than inline
+   grid-template-columns so the breakpoints below can actually collapse them —
+   an inline style would win over any media query. */
+.vc-split-aside { grid-template-columns: 344px minmax(0, 1fr); }  /* dial + detail */
+.vc-split-panel { grid-template-columns: minmax(0, 1fr) 380px; }  /* list + rail   */
+.vc-split-wide  { grid-template-columns: minmax(0, 1fr) 400px; }  /* table + rail  */
+.vc-split-form  { grid-template-columns: 400px minmax(0, 1fr); }  /* form + table  */
+.vc-split-three { grid-template-columns: 1.25fr minmax(0, 1fr) minmax(0, 1fr); }
+
 /* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .vc-split-three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 1180px) {
   .vc-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .vc-split-aside, .vc-split-panel, .vc-split-wide, .vc-split-form { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 1024px) {
+/* Stops one pixel short of Tailwind's `lg` so the drawer and the top bar's
+   `lg:hidden` toggle never both disappear at exactly 1024px. */
+@media (max-width: 1023.98px) {
   :root { --vc-pad: 20px; }
   .vc-side { position: fixed; left: 0; top: 0; transform: translateX(-100%); transition: transform 0.24s cubic-bezier(0.22,1,0.36,1); }
   .vc-side.is-open { transform: none; box-shadow: 0 24px 60px rgba(0,0,0,0.6); }
   .vc-side-scrim { position: fixed; inset: 0; z-index: 35; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
-  .vc-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .vc-grid-3, .vc-split-three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vc-thead  { display: none; }
   .vc-tr     { grid-template-columns: 1fr !important; gap: 6px; }
+  .vc-tr > .text-right { text-align: left; }
 }
 @media (max-width: 720px) {
-  .vc-grid-2, .vc-grid-3, .vc-grid-4 { grid-template-columns: 1fr; }
+  .vc-grid-2, .vc-grid-3, .vc-grid-4, .vc-split-three { grid-template-columns: 1fr; }
   .vc-page-head { flex-direction: column; align-items: flex-start; gap: 14px; }
   .vc-h1 { font-size: 26px; }
+  .vc-h1-lg { font-size: 30px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

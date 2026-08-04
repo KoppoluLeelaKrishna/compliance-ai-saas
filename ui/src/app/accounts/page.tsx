@@ -227,7 +227,7 @@ export default function AccountsPage() {
         </div>
       )}
 
-      <div className="vc-grid" style={{ gridTemplateColumns: "400px 1fr" }}>
+      <div className="vc-grid vc-split-form">
 
         {/* ── Connect / edit panel ─────────────────────────────────────── */}
         <form onSubmit={submitForm} className="vc-card !p-6 flex flex-col">

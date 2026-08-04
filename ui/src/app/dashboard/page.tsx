@@ -200,7 +200,9 @@ export default function DashboardPage() {
     setScanning(true);
     setNotice("");
     try {
-      await Promise.all(
+      // allSettled, not all: one account failing to start must not hide the
+      // scans that did start, or make the banner claim the sweep failed.
+      const results = await Promise.allSettled(
         targets.map((a) =>
           api("/scans/run", {
             method: "POST",
@@ -208,13 +210,27 @@ export default function DashboardPage() {
           }),
         ),
       );
-      setNotice(`Sweep started across ${targets.length} account${targets.length === 1 ? "" : "s"} — refreshing shortly.`);
+      const started = results.filter((r) => r.status === "fulfilled").length;
+
+      if (started === 0) {
+        const reason = results[0];
+        setNotice(
+          reason?.status === "rejected" && reason.reason instanceof Error
+            ? reason.reason.message
+            : "Could not start the sweep",
+        );
+        return;
+      }
+
+      setNotice(
+        started === targets.length
+          ? `Sweep started across ${started} account${started === 1 ? "" : "s"} — refreshing shortly.`
+          : `Sweep started on ${started} of ${targets.length} accounts — the rest could not be reached.`,
+      );
       setTimeout(() => {
         setNotice("");
         load();
       }, 4000);
-    } catch (e) {
-      setNotice(e instanceof Error ? e.message : "Could not start the sweep");
     } finally {
       setScanning(false);
     }
@@ -316,7 +332,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Posture + severity mix ───────────────────────────────── */}
-      <div className="vc-grid" style={{ gridTemplateColumns: "344px 1fr" }}>
+      <div className="vc-grid vc-split-aside">
         <div className="vc-card">
           <div className="vc-stat-label !mb-4">Portfolio posture</div>
           {portfolio ? (
@@ -393,7 +409,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Attention list + framework coverage ──────────────────── */}
-      <div className="vc-grid" style={{ gridTemplateColumns: "1fr 380px" }}>
+      <div className="vc-grid vc-split-panel">
         <div className="vc-card vc-card-flush">
           <div className="vc-card-head">
             <div>

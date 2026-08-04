@@ -69,7 +69,11 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     return () => {
       cancelled = true;
     };
-  }, [pathname, bare]);
+    // Keyed on `bare`, not `pathname`: the chrome's data does not change
+    // between app routes, and refetching three endpoints on every navigation
+    // triples the request load on a backend the pages are already hitting.
+    // Entering the app from a bare route (sign-in) still re-runs this.
+  }, [bare]);
 
   const signOut = useCallback(async () => {
     try {

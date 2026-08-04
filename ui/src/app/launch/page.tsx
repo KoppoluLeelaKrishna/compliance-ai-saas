@@ -167,9 +167,11 @@ Leela`;
           <p className="vc-sub">
             {loading
               ? "Checking environment…"
-              : blockers === 0
-              ? `All ${qaChecks.length} checks green. Ready to go live.`
-              : `${doneCount} of ${qaChecks.length} checks green. ${blockers} left before go-live.`}
+              : `${
+                  blockers === 0
+                    ? `All ${qaChecks.length} checks green.`
+                    : `${doneCount} of ${qaChecks.length} checks green, ${blockers} left before go-live.`
+                } ${accounts.length} account${accounts.length === 1 ? "" : "s"} connected · ${activeAccounts} active.`}
           </p>
         </div>
         <div className="flex items-center gap-3.5">
@@ -182,7 +184,7 @@ Leela`;
 
       {copyMessage && <div className="vc-note vc-note-success">{copyMessage}</div>}
 
-      <div className="vc-grid" style={{ gridTemplateColumns: "1.25fr 1fr 1fr" }}>
+      <div className="vc-grid vc-split-three">
 
         {/* ── QA status ────────────────────────────────────────────────── */}
         <div className="vc-card vc-card-flush">

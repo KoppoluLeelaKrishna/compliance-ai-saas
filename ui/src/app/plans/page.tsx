@@ -346,7 +346,7 @@ export default function PlansPage() {
                 type="button"
                 onClick={() => startCheckout(plan.key)}
                 disabled={checkoutLoading === plan.key || isCurrent || checkoutBlocked}
-                className={`mt-auto pt-6 ${isCurrent || plan.highlighted ? "" : ""}`}
+                className="mt-auto w-full pt-6"
               >
                 <span
                   className={`flex h-10 w-full items-center justify-center rounded-full text-[13.5px] font-semibold ${

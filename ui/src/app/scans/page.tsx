@@ -862,7 +862,7 @@ export default function ScansPage() {
       </div>
 
       {/* ── Posture of the selected scan ─────────────────────────────────── */}
-      <div className="vc-grid" style={{ gridTemplateColumns: "344px 1fr" }}>
+      <div className="vc-grid vc-split-aside">
         <div className="vc-card">
           <div className="vc-stat-label !mb-4">Findings by severity</div>
           {sevTotal === 0 ? (

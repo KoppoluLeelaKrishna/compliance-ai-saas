@@ -4,6 +4,47 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { AdminUser, AuthMe } from "@/types";
+import TopbarActions from "@/components/app/TopbarActions";
+
+/** Column track for the members table. */
+const MEMBER_COLS = "1fr 150px 170px 240px";
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: "Admin",
+  user: "User",
+  viewer: "Viewer",
+};
+
+const ROLE_TONE: Record<string, string> = {
+  admin: "text-[var(--vc-accent-text)]",
+  user: "vc-ok",
+  viewer: "vc-neutral",
+};
+
+const ROLE_GUIDE: { role: string; summary: string; grants: string[] }[] = [
+  {
+    role: "admin",
+    summary: "Full control, including inviting members, changing roles, and billing.",
+    grants: ["Members", "Billing", "Accounts", "Scans", "Findings"],
+  },
+  {
+    role: "user",
+    summary: "Runs scans, connects accounts, and resolves findings.",
+    grants: ["Accounts", "Scans", "Findings"],
+  },
+  {
+    role: "viewer",
+    summary: "Read-only. Sees posture and exports evidence, changes nothing.",
+    grants: ["Dashboard", "Findings", "Exports"],
+  },
+];
+
+function initials(value: string) {
+  const parts = value.trim().split(/[\s@._-]+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
 
 export default function AdminPage() {
   const router = useRouter();
@@ -17,9 +58,12 @@ export default function AdminPage() {
   const [invitePassword, setInvitePassword] = useState("");
   const [inviteRole, setInviteRole] = useState<"user" | "viewer" | "admin">("user");
   const [inviting, setInviting] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const [changingRole, setChangingRole] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const adminCount = users.filter(u => u.role === "admin").length;
 
   async function loadUsers() {
     try {
@@ -99,6 +143,7 @@ export default function AdminPage() {
       setInviteName("");
       setInvitePassword("");
       setInviteRole("user");
+      setInviteOpen(false);
       await loadUsers();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to invite user");
@@ -107,135 +152,160 @@ export default function AdminPage() {
     }
   }
 
-  const ROLE_BADGE: Record<string, string> = {
-    admin: "border-purple-500/30 bg-purple-500/10 text-purple-300",
-    user: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-    viewer: "border-neutral-500/30 bg-neutral-500/10 text-neutral-400",
-  };
-
   if (loading) {
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+      <div className="flex h-[60vh] flex-col items-center justify-center gap-3">
+        <span className="vc-spinner !h-6 !w-6" />
+        <div className="vc-sub">Loading members…</div>
       </div>
     );
   }
 
   return (
-    <main className="space-y-6 pb-24">
-      {/* Header */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] via-transparent to-purple-500/[0.02] p-6">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-purple-500/[0.06] blur-3xl" />
-        <div className="relative flex items-start gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-purple-500/25 bg-purple-500/10">
-            <svg className="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
-            <p className="mt-0.5 text-sm text-neutral-500">Invite team members, assign roles, manage access</p>
-          </div>
+    <>
+      <TopbarActions>
+        <button type="button" className="vc-btn" onClick={loadUsers}>
+          Refresh
+        </button>
+        <button type="button" className="vc-btn-primary" onClick={() => setInviteOpen(o => !o)}>
+          {inviteOpen ? "Close" : "Invite member"}
+        </button>
+      </TopbarActions>
+
+      <div className="vc-page-head">
+        <div>
+          <h1 className="vc-h1">Admin</h1>
+          <p className="vc-sub">Members, roles, and who can reach which part of this workspace.</p>
         </div>
       </div>
 
-      {/* Alerts */}
-      {error && (
-        <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.07] p-4 text-sm text-red-300">
-          <span className="mt-0.5">✕</span><span>{error}</span>
-        </div>
-      )}
-      {message && (
-        <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-4 text-sm text-emerald-300">
-          <span className="mt-0.5">✓</span>
-          <span>{message}</span>
-          <button type="button" onClick={() => setMessage("")} className="ml-auto text-neutral-600 hover:text-neutral-400 text-xs">✕</button>
+      {error && <div className="vc-note vc-note-error">{error}</div>}
+      {message && !error && (
+        <div className="vc-note vc-note-success items-center">
+          <span className="flex-1">{message}</span>
+          <button type="button" className="vc-link !text-current" onClick={() => setMessage("")}>Dismiss</button>
         </div>
       )}
 
-      {/* Invite form */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-        <div className="mb-4 text-sm font-semibold text-neutral-300">Invite a Team Member</div>
-        <form onSubmit={handleInvite} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <input
-            required
-            type="email"
-            placeholder="Email address"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            className="rounded-xl border border-white/10 bg-black/60 px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/50 focus:outline-none"
-          />
-          <input
-            required
-            type="text"
-            placeholder="Full name"
-            value={inviteName}
-            onChange={(e) => setInviteName(e.target.value)}
-            className="rounded-xl border border-white/10 bg-black/60 px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/50 focus:outline-none"
-          />
-          <input
-            required
-            type="password"
-            placeholder="Temporary password"
-            value={invitePassword}
-            onChange={(e) => setInvitePassword(e.target.value)}
-            className="rounded-xl border border-white/10 bg-black/60 px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500/50 focus:outline-none"
-          />
-          <div className="flex gap-2">
-            <select
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as "user" | "viewer" | "admin")}
-              className="flex-1 rounded-xl border border-white/10 bg-black/60 px-3 py-2.5 text-sm text-white focus:border-emerald-500/50 focus:outline-none"
-            >
-              <option value="user">User</option>
-              <option value="viewer">Viewer</option>
-              <option value="admin">Admin</option>
-            </select>
-            <button
-              type="submit"
-              disabled={inviting}
-              className="rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-black hover:bg-emerald-400 disabled:opacity-50 transition-colors"
-            >
-              {inviting ? "Inviting…" : "Invite"}
+      {inviteOpen && (
+        <form onSubmit={handleInvite} className="vc-card">
+          <div className="vc-card-title">Invite a team member</div>
+          <div className="vc-card-sub mb-5">
+            They sign in with the temporary password and can change it from Settings.
+          </div>
+
+          <div className="vc-grid vc-grid-4">
+            <div>
+              <label className="vc-label" htmlFor="inv-email">Email</label>
+              <input
+                id="inv-email"
+                className="vc-input"
+                required
+                type="email"
+                placeholder="name@company.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="vc-label" htmlFor="inv-name">Full name</label>
+              <input
+                id="inv-name"
+                className="vc-input"
+                required
+                type="text"
+                placeholder="Priya Shah"
+                value={inviteName}
+                onChange={(e) => setInviteName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="vc-label" htmlFor="inv-pass">Temporary password</label>
+              <input
+                id="inv-pass"
+                className="vc-input"
+                required
+                type="password"
+                placeholder="At least 8 characters"
+                value={invitePassword}
+                onChange={(e) => setInvitePassword(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="vc-label" htmlFor="inv-role">Role</label>
+              <select
+                id="inv-role"
+                className="vc-select"
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as "user" | "viewer" | "admin")}
+              >
+                <option value="user">User</option>
+                <option value="viewer">Viewer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-center gap-3">
+            <button type="submit" className="vc-btn-primary vc-btn-lg" disabled={inviting}>
+              {inviting ? "Inviting…" : "Send invitation"}
+            </button>
+            <button type="button" className="vc-btn-secondary vc-btn-lg" onClick={() => setInviteOpen(false)}>
+              Cancel
             </button>
           </div>
         </form>
-        <div className="mt-3 text-[11px] text-neutral-600">
-          <span className="font-semibold text-purple-400">Admin</span> — full access including user management &nbsp;·&nbsp;
-          <span className="font-semibold text-emerald-400">User</span> — can run scans and manage findings &nbsp;·&nbsp;
-          <span className="font-semibold text-neutral-400">Viewer</span> — read-only access
-        </div>
-      </div>
+      )}
 
-      {/* User table */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
-        <div className="border-b border-white/[0.05] px-6 py-4">
-          <div className="text-sm font-semibold text-neutral-300">{users.length} member{users.length !== 1 ? "s" : ""}</div>
-        </div>
-        {users.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-neutral-600">No users found.</div>
-        ) : (
-          <div className="divide-y divide-white/[0.04]">
-            {users.map((u) => (
-              <div key={u.id} className="flex items-center gap-4 px-6 py-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-sm font-bold text-neutral-300">
-                  {u.name?.[0]?.toUpperCase() ?? "?"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-neutral-200 truncate">{u.name || "—"}</span>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${ROLE_BADGE[u.role] ?? ROLE_BADGE.viewer}`}>
-                      {u.role}
-                    </span>
+      <div className="vc-grid vc-split-wide">
+        {/* ── Members ──────────────────────────────────────────────────── */}
+        <div className="vc-card vc-card-flush">
+          <div className="vc-card-head">
+            <div>
+              <div className="vc-card-title">Members</div>
+              <div className="vc-card-sub">
+                {users.length} member{users.length !== 1 ? "s" : ""} · {adminCount} with admin access
+              </div>
+            </div>
+          </div>
+
+          <div className="vc-thead" style={{ gridTemplateColumns: MEMBER_COLS }}>
+            <span>Member</span>
+            <span>Role</span>
+            <span>Joined</span>
+            <span className="text-right">Access</span>
+          </div>
+
+          {users.length === 0 ? (
+            <div className="vc-empty">No members yet.</div>
+          ) : (
+            users.map((u) => (
+              <div key={u.id} className="vc-tr" style={{ gridTemplateColumns: MEMBER_COLS }}>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full bg-[var(--vc-chip)] text-[11px] font-semibold text-[var(--vc-text)]">
+                    {initials(u.name || u.email)}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="vc-cell-strong truncate">{u.name || "—"}</div>
+                    <div className="vc-cell-sub truncate">{u.email}</div>
                   </div>
-                  <div className="text-xs text-neutral-600 truncate">{u.email}</div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+
+                <span className={`text-[12.5px] font-semibold ${ROLE_TONE[u.role] ?? "vc-neutral"}`}>
+                  {ROLE_LABEL[u.role] ?? u.role}
+                </span>
+
+                <span className="vc-cell">
+                  {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
+                </span>
+
+                <div className="flex items-center justify-end gap-2">
                   <select
+                    aria-label={`Role for ${u.email}`}
+                    className="vc-chip !h-8"
                     value={u.role}
                     disabled={changingRole === u.id}
                     onChange={(e) => handleChangeRole(u.id, e.target.value)}
-                    className="rounded-xl border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white focus:border-emerald-500/50 focus:outline-none disabled:opacity-50"
                   >
                     <option value="user">User</option>
                     <option value="viewer">Viewer</option>
@@ -243,18 +313,51 @@ export default function AdminPage() {
                   </select>
                   <button
                     type="button"
+                    className="vc-link vc-sev-critical"
                     onClick={() => handleDelete(u.id)}
                     disabled={deletingId === u.id}
-                    className="rounded-xl border border-red-500/20 bg-red-500/[0.06] px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/15 disabled:opacity-40 transition-colors"
                   >
                     {deletingId === u.id ? "…" : "Remove"}
                   </button>
                 </div>
               </div>
-            ))}
+            ))
+          )}
+        </div>
+
+        {/* ── Roles reference ──────────────────────────────────────────── */}
+        <div className="vc-card vc-card-flush flex flex-col">
+          <div className="vc-card-head">
+            <div>
+              <div className="vc-card-title">Roles and access</div>
+              <div className="vc-card-sub">What each role can reach in this workspace</div>
+            </div>
           </div>
-        )}
+
+          {ROLE_GUIDE.map(({ role, summary, grants }) => (
+            <div key={role} className="border-b border-[var(--vc-hairline-soft)] px-[22px] py-4 last:border-b-0">
+              <div className="flex items-center justify-between gap-3">
+                <span className={`text-[13.5px] font-semibold ${ROLE_TONE[role]}`}>{ROLE_LABEL[role]}</span>
+                <span className="vc-tag">
+                  {users.filter(u => u.role === role).length} member
+                  {users.filter(u => u.role === role).length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <p className="mt-1.5 text-[12.5px] leading-[1.5] text-[var(--vc-muted)]">{summary}</p>
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {grants.map(g => <span key={g} className="vc-tag">{g}</span>)}
+              </div>
+            </div>
+          ))}
+
+          <div className="vc-card-foot mt-auto">
+            <p className="text-[11.5px] leading-[1.5] text-[var(--vc-dim)]">
+              Removing a member revokes their session immediately. Connected AWS roles are unaffected —
+              revoke those from the client account.
+            </p>
+          </div>
+        </div>
       </div>
-    </main>
+    </>
   );
 }

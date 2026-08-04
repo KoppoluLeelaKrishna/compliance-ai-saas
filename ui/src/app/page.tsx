@@ -26,10 +26,13 @@ function CanvasParticles() {
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
-    canvas.parentElement?.addEventListener("mousemove", (e: MouseEvent) => {
+    /* Listen on window, not the parent — the backdrop is pointer-events:none
+       so parent-level mouse events would never fire. */
+    const onPointer = (e: MouseEvent) => {
       const r = canvas.getBoundingClientRect();
       mx = e.clientX - r.left; my = e.clientY - r.top;
-    }, { passive: true });
+    };
+    window.addEventListener("mousemove", onPointer, { passive: true });
 
     interface Star { x: number; y: number; vx: number; vy: number; r: number; bright: number; ts: number; to: number; }
     interface Shooter { x: number; y: number; vx: number; vy: number; life: number; max: number; }
@@ -120,9 +123,40 @@ function CanvasParticles() {
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener("mousemove", onPointer);
+    };
   }, []);
   return <canvas ref={ref} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 1 }} />;
+}
+
+/* ════════════════════════════════════════════════════
+   PAGE BACKDROP — one fixed cosmic layer behind everything
+
+   Every section is transparent, so this is the page's only
+   background. Fixed rather than scrolling: the starfield stays
+   put while content moves over it, and nothing repaints on scroll.
+════════════════════════════════════════════════════ */
+function PageBackdrop() {
+  return (
+    <div aria-hidden className="vc-backdrop">
+      {/* Deep-space base — navy at the top fading to near-black */}
+      <div className="vc-backdrop-base" />
+
+      {/* Aurora blobs, slowly morphing */}
+      <div className="ap-morph vc-aurora vc-aurora-1" />
+      <div className="ap-morph vc-aurora vc-aurora-2" />
+      <div className="ap-morph vc-aurora vc-aurora-3" />
+      <div className="ap-morph vc-aurora vc-aurora-4" />
+
+      {/* Fine dot grid + starfield + edge vignette */}
+      <div className="vc-backdrop-dots" />
+      <CanvasParticles />
+      <div className="vc-backdrop-vignette" />
+    </div>
+  );
 }
 
 /* ════════════════════════════════════════════════════
@@ -194,7 +228,7 @@ function ScrollProgress() {
 ════════════════════════════════════════════════════ */
 function useReveal() {
   useEffect(() => {
-    const els = document.querySelectorAll(".ap-reveal,.ap-reveal-left,.ap-reveal-right,.ap-reveal-scale,.ap-reveal-blur,.ap-pop");
+    const els = document.querySelectorAll(".ap-reveal,.ap-reveal-left,.ap-reveal-right,.ap-reveal-scale,.ap-reveal-blur,.ap-pop,.ap-rise");
     const io  = new IntersectionObserver(
       (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("ap-visible"); }),
       { threshold: 0.06 }
@@ -242,13 +276,18 @@ function useParallax() {
 /* ════════════════════════════════════════════════════
    DESIGN TOKENS
 ════════════════════════════════════════════════════ */
+/* Single dark theme. Every section is transparent and floats over the
+   fixed cosmic backdrop (<PageBackdrop />), so `canvas`/`parchment` are
+   translucent glass surfaces rather than opaque paper.
+   `primary` fills buttons (white text, 5.4:1); `primaryDark` is the
+   accent used for *text* on dark (6.6:1 — #0066cc would fail here). */
 const C = {
   primary: "#0066cc", primaryDark: "#2997ff",
-  ink: "#1d1d1f", inkMuted: "#6e6e73", inkSoft: "#86868b",
-  muted: "#a1a1a6", onDark: "#f5f5f7",
-  canvas: "#ffffff", parchment: "#f5f5f7",
-  tile1: "#272729", tile2: "#2a2a2c", tile3: "#1c1c1e",
-  black: "#000000", hairline: "#d2d2d7", divider: "#f0f0f0",
+  ink: "#f5f5f7", inkMuted: "rgba(233,238,248,0.60)", inkSoft: "rgba(233,238,248,0.44)",
+  muted: "rgba(233,238,248,0.58)", onDark: "#f5f5f7",
+  canvas: "rgba(255,255,255,0.038)", parchment: "rgba(255,255,255,0.055)",
+  tile1: "transparent", tile2: "transparent", tile3: "transparent",
+  black: "transparent", hairline: "rgba(255,255,255,0.10)", divider: "rgba(255,255,255,0.09)",
 };
 const ff = "var(--ff)", fft = "var(--fft)";
 
@@ -260,18 +299,27 @@ const STEPS = [
 ];
 
 const SEV_COL: Record<string, string> = { Critical: "#ef4444", High: "#f97316", Medium: "#f59e0b" };
+/* RGB triples so CSS can build rgba() tints from a single --sev custom property */
+const SEV_RGB: Record<string, string> = { Critical: "239,68,68", High: "249,115,22", Medium: "245,158,11" };
 
+/* Spans total 12 → four clean rows of 3 on desktop, no orphan cells */
 const BENTO = [
-  { icon: "🪣", title: "S3 Public Access",   desc: "Detects open buckets, public ACLs, and exposed policies before attackers find them.", sev: "Critical", bg: C.tile1,    txt: "#fff", span: 2, h: 260 },
-  { icon: "🔑", title: "Root Access Keys",   desc: "Alerts immediately if your root account has active access keys — the most dangerous risk.", sev: "Critical", bg: C.tile2, txt: "#fff", span: 1, h: 260 },
-  { icon: "👤", title: "IAM Permissions",    desc: "Flags over-permissioned roles with unnecessary admin access.",                           sev: "High",     bg: C.parchment, txt: C.ink, span: 1, h: 220 },
-  { icon: "🔐", title: "MFA Enforcement",    desc: "Checks every IAM user and root account for missing multi-factor authentication.",        sev: "High",     bg: C.canvas,    txt: C.ink, span: 1, h: 220 },
-  { icon: "🛡️", title: "Security Groups",    desc: "Finds EC2 security groups with ports open to the entire internet.",                      sev: "High",     bg: C.parchment, txt: C.ink, span: 1, h: 220 },
-  { icon: "🗄️", title: "RDS Encryption",     desc: "Checks RDS instances for unencrypted storage and public accessibility.",                 sev: "High",     bg: C.canvas,    txt: C.ink, span: 2, h: 220 },
-  { icon: "💾", title: "EBS Encryption",     desc: "Identifies unencrypted EBS volumes and missing default encryption.",                     sev: "Medium",   bg: C.tile1,    txt: "#fff", span: 1, h: 185 },
-  { icon: "📋", title: "CloudTrail Logging", desc: "Verifies CloudTrail is active, multi-region, with log validation enabled.",             sev: "Medium",   bg: C.tile2,    txt: "#fff", span: 1, h: 185 },
-  { icon: "🔀", title: "VPC Flow Logs",      desc: "Ensures network traffic is logged for security monitoring and forensics.",               sev: "Medium",   bg: C.tile3,    txt: "#fff", span: 1, h: 185 },
-  { icon: "🔄", title: "KMS Key Rotation",   desc: "Checks that customer-managed KMS keys have automatic rotation enabled.",                 sev: "Medium",   bg: C.tile1,    txt: "#fff", span: 1, h: 185 },
+  { icon: "🪣", title: "S3 Public Access",   desc: "Detects open buckets, public ACLs, and exposed policies before attackers find them.",     sev: "Critical", svc: "S3",         span: 2 },
+  { icon: "🔑", title: "Root Access Keys",   desc: "Alerts immediately if your root account has active access keys — the most dangerous risk.", sev: "Critical", svc: "IAM",        span: 1 },
+  { icon: "👤", title: "IAM Permissions",    desc: "Flags over-permissioned roles with unnecessary admin access.",                             sev: "High",     svc: "IAM",        span: 1 },
+  { icon: "🔐", title: "MFA Enforcement",    desc: "Checks every IAM user and root account for missing multi-factor authentication.",          sev: "High",     svc: "IAM",        span: 1 },
+  { icon: "🛡️", title: "Security Groups",    desc: "Finds EC2 security groups with ports open to the entire internet.",                        sev: "High",     svc: "EC2",        span: 1 },
+  { icon: "🗄️", title: "RDS Encryption",     desc: "Checks RDS instances for unencrypted storage and public accessibility.",                   sev: "High",     svc: "RDS",        span: 1 },
+  { icon: "💾", title: "EBS Encryption",     desc: "Identifies unencrypted EBS volumes and missing default encryption.",                       sev: "Medium",   svc: "EBS",        span: 1 },
+  { icon: "📋", title: "CloudTrail Logging", desc: "Verifies CloudTrail is active, multi-region, with log validation enabled.",                sev: "Medium",   svc: "CloudTrail", span: 1 },
+  { icon: "🔀", title: "VPC Flow Logs",      desc: "Ensures network traffic is logged for security monitoring and forensics.",                 sev: "Medium",   svc: "VPC",        span: 1 },
+  { icon: "🔄", title: "KMS Key Rotation",   desc: "Checks that customer-managed KMS keys have automatic rotation enabled.",                   sev: "Medium",   svc: "KMS",        span: 2 },
+];
+
+const PLATFORM = [
+  { icon: "🤖", title: "AI Security Analysis", desc: "Claude AI summarizes your findings and prioritizes what to fix first — in plain English." },
+  { icon: "📬", title: "Email Alerts",         desc: "Get notified the moment a critical misconfiguration is found in your account." },
+  { icon: "📤", title: "Compliance Exports",   desc: "Export findings as CSV or JSON for SOC2, ISO 27001, and audit evidence packages." },
 ];
 
 const GALLERY = [
@@ -310,14 +358,55 @@ function SevBadge({ sev, dark }: { sev: string; dark?: boolean }) {
   return <span style={{ background: bg, border: `1px solid ${border}`, color, fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 9999, fontFamily: fft, display: "inline-block", letterSpacing: "0.02em" }}>{sev}</span>;
 }
 
+/* ════════════════════════════════════════════════════
+   CHECK CARD — dark glass tile with cursor spotlight
+════════════════════════════════════════════════════ */
+function CheckCard({
+  icon, title, desc, tag, accent, index, wide, children,
+}: {
+  icon: string; title: string; desc: string; tag: string;
+  accent: string; index?: number; wide?: boolean; children?: React.ReactNode;
+}) {
+  const ref = useRef<HTMLElement>(null);
+
+  /* Feed the pointer position to CSS so the radial spotlight tracks the cursor */
+  const onMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    el.style.setProperty("--my", `${e.clientY - r.top}px`);
+  }, []);
+
+  return (
+    <article
+      ref={ref}
+      onMouseMove={onMove}
+      className="vc-check"
+      style={{ ["--sev" as string]: accent }}
+    >
+      <div className="vc-check-head">
+        <span className="vc-check-icon" aria-hidden>{icon}</span>
+        {index !== undefined && <span className="vc-check-idx">{String(index + 1).padStart(2, "0")}</span>}
+      </div>
+      <h3 className="vc-check-title" style={{ fontFamily: ff, fontSize: wide ? 22 : 19 }}>{title}</h3>
+      <p className="vc-check-desc" style={{ fontFamily: fft }}>{desc}</p>
+      <div className="vc-check-foot" style={{ fontFamily: fft }}>
+        <span className="vc-check-tag">{tag}</span>
+        {children}
+      </div>
+    </article>
+  );
+}
+
 const pill = (bg: string, color: string, border?: string): React.CSSProperties => ({
   display: "inline-block", background: bg, color, fontSize: 17, fontFamily: fft, fontWeight: 400,
   padding: "11px 22px", borderRadius: 9999, border: border ? `1px solid ${border}` : "none",
   letterSpacing: "-0.374px", textDecoration: "none", cursor: "pointer",
 });
 
-function Label({ children, dark }: { children: React.ReactNode; dark?: boolean }) {
-  return <div style={{ fontFamily: fft, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: dark ? C.primaryDark : C.primary, marginBottom: 16 }}>{children}</div>;
+function Label({ children }: { children: React.ReactNode; dark?: boolean }) {
+  return <div style={{ fontFamily: fft, fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: C.primaryDark, marginBottom: 16 }}>{children}</div>;
 }
 
 function H2({ children, dark, center, maxW }: { children: React.ReactNode; dark?: boolean; center?: boolean; maxW?: number }) {
@@ -332,11 +421,11 @@ function H2({ children, dark, center, maxW }: { children: React.ReactNode; dark?
    INSIGHTS BAR CHART
 ════════════════════════════════════════════════════ */
 const CHART_BARS = [
-  { label: "S3",         val: 5.2, color: "#dc2626", sev: "Critical" },
-  { label: "IAM",        val: 3.8, color: "#ea580c", sev: "High"     },
-  { label: "EC2",        val: 2.4, color: "#ea580c", sev: "High"     },
-  { label: "RDS",        val: 2.1, color: "#b45309", sev: "Medium"   },
-  { label: "CloudTrail", val: 1.8, color: "#b45309", sev: "Medium"   },
+  { label: "S3",         val: 5.2, color: "#f87171", sev: "Critical" },
+  { label: "IAM",        val: 3.8, color: "#fb923c", sev: "High"     },
+  { label: "EC2",        val: 2.4, color: "#fb923c", sev: "High"     },
+  { label: "RDS",        val: 2.1, color: "#fbbf24", sev: "Medium"   },
+  { label: "CloudTrail", val: 1.8, color: "#fbbf24", sev: "Medium"   },
   { label: "KMS",        val: 1.2, color: "#9ca3af", sev: "Low"      },
   { label: "VPC",        val: 1.0, color: "#9ca3af", sev: "Low"      },
   { label: "EBS",        val: 0.9, color: "#9ca3af", sev: "Low"      },
@@ -346,9 +435,9 @@ const CHART_MAX = 6;
 
 /* ── Donut Chart ── */
 const DONUT_SEGS = [
-  { label: "Critical", pct: "22%", color: "#dc2626", da: "62 220",  doff: "70.7"   },
-  { label: "High",     pct: "35%", color: "#ea580c", da: "99 183",  doff: "3.1"    },
-  { label: "Medium",   pct: "28%", color: "#b45309", da: "79 203",  doff: "-100.5" },
+  { label: "Critical", pct: "22%", color: "#f87171", da: "62 220",  doff: "70.7"   },
+  { label: "High",     pct: "35%", color: "#fb923c", da: "99 183",  doff: "3.1"    },
+  { label: "Medium",   pct: "28%", color: "#fbbf24", da: "79 203",  doff: "-100.5" },
   { label: "Low",      pct: "15%", color: "#9ca3af", da: "42 240",  doff: "-184.5" },
 ];
 
@@ -448,7 +537,7 @@ function InsightsBarChart() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 36 }}>
         <div>
-          <div style={{ fontFamily: fft, fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>By Service</div>
+          <div style={{ fontFamily: fft, fontSize: 11, fontWeight: 700, color: C.primaryDark, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>By Service</div>
           <div style={{ fontFamily: ff, fontSize: 20, fontWeight: 600, color: C.ink, letterSpacing: "-0.3px" }}>Avg. findings per scan</div>
         </div>
         <div style={{ display: "flex", gap: 18 }}>
@@ -698,7 +787,7 @@ function ScrollGallery() {
       <div style={{
         position: "fixed",
         top: 44, left: 0, right: 0, bottom: 0,
-        background: "#020408",
+        background: "rgba(3,6,14,0.88)",
         zIndex: on ? 150 : -1,
         opacity: on ? 1 : 0,
         transition: "opacity 0.3s ease",
@@ -792,7 +881,8 @@ export default function HomePage() {
   );
 
   return (
-    <div style={{ background: C.black, color: C.onDark, fontFamily: ff, overflowX: "hidden" }}>
+    <div style={{ background: "#04070f", color: C.onDark, fontFamily: ff, overflowX: "hidden", position: "relative", isolation: "isolate" }}>
+      <PageBackdrop />
       <CursorGlow />
       <ScrollProgress />
 
@@ -820,11 +910,9 @@ export default function HomePage() {
       </nav>
 
       {/* ══ HERO ══ */}
-      <section style={{ background: "#040a14", minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "80px 22px 60px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+      <section style={{ background: "transparent", minHeight: "100dvh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "80px 22px 60px", textAlign: "center", position: "relative", overflow: "hidden" }}>
 
-        {/* Starfield canvas */}
-        <CanvasParticles />
-
+        {/* Starfield now comes from <PageBackdrop />; these blobs are hero-only extras */}
         {/* Premium aurora blobs — purple / electric-blue / teal */}
         <div className="ap-morph" style={{ position: "absolute", width: 820, height: 820, top: "-18%", left: "-18%", background: "radial-gradient(circle at 40% 50%, rgba(120,40,255,0.22) 0%, rgba(60,0,180,0.10) 45%, transparent 70%)", filter: "blur(80px)", pointerEvents: "none", zIndex: 0 }} />
         <div className="ap-morph" style={{ position: "absolute", width: 700, height: 700, top: "5%", right: "-14%", background: "radial-gradient(circle at 55% 45%, rgba(0,140,255,0.20) 0%, rgba(0,80,200,0.08) 50%, transparent 70%)", filter: "blur(75px)", pointerEvents: "none", zIndex: 0, animationDelay: "-6s" }} />
@@ -951,7 +1039,7 @@ export default function HomePage() {
       </section>
 
       {/* ══ STATS STRIP ══ */}
-      <section className="ap-animated-bg" style={{ padding: "80px 22px" }}>
+      <section style={{ padding: "80px 22px", position: "relative" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <div className="ap-reveal ap-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 32, textAlign: "center" }}>
             {[
@@ -973,7 +1061,7 @@ export default function HomePage() {
       </section>
 
       {/* ══ HOW IT WORKS ══ */}
-      <section id="how-it-works" className="ap-sec" style={{ background: C.canvas, padding: "120px 22px", position: "relative", overflow: "hidden" }}>
+      <section id="how-it-works" className="ap-sec" style={{ background: "transparent", padding: "120px 22px", position: "relative", overflow: "hidden" }}>
         {/* Subtle bg orb */}
         <div style={{ position: "absolute", top: "30%", right: "-10%", width: 500, height: 500, background: "radial-gradient(circle, rgba(0,102,204,0.04), transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
@@ -983,13 +1071,13 @@ export default function HomePage() {
             <p style={{ fontFamily: fft, fontSize: 17, color: C.inkMuted, lineHeight: 1.47, letterSpacing: "-0.374px" }}>No agents, no installations, no complex setup.</p>
           </div>
 
-          <div className="ap-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: C.hairline }}>
+          <div className="ap-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
             {STEPS.map((step, i) => (
-              <TiltCard key={step.num} className={`ap-reveal${i === 0 ? "-left" : i === 2 ? "-right" : ""} ap-d${i + 1}`} style={{ background: C.canvas, padding: "48px 36px", height: "100%" }}>
-                <div style={{ fontFamily: ff, fontSize: 68, fontWeight: 700, color: "rgba(0,0,0,0.05)", lineHeight: 1, marginBottom: 28, letterSpacing: "-2px" }}>{step.num}</div>
+              <TiltCard key={step.num} className={`ap-reveal${i === 0 ? "-left" : i === 2 ? "-right" : ""} ap-d${i + 1}`} style={{ background: C.canvas, border: `1px solid ${C.hairline}`, borderRadius: 20, padding: "48px 36px", height: "100%" }}>
+                <div style={{ fontFamily: ff, fontSize: 68, fontWeight: 700, color: "rgba(255,255,255,0.08)", lineHeight: 1, marginBottom: 28, letterSpacing: "-2px" }}>{step.num}</div>
                 <h3 style={{ fontFamily: ff, fontSize: 21, fontWeight: 600, color: C.ink, lineHeight: 1.19, letterSpacing: "0.231px", marginBottom: 12 }}>{step.title}</h3>
                 <p style={{ fontFamily: fft, fontSize: 15, color: C.inkMuted, lineHeight: 1.55, letterSpacing: "-0.224px", marginBottom: 20 }}>{step.desc}</p>
-                <span style={{ display: "inline-block", background: "rgba(0,102,204,0.07)", border: "1px solid rgba(0,102,204,0.18)", borderRadius: 9999, padding: "5px 13px", fontSize: 11, color: C.primary, fontFamily: fft, fontWeight: 500 }}>{step.tag}</span>
+                <span style={{ display: "inline-block", background: "rgba(41,151,255,0.10)", border: "1px solid rgba(41,151,255,0.24)", borderRadius: 9999, padding: "5px 13px", fontSize: 11, color: C.primaryDark, fontFamily: fft, fontWeight: 500 }}>{step.tag}</span>
               </TiltCard>
             ))}
           </div>
@@ -999,79 +1087,63 @@ export default function HomePage() {
       {/* ══ SCROLL GALLERY ══ */}
       <ScrollGallery />
 
-      {/* ══ BENTO GRID ══ */}
-      <section id="features" style={{ background: C.black, padding: "120px 0 0", position: "relative" }}>
-        <div style={{ maxWidth: 980, margin: "0 auto", padding: "0 22px" }}>
-          <div className="ap-reveal" style={{ textAlign: "center", marginBottom: 64 }}>
+      {/* ══ SECURITY CHECKS ══ */}
+      <section id="features" className="vc-checks-sec" style={{ background: "transparent", position: "relative", overflow: "hidden" }}>
+        {/* Ambient glow — drifts as the section scrolls through the viewport */}
+        <div className="vc-checks-aura" aria-hidden />
+
+        <div className="vc-checks-wrap">
+          <div className="ap-reveal" style={{ textAlign: "center", marginBottom: 56 }}>
             <Label dark>Security Checks</Label>
             <H2 dark center maxW={640}>10 checks. Every critical area.</H2>
-            <p style={{ fontFamily: fft, fontSize: 17, color: C.muted, lineHeight: 1.47, letterSpacing: "-0.374px" }}>
+            <p style={{ fontFamily: fft, fontSize: 17, color: C.muted, lineHeight: 1.47, letterSpacing: "-0.374px", maxWidth: 560, margin: "0 auto" }}>
               Every check ships with fix guidance, the exact AWS Console path, and CLI commands.
             </p>
           </div>
-        </div>
 
-        {/* Main bento tiles — ap-pop for entrance, TiltCard for hover */}
-        <div className="ap-bento-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-          {(() => {
-            let col = 0;
-            return BENTO.map((t, idx) => {
-              const startCol = col;
-              col += t.span;
-              if (col >= 3) col = 0;
-              const delay = parseFloat(((startCol / 3) * 0.16).toFixed(3));
-              return (
-                <div key={t.title} className="ap-pop" style={{ gridColumn: `span ${t.span}`, transitionDelay: `${delay}s`, minHeight: t.h, borderRadius: 52, overflow: "hidden", animation: `bubble-morph ${6 + (idx % 4) * 0.7}s ease-in-out ${idx * 0.45}s infinite`, boxShadow: `0 8px 40px ${SEV_COL[t.sev] ?? "#9ca3af"}22, 0 2px 10px rgba(0,0,0,0.18)` }}>
-                  <TiltCard style={{ background: t.bg, padding: "32px 30px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", borderRadius: 52 }}>
-                    {/* Water-bubble gloss — top highlight */}
-                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "54%", background: t.txt === "#fff" ? "linear-gradient(148deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 40%, transparent 65%)" : "linear-gradient(148deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.18) 40%, transparent 65%)", pointerEvents: "none" }} />
-                    {/* Severity color bloom — bottom corner */}
-                    <div style={{ position: "absolute", bottom: -32, right: -32, width: 120, height: 120, background: `radial-gradient(circle, ${SEV_COL[t.sev] ?? "#9ca3af"}2a, transparent 68%)`, borderRadius: "50%", pointerEvents: "none" }} />
-                    {/* Top row: icon pill + severity badge */}
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
-                      <div style={{ fontSize: 26, width: 46, height: 46, borderRadius: 15, background: t.txt === "#fff" ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{t.icon}</div>
-                      <SevBadge sev={t.sev} dark={t.txt === "#fff"} />
-                    </div>
-                    {/* Bottom: AWS tag + title + desc */}
-                    <div style={{ position: "relative", zIndex: 1 }}>
-                      <span style={{ fontFamily: fft, fontSize: 10, fontWeight: 700, color: t.txt === "#fff" ? C.primaryDark : C.primary, background: t.txt === "#fff" ? "rgba(41,151,255,0.13)" : "rgba(0,102,204,0.08)", border: `1px solid ${t.txt === "#fff" ? "rgba(41,151,255,0.24)" : "rgba(0,102,204,0.18)"}`, padding: "2px 7px", borderRadius: 5, letterSpacing: "0.1em", display: "inline-block", marginBottom: 10 }}>AWS</span>
-                      <h3 style={{ fontFamily: ff, fontSize: 19, fontWeight: 600, color: t.txt, lineHeight: 1.2, letterSpacing: "0.1px", marginBottom: 8 }}>{t.title}</h3>
-                      <p style={{ fontFamily: fft, fontSize: 13, color: t.txt === "#fff" ? "rgba(255,255,255,0.50)" : C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.2px" }}>{t.desc}</p>
-                    </div>
-                  </TiltCard>
-                </div>
-              );
-            });
-          })()}
-        </div>
+          {/* The 10 AWS checks — staggered blur-rise on scroll, spotlight on hover */}
+          <div className="vc-checks-grid">
+            {BENTO.map((t, i) => (
+              <div
+                key={t.title}
+                className="ap-rise"
+                style={{ gridColumn: `span ${t.span}`, transitionDelay: `${((i % 3) * 0.08).toFixed(2)}s` }}
+              >
+                <CheckCard
+                  icon={t.icon}
+                  title={t.title}
+                  desc={t.desc}
+                  tag={`AWS · ${t.svc}`}
+                  accent={SEV_RGB[t.sev] ?? "148,163,184"}
+                  index={i}
+                  wide={t.span === 2}
+                >
+                  <span className="vc-check-sev">
+                    <i className="vc-check-dot" />
+                    {t.sev}
+                  </span>
+                </CheckCard>
+              </div>
+            ))}
+          </div>
 
-        {/* Extra feature tiles */}
-        <div className="ap-bento-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 10 }}>
-          {[
-            { icon: "🤖", title: "AI Security Analysis", desc: "Claude AI summarizes your findings and prioritizes what to fix first — in plain English.", bg: C.parchment },
-            { icon: "📬", title: "Email Alerts",          desc: "Get notified the moment a critical misconfiguration is found in your account.",           bg: C.canvas    },
-            { icon: "📤", title: "Compliance Exports",    desc: "Export findings as CSV or JSON for SOC2, ISO 27001, and audit evidence packages.",        bg: C.parchment },
-          ].map((f, i) => (
-            <div key={f.title} className="ap-pop" style={{ transitionDelay: `${i * 0.12}s`, borderRadius: 52, overflow: "hidden", animation: `bubble-morph ${6.5 + i * 0.6}s ease-in-out ${(BENTO.length + i) * 0.45}s infinite`, boxShadow: "0 8px 32px rgba(0,102,204,0.10), 0 2px 8px rgba(0,0,0,0.07)" }}>
-              <TiltCard style={{ background: f.bg, padding: "32px 30px", height: 195, borderRadius: 52 }}>
-                {/* Gloss */}
-                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "52%", background: "linear-gradient(148deg, rgba(255,255,255,0.58) 0%, rgba(255,255,255,0.16) 40%, transparent 65%)", pointerEvents: "none" }} />
-                <div style={{ position: "absolute", bottom: -28, right: -28, width: 100, height: 100, background: "radial-gradient(circle, rgba(0,102,204,0.14), transparent 68%)", borderRadius: "50%", pointerEvents: "none" }} />
-                <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-                  <div style={{ fontSize: 24, width: 44, height: 44, borderRadius: 14, background: "rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>{f.icon}</div>
-                </div>
-                <div style={{ position: "relative", zIndex: 1 }}>
-                  <h3 style={{ fontFamily: ff, fontSize: 18, fontWeight: 600, color: C.ink, lineHeight: 1.2, letterSpacing: "0.1px", marginBottom: 8 }}>{f.title}</h3>
-                  <p style={{ fontFamily: fft, fontSize: 13, color: C.inkMuted, lineHeight: 1.5, letterSpacing: "-0.2px" }}>{f.desc}</p>
-                </div>
-              </TiltCard>
-            </div>
-          ))}
+          {/* Platform capabilities that sit on top of the checks */}
+          <div className="vc-checks-rule ap-reveal">
+            <span>Beyond the checks</span>
+          </div>
+
+          <div className="vc-checks-grid">
+            {PLATFORM.map((f, i) => (
+              <div key={f.title} className="ap-rise" style={{ transitionDelay: `${(i * 0.08).toFixed(2)}s` }}>
+                <CheckCard icon={f.icon} title={f.title} desc={f.desc} tag="Platform" accent="41,151,255" />
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ══ SECURITY INSIGHTS ══ */}
-      <section id="stats" className="ap-sec" style={{ background: C.parchment, padding: "120px 22px", position: "relative", overflow: "hidden" }}>
+      <section id="stats" className="ap-sec" style={{ background: "transparent", padding: "120px 22px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: "50%", left: "-5%", width: 600, height: 600, background: "radial-gradient(circle, rgba(0,102,204,0.05), transparent 70%)", borderRadius: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <div className="ap-reveal" style={{ textAlign: "center", marginBottom: 72 }}>
@@ -1111,7 +1183,7 @@ export default function HomePage() {
       </section>
 
       {/* ══ PRICING ══ */}
-      <section id="pricing" className="ap-sec" style={{ background: C.tile1, padding: "120px 22px", position: "relative", overflow: "hidden" }}>
+      <section id="pricing" className="ap-sec" style={{ background: "transparent", padding: "120px 22px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: "20%", left: "50%", transform: "translateX(-50%)", width: 800, height: 600, background: "radial-gradient(ellipse, rgba(0,102,204,0.08), transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
         <div style={{ maxWidth: 980, margin: "0 auto", position: "relative" }}>
           <div className="ap-reveal" style={{ textAlign: "center", marginBottom: 72 }}>
@@ -1123,7 +1195,7 @@ export default function HomePage() {
           <div className="ap-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
             {PLANS.map((plan, i) => (
               <div key={plan.key} className={`ap-reveal ap-d${i + 1} ${plan.hot ? "ap-glow-border" : ""}`}
-                style={{ background: C.canvas, borderRadius: 20, padding: "36px 28px", border: plan.hot ? "none" : `1px solid ${C.hairline}`, position: "relative", zIndex: 1, transition: "transform 0.12s cubic-bezier(0.22,1,0.36,1)", transformStyle: "preserve-3d" }}
+                style={{ background: plan.hot ? "rgba(41,151,255,0.09)" : C.canvas, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderRadius: 20, padding: "36px 28px", border: plan.hot ? "none" : `1px solid ${C.hairline}`, position: "relative", zIndex: 1, transition: "transform 0.12s cubic-bezier(0.22,1,0.36,1)", transformStyle: "preserve-3d" }}
                 onMouseMove={(e) => {
                   const el = e.currentTarget as HTMLDivElement;
                   const r  = el.getBoundingClientRect();
@@ -1144,13 +1216,13 @@ export default function HomePage() {
                   <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 12 }}>
                     {plan.features.map((f) => (
                       <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontFamily: fft, fontSize: 14, color: C.ink, letterSpacing: "-0.224px", lineHeight: 1.4 }}>
-                        <span style={{ color: C.primary, fontWeight: 700, flexShrink: 0, fontSize: 13, marginTop: 1 }}>✓</span>{f}
+                        <span style={{ color: C.primaryDark, fontWeight: 700, flexShrink: 0, fontSize: 13, marginTop: 1 }}>✓</span>{f}
                       </li>
                     ))}
                   </ul>
                 </div>
                 <Link href={plan.key === "msp" ? "#contact" : "/signup"} className="ap-btn"
-                  style={{ ...pill(plan.hot ? C.primary : "transparent", plan.hot ? "#fff" : C.primary, plan.hot ? undefined : C.primary), display: "block", textAlign: "center" }}>
+                  style={{ ...pill(plan.hot ? C.primary : "transparent", plan.hot ? "#fff" : C.primaryDark, plan.hot ? undefined : C.primaryDark), display: "block", textAlign: "center" }}>
                   {plan.key === "msp" ? "Contact Us" : "Start Free Trial"}
                 </Link>
               </div>
@@ -1160,17 +1232,17 @@ export default function HomePage() {
       </section>
 
       {/* ══ TESTIMONIALS ══ */}
-      <section id="testimonials" className="ap-sec" style={{ background: C.canvas, padding: "120px 22px" }}>
+      <section id="testimonials" className="ap-sec" style={{ background: "transparent", padding: "120px 22px", position: "relative" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <div className="ap-reveal" style={{ textAlign: "center", marginBottom: 72 }}>
             <Label>Testimonials</Label>
             <H2 center>Trusted by AWS teams worldwide.</H2>
           </div>
-          <div className="ap-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: C.hairline }}>
+          <div className="ap-grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
             {TESTIMONIALS.map((t, i) => (
-              <TiltCard key={t.name} className={`ap-reveal ap-d${i + 1}`} style={{ background: C.canvas, padding: "44px 36px" }}>
+              <TiltCard key={t.name} className={`ap-reveal ap-d${i + 1}`} style={{ background: C.canvas, border: `1px solid ${C.hairline}`, borderRadius: 20, padding: "44px 36px" }}>
                 <div style={{ display: "flex", gap: 3, marginBottom: 24 }}>
-                  {[...Array(5)].map((_, s) => <span key={s} style={{ color: C.primary, fontSize: 15 }}>★</span>)}
+                  {[...Array(5)].map((_, s) => <span key={s} style={{ color: C.primaryDark, fontSize: 15 }}>★</span>)}
                 </div>
                 <p style={{ fontFamily: fft, fontSize: 17, lineHeight: 1.47, color: C.ink, letterSpacing: "-0.374px", marginBottom: 28 }}>&ldquo;{t.quote}&rdquo;</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 14, borderTop: `1px solid ${C.divider}`, paddingTop: 24 }}>
@@ -1189,7 +1261,7 @@ export default function HomePage() {
       </section>
 
       {/* ══ DEMO + CONTACT ══ */}
-      <section className="ap-sec" style={{ background: C.parchment, padding: "120px 22px" }}>
+      <section className="ap-sec" style={{ background: "transparent", padding: "120px 22px", position: "relative" }}>
         <div className="ap-grid-2col" style={{ maxWidth: 980, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 72, alignItems: "start" }}>
 
           <div id="demo" className="ap-reveal-left">
@@ -1201,7 +1273,7 @@ export default function HomePage() {
             <ul style={{ listStyle: "none", margin: "0 0 28px", padding: 0, display: "flex", flexDirection: "column", gap: 12 }}>
               {["Live AWS scan on your account","Walk through every critical finding","Show you how to fix each issue","Answer all your questions"].map((item) => (
                 <li key={item} style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: fft, fontSize: 15, color: C.ink }}>
-                  <span style={{ color: C.primary, fontWeight: 700, fontSize: 14, flexShrink: 0 }}>✓</span>{item}
+                  <span style={{ color: C.primaryDark, fontWeight: 700, fontSize: 14, flexShrink: 0 }}>✓</span>{item}
                 </li>
               ))}
             </ul>
@@ -1214,7 +1286,7 @@ export default function HomePage() {
             <Label>Get in Touch</Label>
             <H2>Questions? We reply within 24 hours.</H2>
             {contactSent ? (
-              <div style={{ background: "rgba(0,102,204,0.06)", border: "1px solid rgba(0,102,204,0.2)", borderRadius: 14, padding: 28, textAlign: "center", color: C.primary, fontFamily: fft, fontSize: 15, lineHeight: 1.5 }}>
+              <div style={{ background: "rgba(41,151,255,0.09)", border: "1px solid rgba(41,151,255,0.28)", borderRadius: 14, padding: 28, textAlign: "center", color: C.primaryDark, fontFamily: fft, fontSize: 15, lineHeight: 1.5 }}>
                 Thanks! We&apos;ll get back to you within 24 hours.
               </div>
             ) : (
@@ -1233,14 +1305,14 @@ export default function HomePage() {
               </form>
             )}
             <p style={{ marginTop: 16, fontSize: 12, color: C.inkMuted, fontFamily: fft, textAlign: "center" }}>
-              Or email: <a href="mailto:leelakrishnakoppolu@gmail.com" style={{ color: C.primary }}>leelakrishnakoppolu@gmail.com</a>
+              Or email: <a href="mailto:leelakrishnakoppolu@gmail.com" style={{ color: C.primaryDark }}>leelakrishnakoppolu@gmail.com</a>
             </p>
           </div>
         </div>
       </section>
 
       {/* ══ CTA BANNER ══ */}
-      <section className="ap-sec" style={{ background: C.tile2, padding: "120px 22px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+      <section className="ap-sec" style={{ background: "transparent", padding: "120px 22px", textAlign: "center", position: "relative", overflow: "hidden" }}>
         <div className="ap-morph" style={{ position: "absolute", top: "50%", left: "20%", transform: "translateY(-50%)", width: 500, height: 500, background: "radial-gradient(circle, rgba(0,102,204,0.12), transparent 70%)", filter: "blur(70px)", pointerEvents: "none" }} />
         <div className="ap-morph" style={{ position: "absolute", top: "50%", right: "15%", transform: "translateY(-50%)", width: 400, height: 400, background: "radial-gradient(circle, rgba(41,151,255,0.09), transparent 70%)", filter: "blur(70px)", pointerEvents: "none", animationDelay: "-7s" }} />
         <div style={{ maxWidth: 640, margin: "0 auto", position: "relative" }} className="ap-reveal-scale">
@@ -1255,7 +1327,7 @@ export default function HomePage() {
       </section>
 
       {/* ══ FOOTER ══ */}
-      <footer style={{ background: C.parchment, padding: "64px 22px 48px" }}>
+      <footer style={{ background: "rgba(255,255,255,0.018)", borderTop: `1px solid ${C.hairline}`, padding: "64px 22px 48px", position: "relative" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <div className="ap-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 48, marginBottom: 48 }}>
             <div>
@@ -1279,7 +1351,7 @@ export default function HomePage() {
             ))}
           </div>
           <div style={{ borderTop: `1px solid ${C.hairline}`, paddingTop: 24 }}>
-            <p style={{ fontFamily: fft, fontSize: 12, color: "#7a7a7a" }}>© 2026 VigiliCloud. All rights reserved.</p>
+            <p style={{ fontFamily: fft, fontSize: 12, color: "rgba(233,238,248,0.42)" }}>© 2026 VigiliCloud. All rights reserved.</p>
           </div>
         </div>
       </footer>

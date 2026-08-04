@@ -29,18 +29,22 @@ export function fmtDate(value?: string) {
   return d.toLocaleString();
 }
 
+/**
+ * Pill classes for a severity or state value.
+ *
+ * Returns `vc-pill` plus a design-system tone class, so the colour comes from
+ * the token set in globals.css rather than a hard-coded Tailwind palette.
+ */
 export function badgeClasses(value: string) {
   const v = value.toUpperCase();
 
-  if (v === "CRITICAL") return "border-red-700 text-red-300 bg-red-950/40";
-  if (v === "HIGH") return "border-orange-700 text-orange-300 bg-orange-950/40";
-  if (v === "MEDIUM") return "border-yellow-700 text-yellow-300 bg-yellow-950/40";
-  if (v === "LOW") return "border-blue-700 text-blue-300 bg-blue-950/40";
-  if (v === "INFO") return "border-slate-700 text-slate-300 bg-slate-950/40";
-  if (v === "PASS") return "border-emerald-700 text-emerald-300 bg-emerald-950/40";
-  if (v === "FAIL") return "border-red-700 text-red-300 bg-red-950/40";
-  if (v === "FIXED") return "border-emerald-700 text-emerald-300 bg-emerald-950/40";
-  if (v === "IGNORED") return "border-yellow-700 text-yellow-300 bg-yellow-950/40";
-  if (v === "OPEN") return "border-neutral-700 text-neutral-300 bg-neutral-900";
-  return "border-neutral-700 text-neutral-300 bg-neutral-900";
+  const tone =
+    v === "CRITICAL" || v === "FAIL" || v === "OPEN" || v === "REJECTED" ? "vc-sev-critical"
+    : v === "HIGH" || v === "IGNORED" || v === "FIX_REQUESTED" ? "vc-sev-high"
+    : v === "MEDIUM" ? "vc-sev-medium"
+    : v === "LOW" ? "vc-sev-low"
+    : v === "PASS" || v === "FIXED" || v === "APPROVED" ? "vc-ok"
+    : "vc-neutral";
+
+  return `vc-pill ${tone}`;
 }

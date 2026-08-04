@@ -36,8 +36,17 @@ RAZORPAY_WEBHOOK_SECRET=...
 RAZORPAY_PLAN_STARTER=plan_...
 RAZORPAY_PLAN_PRO=plan_...
 RAZORPAY_PLAN_MSP=plan_...
-FRONTEND_URL=https://vigilicloud-ui.onrender.com
+FRONTEND_URL=https://app.vigilicloud.com
+
+GITHUB_CLIENT_ID=Ov23li...         # GitHub OAuth App — sign-in only
+GITHUB_CLIENT_SECRET=...
+GITHUB_CALLBACK_URL=https://vigilicloud-api.onrender.com/auth/github/callback
 ```
+`GITHUB_CALLBACK_URL` still points at the `onrender.com` hostname, not `api.vigilicloud.com` —
+this is deliberate: it must byte-match the callback URL registered in the GitHub OAuth App.
+Change both together or sign-in breaks with `redirect_uri_mismatch`.
+Without `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`, `/auth/github` redirects to
+`/signin?error=github_not_configured` — the button stays visible but degrades cleanly.
 
 ## Database
 - Local dev: SQLite fallback when `DATABASE_URL` is unset and `APP_ENV != production`
@@ -67,6 +76,39 @@ Requires `ANTHROPIC_API_KEY` env var. Returns executive summary + prioritized re
 `/` home · `/signin` · `/signup` · `/accounts` · `/scans` · `/plans` · `/settings` · `/launch` · `/onboarding`
 
 ## Deployment
-- Backend + UI + DB on Render (free tier — db expires in 90 days)
+
+| Piece | Host | Production URL |
+|---|---|---|
+| UI (Next.js) | **Vercel** | `https://app.vigilicloud.com` |
+| Backend (FastAPI) | Render | `https://api.vigilicloud.com` → `vigilicloud-api.onrender.com` |
+| Database | Render Postgres | `vigilicloud-db2` (free tier) |
+
 - Auto-deploys from `main` branch on push
-- Frontend env var: `NEXT_PUBLIC_API_BASE=https://vigilicloud-api.onrender.com`
+- Frontend env var: `NEXT_PUBLIC_API_BASE=https://api.vigilicloud.com`
+### DNS (Namecheap BasicDNS — `dns1/dns2.registrar-servers.com`)
+
+| Type | Host | Value |
+|---|---|---|
+| A | `@` | `216.198.79.1` (Vercel apex) |
+| CNAME | `www` | `4682fb762c9bd9df.vercel-dns-017.com` |
+| CNAME | `app` | `4682fb762c9bd9df.vercel-dns-017.com` |
+| CNAME | `api` | `vigilicloud-api.onrender.com` |
+
+`vigilicloud.com` and `www` are registered as Vercel domains set to **308 redirect** to
+`app.vigilicloud.com`; only `app` is bound to a Production deployment. Verified chain:
+`http://vigilicloud.com` → 308 → `https://vigilicloud.com` → 308 → `https://app.vigilicloud.com` (200).
+Certs are per-hostname Let's Encrypt, auto-renewed by Vercel.
+
+Do **not** use Namecheap "URL Redirect Record" for the apex. Namecheap implements it by
+pointing the host at their parking server (`192.64.119.204`), which listens on port 80 but has
+no cert for the domain — `https://vigilicloud.com` then dies with `ERR_CONNECTION_TIMED_OUT`.
+This was the original breakage; the redirect has to happen at Vercel's edge, not the registrar.
+
+`www` must stay a redirect, never a Production binding: the backend CORS allowlist
+(`build_cors_origins()` in `backend/app/config.py`) has no `www` origin, so an app served there
+would load and then fail every API call.
+
+### Legacy frontend
+`vigilicloud-ui.onrender.com` is still live and serving an **older build** than Vercel. It
+remains in the backend CORS allowlist (`build_cors_origins()` in `backend/app/config.py`).
+Retire it once nothing depends on it — two live frontends drift apart silently.

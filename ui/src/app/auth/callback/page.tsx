@@ -10,17 +10,17 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
+    const code = params.get("code");
 
-    if (!token) {
+    if (!code) {
       router.replace("/signin?error=github_failed");
       return;
     }
 
-    // Clear the token from the URL immediately (no browser history entry)
+    // Clear the code from the URL immediately (no browser history entry)
     window.history.replaceState({}, "", "/auth/callback");
 
-    fetch(`${API_BASE}/auth/exchange?token=${encodeURIComponent(token)}`, {
+    fetch(`${API_BASE}/auth/exchange?code=${encodeURIComponent(code)}`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -38,8 +38,8 @@ export default function AuthCallbackPage() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="text-center space-y-3">
-        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-emerald-500" />
-        <p className="text-sm text-neutral-400">{status}</p>
+        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--vc-hairline)] border-t-[var(--vc-accent-text)]" />
+        <p className="text-sm text-[var(--vc-muted)]">{status}</p>
       </div>
     </div>
   );

@@ -101,6 +101,19 @@ def ensure_auth_tables() -> None:
     _add_col_if_missing("github_token", "github_token TEXT NOT NULL DEFAULT ''")
     _add_col_if_missing("github_default_repo", "github_default_repo TEXT NOT NULL DEFAULT ''")
     _add_col_if_missing("github_org", "github_org TEXT NOT NULL DEFAULT ''")
+    # Stable GitHub account identifier for OAuth sign-in. Email can be changed by
+    # the user on GitHub's side, so it is not a safe primary link.
+    _add_col_if_missing("github_id", "github_id TEXT NOT NULL DEFAULT ''")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS oauth_exchange_codes (
+            code TEXT PRIMARY KEY,
+            session_token TEXT NOT NULL,
+            expires_at TEXT NOT NULL
+        )
+        """
+    )
 
     cur.execute(
         """

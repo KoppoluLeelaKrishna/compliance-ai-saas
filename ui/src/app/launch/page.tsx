@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import TopbarActions from "@/components/app/TopbarActions";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
@@ -50,6 +51,25 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function copyText(text: string) { navigator.clipboard.writeText(text); }
+
+/** The demo, beat by beat — each row opens the page it talks about. */
+const DEMO_BEATS = [
+  { at: "0:00", href: "/",          title: "Open on the story",       desc: "AWS-only posture, ten checks, one grade." },
+  { at: "0:50", href: "/accounts",  title: "Connect an account live", desc: "Read-only role, about forty seconds." },
+  { at: "1:40", href: "/dashboard", title: "Show the portfolio",      desc: "Grade, open findings, what to fix now." },
+  { at: "2:10", href: "/scans",     title: "Run the scan on stage",   desc: "Ten checks streaming in real time." },
+  { at: "3:40", href: "/findings",  title: "Open a critical finding", desc: "Console path, CLI, Terraform." },
+  { at: "4:40", href: "/scans",     title: "Claude summarises",       desc: "Priority order in plain English." },
+  { at: "5:30", href: "/plans",     title: "Close on pricing",        desc: "Per workspace, not per finding." },
+];
+
+const LAUNCH_ASSETS = [
+  { label: "Client pitch deck", kind: "PPTX" },
+  { label: "Explainer video · 90s", kind: "MP4" },
+  { label: "Marketing deck", kind: "PPTX" },
+  { label: "Speaker script", kind: "MD" },
+  { label: "Internal roadmap", kind: "PPTX" },
+];
 
 export default function LaunchPage() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -126,195 +146,163 @@ Leela`;
     setTimeout(() => setCopyMessage(""), 2000);
   }
 
-  const DEMO_LINKS = [
-    { href: "/",        label: "Homepage",       desc: "Marketing & hero" },
-    { href: "/accounts", label: "Accounts",      desc: "AWS account management" },
-    { href: "/scans",    label: "Scans",          desc: "Run and review scans" },
-    { href: "/findings", label: "Findings",       desc: "All findings dashboard" },
-    { href: "/plans",    label: "Plans",          desc: "Pricing and billing" },
-  ];
+
+  const pct = Math.round((doneCount / qaChecks.length) * 100);
+  const blockers = qaChecks.filter(c => !c.done).length;
 
   return (
-    <main className="space-y-5 pb-24">
+    <>
+      <TopbarActions>
+        <button type="button" className="vc-btn" onClick={() => handleCopy(demoScript, "Demo script")}>
+          Copy demo script
+        </button>
+        <button type="button" className="vc-btn-primary" onClick={() => window.location.reload()}>
+          Re-run readiness check
+        </button>
+      </TopbarActions>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] via-transparent to-amber-500/[0.02] p-6">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-amber-500/[0.05] blur-3xl" />
-        <div className="relative flex items-start gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-500/25 bg-amber-500/10">
-            <svg className="h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-            </svg>
+      <div className="vc-page-head">
+        <div>
+          <h1 className="vc-h1">Launch readiness</h1>
+          <p className="vc-sub">
+            {loading
+              ? "Checking environment…"
+              : `${
+                  blockers === 0
+                    ? `All ${qaChecks.length} checks green.`
+                    : `${doneCount} of ${qaChecks.length} checks green, ${blockers} left before go-live.`
+                } ${accounts.length} account${accounts.length === 1 ? "" : "s"} connected · ${activeAccounts} active.`}
+          </p>
+        </div>
+        <div className="flex items-center gap-3.5">
+          <div className={`vc-meter vc-meter-thick w-[220px] ${pct === 100 ? "vc-ok" : pct >= 60 ? "vc-sev-high" : "vc-sev-critical"}`}>
+            <i style={{ width: `${pct}%` }} />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Launch Prep</h1>
-            <p className="mt-0.5 text-sm text-neutral-500">QA status, demo flow, outreach copy, and launch assets</p>
-            {!loading && (
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                <span className={`font-medium ${doneCount === qaChecks.length ? "text-emerald-400" : "text-yellow-400"}`}>{doneCount}/{qaChecks.length} checks passing</span>
-                <span className="text-neutral-500">{accounts.length} accounts · {activeAccounts} active</span>
-              </div>
-            )}
-          </div>
+          <span className="text-[15px] font-semibold text-[var(--vc-text)]">{pct}%</span>
         </div>
       </div>
 
-      {/* ── Copy confirmation ───────────────────────────────────────────── */}
-      {copyMessage && (
-        <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.07] p-4 text-sm text-emerald-300">
-          <span>✓</span><span>{copyMessage}</span>
-        </div>
-      )}
+      {copyMessage && <div className="vc-note vc-note-success">{copyMessage}</div>}
 
-      {/* ── Stat tiles ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Backend Health", value: loading ? "…" : health?.ok ? "OK" : "Check", color: health?.ok ? "text-emerald-400" : "text-red-400" },
-          { label: "Billing Mode",   value: loading ? "…" : health?.razorpay?.configured ? "Razorpay" : "Not set", color: health?.razorpay?.configured ? "text-emerald-400" : "text-yellow-400" },
-          { label: "Accounts",       value: loading ? "…" : accounts.length, color: "text-white" },
-          { label: "QA Status",      value: loading ? "…" : `${doneCount}/${qaChecks.length}`, color: doneCount === qaChecks.length ? "text-emerald-400" : "text-yellow-400" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{label}</div>
-            <div className={`mt-2 text-2xl font-bold ${color}`}>{value}</div>
-          </div>
-        ))}
-      </div>
+      <div className="vc-grid vc-split-three">
 
-      {/* ── QA + Environment ────────────────────────────────────────────── */}
-      <div className="grid gap-5 xl:grid-cols-2">
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-4">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Final QA Status</div>
-            <h2 className="mt-1 text-lg font-bold">What to verify before public launch</h2>
-          </div>
-          <div className="space-y-3">
-            {qaChecks.map(item => (
-              <div key={item.label} className="flex items-start justify-between gap-4 rounded-xl border border-white/[0.06] bg-black/30 px-4 py-3">
-                <div>
-                  <div className="font-medium text-white">{item.label}</div>
-                  <div className="mt-0.5 text-xs text-neutral-500">{item.detail}</div>
-                </div>
-                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${item.done ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-yellow-500/30 bg-yellow-500/10 text-yellow-400"}`}>
-                  {item.done ? "Done" : "Pending"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-4">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Environment Snapshot</div>
-            <h2 className="mt-1 text-lg font-bold">Backend and billing state</h2>
-          </div>
-          <div className="space-y-3">
-            {[
-              { label: "App Environment",   value: loading ? "…" : health?.app_env || "—", mono: true  },
-              { label: "Frontend URL",       value: loading ? "…" : health?.frontend_url || "—", mono: true },
-              { label: "Cookie Secure",      value: loading ? "…" : health?.cookie_secure ? "TRUE" : "FALSE", mono: false },
-              { label: "Current Plan",       value: loading ? "…" : (billing?.subscription_status || "free").toUpperCase(), mono: false },
-              { label: "API Endpoint",       value: API_BASE, mono: true },
-            ].map(({ label, value, mono }) => (
-              <div key={label} className="rounded-xl border border-white/[0.06] bg-black/30 px-4 py-3">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{label}</div>
-                <div className={`mt-1 break-all ${mono ? "font-mono text-xs text-neutral-300" : "font-medium text-white"}`}>{value}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* ── Demo script + Outreach ──────────────────────────────────────── */}
-      <div className="grid gap-5 xl:grid-cols-2">
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
+        {/* ── QA status ────────────────────────────────────────────────── */}
+        <div className="vc-card vc-card-flush">
+          <div className="vc-card-head">
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Demo Script</div>
-              <h2 className="mt-1 text-lg font-bold">Use this for pilot calls</h2>
+              <div className="vc-card-title">QA status</div>
+              <div className="vc-card-sub">Live checks against the running environment</div>
             </div>
-            <button
-              type="button"
-              onClick={() => handleCopy(demoScript, "Demo script")}
-              className="rounded-xl border border-white/[0.07] px-3 py-1.5 text-xs text-neutral-400 hover:bg-white/[0.05] hover:text-white transition-colors"
+          </div>
+
+          {qaChecks.map(item => (
+            <div
+              key={item.label}
+              className="flex items-center gap-3 border-b border-[var(--vc-hairline-soft)] px-[22px] py-[13px] last:border-b-0"
+              style={item.done ? undefined : { background: "rgba(255,69,58,0.05)" }}
             >
-              Copy
-            </button>
-          </div>
-          <pre className="overflow-auto whitespace-pre-wrap rounded-2xl border border-white/[0.06] bg-black/40 p-4 text-sm leading-7 text-neutral-400">{demoScript}</pre>
-        </section>
-
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Outreach Template</div>
-              <h2 className="mt-1 text-lg font-bold">First pilot outreach</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleCopy(outreachTemplate, "Outreach template")}
-              className="rounded-xl border border-white/[0.07] px-3 py-1.5 text-xs text-neutral-400 hover:bg-white/[0.05] hover:text-white transition-colors"
-            >
-              Copy
-            </button>
-          </div>
-          <pre className="overflow-auto whitespace-pre-wrap rounded-2xl border border-white/[0.06] bg-black/40 p-4 text-sm leading-7 text-neutral-400">{outreachTemplate}</pre>
-        </section>
-      </div>
-
-      {/* ── Assets + Quick nav ──────────────────────────────────────────── */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-4">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Launch Assets</div>
-            <h2 className="mt-1 text-lg font-bold">Prepare before announcing publicly</h2>
-          </div>
-          <div className="space-y-2">
-            {[
-              "Homepage screenshot",
-              "Plans & pricing screenshot",
-              "Accounts page screenshot",
-              "Scans + findings screenshot",
-              "Short demo video (Loom)",
-              "Pilot outreach message",
-              "LinkedIn post draft",
-            ].map((item, i) => (
-              <div key={item} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-black/30 px-4 py-2.5 text-sm text-neutral-400">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/[0.08] text-[9px] font-bold text-neutral-600">{i + 1}</span>
-                {item}
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-4 py-3 text-sm text-emerald-300">
-            Treat this page as your founder launch board — QA, demo flow, and asset checklist in one place.
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-4">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Quick Navigation</div>
-            <h2 className="mt-1 text-lg font-bold">Open during a demo</h2>
-          </div>
-          <div className="space-y-2">
-            {DEMO_LINKS.map(item => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-black/30 px-4 py-3 hover:bg-white/[0.04] hover:border-white/[0.10] transition-colors"
+              <span
+                className={`flex h-4 w-4 flex-none items-center justify-center rounded-full ${item.done ? "vc-ok" : "vc-sev-critical"}`}
+                style={{ background: "color-mix(in srgb, currentColor 16%, transparent)" }}
               >
-                <div>
-                  <div className="font-medium text-white">{item.label}</div>
-                  <div className="text-xs text-neutral-500">{item.desc}</div>
+                {item.done ? (
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m5 12 5 5L20 7" />
+                  </svg>
+                ) : (
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] text-[var(--vc-text)]">{item.label}</div>
+                <div className="mt-0.5 truncate text-[11.5px] text-[var(--vc-dim)]">{item.detail}</div>
+              </div>
+              <span className={`flex-none text-xs font-semibold ${item.done ? "text-[var(--vc-dim)]" : "vc-sev-critical"}`}>
+                {item.done ? "Green" : "Blocker"}
+              </span>
+            </div>
+          ))}
+
+          <div className="vc-card-foot">
+            <div className="vc-eyebrow mb-3">Environment</div>
+            <dl className="flex flex-col gap-2">
+              {[
+                ["App environment", loading ? "…" : health?.app_env || "—"],
+                ["Frontend URL", loading ? "…" : health?.frontend_url || "—"],
+                ["Cookie secure", loading ? "…" : health?.cookie_secure ? "true" : "false"],
+                ["Plan", loading ? "…" : (billing?.subscription_status || "free")],
+                ["API endpoint", API_BASE],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-3">
+                  <dt className="flex-none text-[11.5px] text-[var(--vc-dim)]">{label}</dt>
+                  <dd className="vc-mono min-w-0 truncate text-right text-[11.5px] text-[var(--vc-text-2)]">{value}</dd>
                 </div>
-                <svg className="h-3.5 w-3.5 shrink-0 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
+              ))}
+            </dl>
+          </div>
+        </div>
+
+        {/* ── Demo flow ────────────────────────────────────────────────── */}
+        <div className="vc-card vc-card-flush">
+          <div className="vc-card-head">
+            <div>
+              <div className="vc-card-title">Demo flow</div>
+              <div className="vc-card-sub">Seven beats, end to end</div>
+            </div>
+          </div>
+
+          <div className="py-1.5">
+            {DEMO_BEATS.map(beat => (
+              <Link
+                key={beat.at}
+                href={beat.href}
+                className="flex gap-3.5 px-[22px] py-[13px] transition-colors hover:bg-[var(--vc-fill)]"
+              >
+                <span className="vc-mono w-[34px] flex-none text-[11.5px] text-[var(--vc-dim)]">{beat.at}</span>
+                <div>
+                  <div className="text-[13.5px] font-semibold text-[var(--vc-text)]">{beat.title}</div>
+                  <div className="mt-0.5 text-xs leading-[1.45] text-[var(--vc-muted)]">{beat.desc}</div>
+                </div>
               </Link>
             ))}
           </div>
-        </section>
-      </div>
+        </div>
 
-    </main>
+        {/* ── Assets + outreach ────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3.5">
+          <div className="vc-card vc-card-flush">
+            <div className="vc-card-head">
+              <div className="vc-card-title">Assets</div>
+            </div>
+            {LAUNCH_ASSETS.map(asset => (
+              <div
+                key={asset.label}
+                className="flex items-center gap-3 border-b border-[var(--vc-hairline-soft)] px-[22px] py-[13px] last:border-b-0"
+              >
+                <span className="flex-1 text-[13.5px] text-[var(--vc-text)]">{asset.label}</span>
+                <span className="text-xs font-semibold text-[var(--vc-accent-text)]">{asset.kind}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="vc-card flex flex-1 flex-col">
+            <div className="vc-card-title">Outreach</div>
+            <div className="vc-card-sub mb-4">First-touch email for pilot conversations</div>
+            <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded-xl border border-[var(--vc-hairline)] bg-[var(--vc-inset)] p-3.5 text-[12.5px] leading-[1.65] text-[var(--vc-text-2)]">
+              {outreachTemplate}
+            </pre>
+            <button
+              type="button"
+              className="vc-btn-secondary vc-btn-block mt-3.5 !h-9"
+              onClick={() => handleCopy(outreachTemplate, "Outreach template")}
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

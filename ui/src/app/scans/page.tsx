@@ -18,10 +18,36 @@ import {
   ScanHistoryItem,
   ScanItem,
 } from "@/types";
-import { Card } from "@/components/ui/Card";
 import { FindingsTable } from "@/components/scans/FindingsTable";
 import { FindingDetail } from "@/components/scans/FindingDetail";
 import { ScanFilters } from "@/components/scans/ScanFilters";
+import TopbarActions from "@/components/app/TopbarActions";
+import { scanTime, severityTone } from "@/lib/ui";
+
+/** Column track for the sweep-history table. */
+const SCAN_COLS = "150px 1fr 130px 260px 110px 96px";
+
+const COVERAGE_FRAMEWORKS: ["soc2" | "iso27001" | "pci_dss" | "nist", string][] = [
+  ["soc2", "SOC 2"],
+  ["iso27001", "ISO 27001"],
+  ["pci_dss", "PCI DSS"],
+  ["nist", "NIST CSF"],
+];
+
+function gradeTone(grade: string) {
+  if (grade === "A") return "vc-ok";
+  if (grade === "B") return "vc-sev-low";
+  if (grade === "C") return "vc-sev-medium";
+  if (grade === "D") return "vc-sev-high";
+  return "vc-sev-critical";
+}
+
+function scanStatusTone(status: string) {
+  if (status === "COMPLETED") return "vc-ok";
+  if (status === "FAILED") return "vc-sev-critical";
+  if (status === "RUNNING" || status === "PENDING") return "text-[var(--vc-accent-text)]";
+  return "vc-neutral";
+}
 
 export default function ScansPage() {
   const [billing, setBilling] = useState<BillingMe | null>(null);
@@ -79,7 +105,6 @@ export default function ScansPage() {
   const [schedulePlanSupports, setSchedulePlanSupports] = useState(false);
   const [togglingSchedule, setTogglingSchedule] = useState(false);
   const [scanSummary, setScanSummary] = useState<{ total: number; newCount: number; critical: number } | null>(null);
-  const [hoveredSev, setHoveredSev] = useState<string | null>(null);
 
   const [riskScore, setRiskScore] = useState<RiskScore | null>(null);
   const [coverage, setCoverage] = useState<ComplianceCoverage | null>(null);
@@ -506,10 +531,10 @@ export default function ScansPage() {
         );
       }
       return (
-        <p key={i} className="text-sm leading-6 text-neutral-400">
+        <p key={i} className="text-[13.5px] leading-[1.6] text-[var(--vc-muted)]">
           {parts.map((part, j) =>
             part.startsWith("**") && part.endsWith("**") ? (
-              <span key={j} className="font-semibold text-neutral-200">{part.slice(2, -2)}</span>
+              <span key={j} className="font-semibold text-[var(--vc-text)]">{part.slice(2, -2)}</span>
             ) : part
           )}
         </p>
@@ -517,12 +542,6 @@ export default function ScansPage() {
     });
   }
 
-  const SEV_CONFIG = {
-    CRITICAL: { border: "border-red-500/20", from: "from-red-500/[0.08]", text: "text-red-400", bar: "bg-red-500" },
-    HIGH:     { border: "border-orange-500/20", from: "from-orange-500/[0.08]", text: "text-orange-400", bar: "bg-orange-500" },
-    MEDIUM:   { border: "border-yellow-500/20", from: "from-yellow-500/[0.08]", text: "text-yellow-400", bar: "bg-yellow-500" },
-    LOW:      { border: "border-blue-500/20", from: "from-blue-500/[0.08]", text: "text-blue-400", bar: "bg-blue-500" },
-  } as const;
 
   const nextScanTime = useMemo(() => {
     if (!scheduleEnabled || scans.length === 0) return null;
@@ -540,386 +559,194 @@ export default function ScansPage() {
   const passCount = findings.filter(f => f.status === "PASS").length;
   const sevTotal = Object.values(severityCounts).reduce((a, b) => a + b, 0);
 
+  /** Per-scan totals from the history endpoint, keyed by scan id. */
+  const historyById = useMemo(
+    () => new Map(scanHistory.map((h) => [h.scan_id, h])),
+    [scanHistory],
+  );
+
+  const selectedScan = scans.find((s) => s.scan_id === selectedScanId) ?? null;
+
   if (loading) {
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
-          <div className="text-sm text-neutral-500">Loading workspace…</div>
-        </div>
+      <div className="flex h-[60vh] flex-col items-center justify-center gap-3">
+        <span className="vc-spinner !h-6 !w-6" />
+        <div className="vc-sub">Loading workspace…</div>
       </div>
     );
   }
 
   return (
-    <main className="space-y-5 pb-24">
-
-      {/* ── Header card ─────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-br from-white/[0.04] via-transparent to-emerald-500/[0.02] p-6">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-emerald-500/[0.06] blur-3xl" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-
-          {/* Title + stats */}
-          <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/25 bg-emerald-500/10">
-              <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 010 12c0 3.182 1.24 6.078 3.268 8.22" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Security Dashboard</h1>
-              <p className="mt-0.5 text-sm text-neutral-500">AWS posture · compliance evidence · remediation tracking</p>
-              {selectedScanId && !loadingFindings && (
-                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <span className="text-neutral-500">{findings.length} total findings</span>
-                  <span className="font-medium text-red-400">{failCount} failing</span>
-                  <span className="font-medium text-emerald-400">{passCount} passing</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-col gap-2.5 sm:items-end">
-            <div className="flex items-center divide-x divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
-              {[
-                { label: "CSV", href: `${API_BASE}/scans/${selectedScanId}/export.csv` },
-                { label: "PDF", href: `${API_BASE}/scans/${selectedScanId}/export.pdf` },
-                { label: "JSON", href: `${API_BASE}/scans/${selectedScanId}/export.json` },
-              ].map(({ label, href }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => window.open(href, "_blank")}
-                  disabled={!selectedScanId}
-                  className="px-3.5 py-2 text-xs font-medium text-neutral-400 hover:bg-white/[0.06] hover:text-white disabled:opacity-40 transition-colors"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {riskScore && (
-                <div className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold ${
-                  riskScore.grade === "A" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                  : riskScore.grade === "B" ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
-                  : riskScore.grade === "C" ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
-                  : riskScore.grade === "D" ? "border-orange-500/30 bg-orange-500/10 text-orange-300"
-                  : "border-red-500/30 bg-red-500/10 text-red-300"
-                }`}>
-                  <span className="text-base font-black">{riskScore.grade}</span>
-                  <span className="text-neutral-500">·</span>
-                  <span>{riskScore.score}/100</span>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={handleAiAnalysis}
-                disabled={!selectedScanId || loadingAi}
-                className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 transition-colors"
-              >
-                {loadingAi ? "Analyzing…" : "✦ AI Analysis"}
-              </button>
-              <button
-                type="button"
-                onClick={handleShareReport}
-                disabled={!selectedScanId || sharing}
-                className="rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/20 disabled:opacity-40 transition-colors"
-              >
-                {sharing ? "Sharing…" : "Share Report"}
-              </button>
-              <button
-                type="button"
-                onClick={handleRunScan}
-                disabled={running}
-                className="rounded-xl bg-emerald-500 px-5 py-2 text-xs font-bold text-black hover:bg-emerald-400 disabled:opacity-50 transition-all active:scale-95"
-              >
-                {running ? (
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-3 w-3 animate-spin rounded-full border border-black border-t-transparent" />
-                    Scanning…
-                  </span>
-                ) : "Run Scan"}
-              </button>
-            </div>
-
-            {/* Share link display */}
-            {shareUrl && (
-              <div className="flex items-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.06] px-3 py-2">
-                <span className="flex-1 truncate text-[11px] text-indigo-300">{shareUrl}</span>
-                <button
-                  type="button"
-                  onClick={() => { navigator.clipboard.writeText(shareUrl); setShareCopied(true); setTimeout(() => setShareCopied(false), 1800); }}
-                  className="shrink-0 rounded-lg border border-indigo-500/25 px-2.5 py-1 text-[11px] font-semibold text-indigo-300 hover:bg-indigo-500/15 transition-colors"
-                >
-                  {shareCopied ? "Copied ✓" : "Copy"}
-                </button>
-                <button type="button" onClick={() => setShareUrl("")} className="text-neutral-600 hover:text-neutral-400 text-xs">✕</button>
-              </div>
-            )}
-
-            {/* Auto-scan toggle */}
-            <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5">
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-semibold text-neutral-300">Daily Auto-Scan</div>
-                <div className="text-[10px] text-neutral-600 mt-0.5">
-                  {schedulePlanSupports
-                    ? scheduleEnabled
-                      ? nextScanTime
-                        ? `Every ${scheduleIntervalHours}h · Next: ${nextScanTime}`
-                        : `Runs every ${scheduleIntervalHours}h`
-                      : "Automatic scanning disabled"
-                    : "Upgrade plan to enable"}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleToggleSchedule}
-                disabled={togglingSchedule || !schedulePlanSupports}
-                title={!schedulePlanSupports ? "Requires a paid plan" : scheduleEnabled ? "Disable daily auto-scan" : "Enable daily auto-scan"}
-                className={`relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-40 ${
-                  scheduleEnabled ? "bg-emerald-500" : "bg-white/[0.12]"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                    scheduleEnabled ? "translate-x-[18px]" : "translate-x-0.5"
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
+    <>
+      <TopbarActions>
+        <div className="vc-seg">
+          {(["csv", "pdf", "json"] as const).map((fmt) => (
+            <button
+              key={fmt}
+              type="button"
+              disabled={!selectedScanId}
+              onClick={() => window.open(`${API_BASE}/scans/${selectedScanId}/export.${fmt}`, "_blank")}
+            >
+              {fmt.toUpperCase()}
+            </button>
+          ))}
         </div>
+        <button type="button" className="vc-btn" onClick={handleShareReport} disabled={!selectedScanId || sharing}>
+          {sharing ? "Sharing…" : "Share"}
+        </button>
+        <button type="button" className="vc-btn-primary" onClick={handleRunScan} disabled={running}>
+          {running ? <><span className="vc-spinner !border-white/40 !border-t-white" /> Scanning…</> : "Run scan"}
+        </button>
+      </TopbarActions>
+
+      <div className="vc-page-head">
+        <div>
+          <h1 className="vc-h1">Scans</h1>
+          <p className="vc-sub">
+            Every sweep across every connected account, with drift against the previous run.
+          </p>
+        </div>
+        {riskScore && (
+          <div className="flex items-center gap-3">
+            <span className="vc-eyebrow">Posture</span>
+            <span className={`vc-pill !px-3 !py-1.5 !text-sm ${gradeTone(riskScore.grade)}`}>
+              {riskScore.grade} · {riskScore.score}/100
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* ── Error message ───────────────────────────────────────────────── */}
-      {error && (
-        <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.07] p-4 text-sm text-red-300">
-          <span className="mt-0.5 text-base">✕</span>
-          <span>{error}</span>
+      {error && <div className="vc-note vc-note-error">{error}</div>}
+      {message && !error && <div className="vc-note vc-note-info">{message}</div>}
+
+      {shareUrl && (
+        <div className="vc-note vc-note-info items-center">
+          <span className="vc-mono flex-1 truncate text-xs">{shareUrl}</span>
+          <button
+            type="button"
+            className="vc-btn vc-btn-xs !text-[var(--vc-accent-text)]"
+            onClick={() => { navigator.clipboard.writeText(shareUrl); setShareCopied(true); setTimeout(() => setShareCopied(false), 1800); }}
+          >
+            {shareCopied ? "Copied" : "Copy"}
+          </button>
+          <button type="button" className="vc-link" onClick={() => setShareUrl("")}>Dismiss</button>
         </div>
       )}
 
       {/* ── Post-scan summary ────────────────────────────────────────────── */}
       {scanSummary && (
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-              Scan complete
-            </div>
-            <button type="button" onClick={() => setScanSummary(null)} className="text-xs text-neutral-600 hover:text-neutral-400 transition-colors">
+        <div className="vc-card">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="vc-card-title vc-ok">Scan complete</div>
+            <button type="button" className="vc-link !text-[var(--vc-muted)]" onClick={() => setScanSummary(null)}>
               Dismiss
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-center">
-              <div className="text-3xl font-bold text-neutral-200">{scanSummary.total}</div>
-              <div className="mt-1 text-[10px] font-medium text-neutral-600 uppercase tracking-wider">Total Findings</div>
+          <div className="vc-grid vc-grid-3">
+            <div className="rounded-[14px] border border-[var(--vc-hairline)] p-4 text-center">
+              <div className="vc-stat vc-stat-sm">{scanSummary.total}</div>
+              <div className="vc-stat-label !mb-0 mt-1.5">Total findings</div>
             </div>
-            <div className={`rounded-xl border p-3 text-center ${scanSummary.newCount > 0 ? "border-cyan-500/25 bg-cyan-500/[0.06]" : "border-white/[0.07] bg-white/[0.02]"}`}>
-              <div className={`text-3xl font-bold ${scanSummary.newCount > 0 ? "text-cyan-400" : "text-neutral-600"}`}>
+            <div className="rounded-[14px] border border-[var(--vc-hairline)] p-4 text-center">
+              <div className={`vc-stat vc-stat-sm ${scanSummary.newCount > 0 ? "vc-sev-high" : "!text-[var(--vc-faint)]"}`}>
                 {scanSummary.newCount > 0 ? `+${scanSummary.newCount}` : "0"}
               </div>
-              <div className="mt-1 text-[10px] font-medium text-neutral-600 uppercase tracking-wider">New Issues</div>
+              <div className="vc-stat-label !mb-0 mt-1.5">New issues</div>
             </div>
-            <div className={`rounded-xl border p-3 text-center ${scanSummary.critical > 0 ? "border-red-500/25 bg-red-500/[0.06]" : "border-emerald-500/20 bg-emerald-500/[0.04]"}`}>
-              <div className={`text-3xl font-bold ${scanSummary.critical > 0 ? "text-red-400" : "text-emerald-400"}`}>
+            <div className="rounded-[14px] border border-[var(--vc-hairline)] p-4 text-center">
+              <div className={`vc-stat vc-stat-sm ${scanSummary.critical > 0 ? "vc-sev-critical" : "vc-ok"}`}>
                 {scanSummary.critical}
               </div>
-              <div className="mt-1 text-[10px] font-medium text-neutral-600 uppercase tracking-wider">Criticals</div>
+              <div className="vc-stat-label !mb-0 mt-1.5">Criticals</div>
             </div>
           </div>
           {scanSummary.critical > 0 && (
-            <div className="mt-3 flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-2.5">
-              <svg className="h-4 w-4 shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-              </svg>
-              <span className="flex-1 text-xs font-semibold text-red-300">
-                {scanSummary.critical} critical finding{scanSummary.critical !== 1 ? "s" : ""} — immediate remediation required
+            <div className="vc-note vc-note-error mt-3.5 items-center">
+              <span className="flex-1 font-semibold">
+                {scanSummary.critical} critical finding{scanSummary.critical !== 1 ? "s" : ""} — fix today
               </span>
               <button
                 type="button"
+                className="vc-btn vc-btn-xs !text-[var(--vc-critical)]"
                 onClick={() => { setSeverityFilter("CRITICAL"); setScanSummary(null); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
-                className="shrink-0 rounded-lg border border-red-500/25 px-3 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/10 transition-colors"
               >
-                View →
+                View
               </button>
             </div>
           )}
           {scanSummary.newCount > 0 && (
             <button
               type="button"
+              className="vc-btn-secondary vc-btn-block mt-2.5"
               onClick={() => { setDriftFilter(true); setScanSummary(null); }}
-              className="mt-2 w-full rounded-xl border border-cyan-500/20 bg-cyan-500/[0.04] py-2 text-xs font-semibold text-cyan-400 hover:bg-cyan-500/[0.08] transition-colors"
             >
-              Show {scanSummary.newCount} new issue{scanSummary.newCount !== 1 ? "s" : ""} →
+              Show {scanSummary.newCount} new issue{scanSummary.newCount !== 1 ? "s" : ""}
             </button>
           )}
         </div>
       )}
 
-      {/* ── Critical alert banner ────────────────────────────────────────── */}
+      {/* ── Critical banner ──────────────────────────────────────────────── */}
       {!scanSummary && severityCounts.CRITICAL > 0 && (
-        <div className="flex items-center gap-3 rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-5 py-3.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500/15">
-            <svg className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-bold text-red-300">
-              {severityCounts.CRITICAL} Critical Finding{severityCounts.CRITICAL !== 1 ? "s" : ""} — Immediate Attention Required
+        <div className="vc-note vc-note-error items-center">
+          <span className="vc-dot mt-1.5" />
+          <div className="flex-1">
+            <div className="font-semibold">
+              {severityCounts.CRITICAL} critical finding{severityCounts.CRITICAL !== 1 ? "s" : ""} — immediate attention required
             </div>
-            <div className="mt-0.5 text-xs text-red-400/60">
+            <div className="mt-0.5 text-[12.5px] opacity-70">
               Critical misconfigurations expose your infrastructure to active threats.
             </div>
           </div>
           <button
             type="button"
+            className="vc-btn vc-btn-xs !text-[var(--vc-critical)]"
             onClick={() => { setSeverityFilter("CRITICAL"); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
-            className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors"
           >
-            View Criticals
+            View criticals
           </button>
         </div>
       )}
 
-      {/* ── Severity pie chart ─────────────────────────────────────────── */}
-      {(() => {
-        const SEV_COLORS: Record<string, string> = { CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#eab308", LOW: "#3b82f6" };
-        const ALL_SEVS = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
-        const r = 80; const cx = 110; const cy = 110; const stroke = 28;
-        const circumference = 2 * Math.PI * r;
-        let offset = 0;
-        const slices = ALL_SEVS.map((sev) => {
-          const count = severityCounts[sev] || 0;
-          const pct = sevTotal > 0 ? count / sevTotal : 0;
-          const dash = pct * circumference;
-          const gap = circumference - dash;
-          const sl = { sev, count, pct, dash, gap, offset, color: SEV_COLORS[sev] };
-          offset += dash;
-          return sl;
-        });
-        const activeSlices = slices.filter(s => s.count > 0);
-        const display = hoveredSev
-          ? (slices.find(s => s.sev === hoveredSev) ?? activeSlices[0])
-          : activeSlices.length > 0 ? activeSlices.reduce((a, b) => a.count > b.count ? a : b) : null;
-
-        return (
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-            <div className="mb-4 text-sm font-semibold text-neutral-300">Findings by Severity</div>
-            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
-
-              {/* Big donut */}
-              <div className="shrink-0">
-                {sevTotal === 0 ? (
-                  <div className="flex h-[220px] w-[220px] items-center justify-center rounded-full border border-white/[0.06] text-xs text-neutral-600">No findings</div>
-                ) : (
-                  <svg width={220} height={220} viewBox="0 0 220 220" style={{ overflow: "visible" }}>
-                    {slices.map((s) => {
-                      if (s.count === 0) return null;
-                      const isHov = hoveredSev === s.sev;
-                      const isActive = severityFilter === s.sev;
-                      const sw = isHov ? stroke + 10 : isActive ? stroke + 5 : stroke;
-                      const op = hoveredSev && !isHov ? 0.2 : isActive ? 1 : 0.85;
-                      const sc = isHov ? 1.06 : 1;
-                      return (
-                        <circle
-                          key={s.sev}
-                          cx={cx} cy={cy} r={r}
-                          fill="none"
-                          stroke={s.color}
-                          strokeWidth={sw}
-                          strokeDasharray={`${s.dash} ${s.gap}`}
-                          strokeDashoffset={-s.offset + circumference * 0.25}
-                          strokeLinecap="butt"
-                          style={{ opacity: op, cursor: "pointer", transition: "stroke-width 0.2s ease, opacity 0.2s ease, transform 0.2s ease", transformOrigin: `${cx}px ${cy}px`, transform: `scale(${sc})` }}
-                          onMouseEnter={() => setHoveredSev(s.sev)}
-                          onMouseLeave={() => setHoveredSev(null)}
-                          onClick={() => { setSeverityFilter(severityFilter === s.sev ? "ALL" : s.sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
-                        />
-                      );
-                    })}
-                    {display && (
-                      <>
-                        <text x={cx} y={cy - 14} textAnchor="middle" fill={display.color} fontSize={36} fontWeight={800} style={{ transition: "fill 0.2s" }}>{display.count}</text>
-                        <text x={cx} y={cy + 12} textAnchor="middle" fill={display.color} fontSize={11} fontWeight={700} letterSpacing={2} style={{ transition: "fill 0.2s" }}>{display.sev}</text>
-                        <text x={cx} y={cy + 30} textAnchor="middle" fill="#6b7280" fontSize={11}>{Math.round(display.pct * 100)}% of findings</text>
-                      </>
-                    )}
-                  </svg>
-                )}
-              </div>
-
-              {/* Legend */}
-              <div className="flex flex-1 flex-col gap-3 w-full">
-                {ALL_SEVS.map((sev) => {
-                  const count = severityCounts[sev] || 0;
-                  const pct = sevTotal > 0 ? Math.round((count / sevTotal) * 100) : 0;
-                  const color = SEV_COLORS[sev];
-                  const isActive = severityFilter === sev;
-                  const isHov = hoveredSev === sev;
-                  return (
-                    <button
-                      key={sev}
-                      type="button"
-                      onMouseEnter={() => setHoveredSev(sev)}
-                      onMouseLeave={() => setHoveredSev(null)}
-                      onClick={() => { setSeverityFilter(isActive ? "ALL" : sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
-                      className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 text-left transition-all ${isActive ? "border-white/20 bg-white/[0.06]" : "border-white/[0.05] hover:border-white/10 hover:bg-white/[0.03]"}`}
-                    >
-                      <span className="h-3 w-3 shrink-0 rounded-full transition-transform" style={{ background: color, transform: isHov ? "scale(1.4)" : "scale(1)" }} />
-                      <span className="flex-1 text-xs font-semibold text-neutral-400">{sev}</span>
-                      <span className="text-lg font-bold" style={{ color: count > 0 ? color : "#374151" }}>{count}</span>
-                      <span className="w-10 text-right text-[11px] text-neutral-600">{pct}%</span>
-                    </button>
-                  );
-                })}
-                <div className="mt-1 text-[11px] text-neutral-600">{sevTotal} total findings · click any row or arc to filter</div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── Compliance Framework Coverage ───────────────────────────────── */}
-      {coverage && (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
-          <div className="mb-4 text-sm font-semibold text-neutral-300">Compliance Coverage</div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {(
-              [
-                { key: "soc2", label: "SOC 2" },
-                { key: "iso27001", label: "ISO 27001" },
-                { key: "pci_dss", label: "PCI DSS" },
-                { key: "nist", label: "NIST" },
-              ] as const
-            ).map(({ key, label }) => {
-              const fw = coverage.coverage[key];
-              const pct = fw?.pct ?? 0;
-              const textColor = pct >= 80 ? "text-emerald-400" : pct >= 60 ? "text-yellow-400" : "text-red-400";
-              const barColor = pct >= 80 ? "bg-emerald-500" : pct >= 60 ? "bg-yellow-500" : "bg-red-500";
-              return (
-                <div key={key} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-neutral-400">{label}</span>
-                    <span className={`text-sm font-bold ${textColor}`}>{pct}%</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
-                    <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="mt-1.5 text-[10px] text-neutral-600">{fw?.passing ?? 0}/{fw?.total_controls ?? 0} controls</div>
-                </div>
-              );
-            })}
+      {/* ── Stat tiles ───────────────────────────────────────────────────── */}
+      <div className="vc-grid vc-grid-3">
+        <div className="vc-card">
+          <div className="vc-stat-label">Scans recorded</div>
+          <div className="vc-stat vc-stat-sm">{scans.length}</div>
+          <div className="vc-stat-note">
+            {selectedAccountId ? "For the selected account" : "Across every account"}
           </div>
         </div>
-      )}
+        <div className="vc-card">
+          <div className="vc-stat-label">This scan</div>
+          <div className="vc-stat vc-stat-sm">
+            {loadingFindings ? "—" : `${failCount} open`}
+          </div>
+          <div className="vc-stat-note">{passCount} check{passCount === 1 ? "" : "s"} passing</div>
+        </div>
+        <div className="vc-card flex items-center justify-between gap-4">
+          <div>
+            <div className="vc-stat-label">Daily auto-scan</div>
+            <div className="text-[15px] font-semibold tracking-[-0.3px] text-[var(--vc-text)]">
+              {schedulePlanSupports ? (scheduleEnabled ? `On · every ${scheduleIntervalHours} hours` : "Off") : "Upgrade to enable"}
+            </div>
+            <div className="mt-1.5 text-[12.5px] text-[var(--vc-muted)]">
+              {schedulePlanSupports && scheduleEnabled && nextScanTime ? `Next sweep in ${nextScanTime}` : "Automatic scanning disabled"}
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Toggle daily auto-scan"
+            aria-pressed={scheduleEnabled}
+            title={!schedulePlanSupports ? "Requires a paid plan" : scheduleEnabled ? "Disable daily auto-scan" : "Enable daily auto-scan"}
+            onClick={handleToggleSchedule}
+            disabled={togglingSchedule || !schedulePlanSupports}
+            className={`vc-toggle${scheduleEnabled ? " is-on" : ""} disabled:opacity-40`}
+          />
+        </div>
+      </div>
 
-      {/* ── Filters ─────────────────────────────────────────────────────── */}
+      {/* ── Filters ──────────────────────────────────────────────────────── */}
       <ScanFilters
         accounts={accounts}
         scans={scans}
@@ -945,234 +772,189 @@ export default function ScansPage() {
         }}
       />
 
-      {/* ── AI Analysis ─────────────────────────────────────────────────── */}
-      {aiAnalysis && (
-        <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
-              <span>✦</span><span>AI Security Analysis</span>
-            </div>
-            <button type="button" onClick={() => setAiAnalysis("")} className="text-xs text-neutral-600 hover:text-neutral-400 transition-colors">
-              Dismiss
-            </button>
-          </div>
-          <div className="space-y-1 text-sm leading-7 text-neutral-300">
-            {aiAnalysis.split("\n").map((line, i) => {
-              const isHeader = /^[A-Z][A-Z\s]{3,}$/.test(line.trim()) && line.trim().length < 40;
-              return isHeader
-                ? <p key={i} className="mt-3 font-bold text-emerald-400 tracking-wide text-xs uppercase">{line}</p>
-                : <p key={i} className={line.trim() === "" ? "mt-1" : ""}>{line}</p>;
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Security Questionnaire ──────────────────────────────────────── */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-semibold text-violet-300">
-              <span>◈</span><span>Security Questionnaire Autofill</span>
-            </div>
-            <p className="mt-0.5 text-xs text-neutral-600">AI generates audit-ready answers from your scan evidence.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center divide-x divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
-              {(["soc2", "iso27001", "pci"] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => { setQuestionnaireFramework(f); setQuestionnaire(""); }}
-                  className={`px-3.5 py-2 text-xs font-semibold transition-colors ${
-                    questionnaireFramework === f
-                      ? "bg-violet-500/20 text-violet-300"
-                      : "text-neutral-500 hover:text-neutral-300"
-                  }`}
-                >
-                  {f === "soc2" ? "SOC 2" : f === "iso27001" ? "ISO 27001" : "PCI DSS"}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={handleGenerateQuestionnaire}
-              disabled={!selectedScanId || loadingQuestionnaire}
-              className="rounded-xl border border-violet-500/25 bg-violet-500/10 px-4 py-2 text-xs font-semibold text-violet-300 hover:bg-violet-500/20 disabled:opacity-40 transition-colors"
-            >
-              {loadingQuestionnaire ? "Generating…" : "Generate"}
-            </button>
-          </div>
+      {/* ── Sweep history ────────────────────────────────────────────────── */}
+      <div className="vc-card vc-card-flush">
+        <div className="vc-thead" style={{ gridTemplateColumns: SCAN_COLS }}>
+          <span>Scan</span>
+          <span>Account</span>
+          <span>Started</span>
+          <span>Findings</span>
+          <span>Drift</span>
+          <span className="text-right">Status</span>
         </div>
 
-        {questionnaire && (
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-neutral-600">Ready to paste into your questionnaire</span>
-              <button
-                type="button"
-                onClick={copyQuestionnaire}
-                className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-1 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
+        {loadingScans ? (
+          <div className="p-5"><div className="vc-skel h-14 w-full" /></div>
+        ) : scans.length === 0 ? (
+          <div className="vc-empty">No scans yet — run your first sweep.</div>
+        ) : (
+          scans.map((s) => {
+            const hist = historyById.get(s.scan_id);
+            const isSelected = s.scan_id === selectedScanId;
+            const status = (s.status || "").toUpperCase();
+            const running_ = status === "RUNNING" || status === "PENDING";
+            return (
+              <div
+                key={s.scan_id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedScanId(s.scan_id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedScanId(s.scan_id); } }}
+                className={`vc-tr vc-tr-hover${isSelected ? " is-selected" : ""}`}
+                style={{ gridTemplateColumns: SCAN_COLS }}
               >
-                {questionnaireCopied ? "Copied ✓" : "Copy"}
-              </button>
-            </div>
-            <div className="max-h-80 overflow-y-auto rounded-xl border border-white/[0.06] bg-black/30 p-5">
-              {renderFormattedText(questionnaire)}
-            </div>
-          </div>
+                <span className="vc-mono truncate text-xs text-[var(--vc-accent-text)]">{s.scan_id}</span>
+                <div className="min-w-0">
+                  <div className="vc-cell-strong truncate">
+                    {s.customer_name ? `${s.customer_name} · ${s.account_name ?? ""}` : s.account_name || "All accounts"}
+                  </div>
+                  <div className="vc-cell-sub">{s.region || "—"}</div>
+                </div>
+                <span className="vc-cell">{scanTime(s.created_at)}</span>
+
+                {running_ ? (
+                  <div className="flex items-center gap-2.5">
+                    <span className="vc-spinner" />
+                    <span className="text-[12.5px] text-[var(--vc-muted)]">Running checks…</span>
+                  </div>
+                ) : hist ? (
+                  <div className="flex gap-1.5">
+                    <span className={`vc-count ${hist.critical > 0 ? "vc-sev-critical" : "vc-count-zero"}`}>{hist.critical} C</span>
+                    <span className={`vc-count ${hist.fail > 0 ? "vc-sev-high" : "vc-count-zero"}`}>{hist.fail} fail</span>
+                    <span className="vc-count vc-neutral">{hist.total} total</span>
+                  </div>
+                ) : isSelected && !loadingFindings ? (
+                  <div className="flex gap-1.5">
+                    {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((sev) => {
+                      const n = severityCounts[sev] || 0;
+                      return (
+                        <span key={sev} className={`vc-count ${n > 0 ? severityTone(sev) : "vc-count-zero"}`}>
+                          {n} {sev[0]}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="vc-cell !text-[var(--vc-dim)]">Select to load</span>
+                )}
+
+                <span className="text-[12.5px] font-semibold">
+                  {isSelected && drift?.has_baseline ? (
+                    drift.summary.new > 0 ? (
+                      <span className="vc-sev-critical">+{drift.summary.new} new</span>
+                    ) : drift.summary.remediated > 0 ? (
+                      <span className="vc-ok">−{drift.summary.remediated} fixed</span>
+                    ) : (
+                      <span className="text-[var(--vc-dim)]">No change</span>
+                    )
+                  ) : (
+                    <span className="text-[var(--vc-dim)]">—</span>
+                  )}
+                </span>
+
+                <span className={`text-right text-xs font-semibold ${scanStatusTone(status)}`}>
+                  {status ? status[0] + status.slice(1).toLowerCase() : "Unknown"}
+                </span>
+              </div>
+            );
+          })
         )}
       </div>
 
-      {/* ── IaC Fix Snippets ────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-semibold text-orange-300">
-              <span>⬡</span><span>IaC Fix Snippets</span>
+      {/* ── Posture of the selected scan ─────────────────────────────────── */}
+      <div className="vc-grid vc-split-aside">
+        <div className="vc-card">
+          <div className="vc-stat-label !mb-4">Findings by severity</div>
+          {sevTotal === 0 ? (
+            <div className="vc-empty !px-0">
+              {loadingFindings ? "Loading findings…" : "No findings on this scan."}
             </div>
-            <p className="mt-0.5 text-xs text-neutral-600">AI generates Terraform or CDK code to fix every failing control.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center divide-x divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
-              {(["terraform", "cdk"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => { setIacTool(t); setIac(null); }}
-                  className={`px-3.5 py-2 text-xs font-semibold transition-colors ${
-                    iacTool === t ? "bg-orange-500/20 text-orange-300" : "text-neutral-500 hover:text-neutral-300"
-                  }`}
-                >
-                  {t === "terraform" ? "Terraform" : "CDK (Python)"}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={handleGenerateIac}
-              disabled={!selectedScanId || loadingIac}
-              className="rounded-xl border border-orange-500/25 bg-orange-500/10 px-4 py-2 text-xs font-semibold text-orange-300 hover:bg-orange-500/20 disabled:opacity-40 transition-colors"
-            >
-              {loadingIac ? "Generating…" : "Generate"}
-            </button>
-          </div>
-        </div>
-
-        {iac && (
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-neutral-600">{iac.findings_count} failing control{iac.findings_count !== 1 ? "s" : ""} · {iac.tool}</span>
-              <button
-                type="button"
-                onClick={copyIac}
-                className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-1 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
-              >
-                {iacCopied ? "Copied ✓" : "Copy"}
-              </button>
-            </div>
-            <div className="max-h-80 overflow-y-auto rounded-xl border border-white/[0.06] bg-black/30 p-5">
-              {iac.snippets.split("\n").map((line, i) => {
-                const isHeader = line.startsWith("FINDING:");
-                const isSep = line.trim() === "---";
-                if (isSep) return <div key={i} className="my-3 border-t border-white/[0.06]" />;
-                return isHeader
-                  ? <p key={i} className="mt-2 mb-1 text-xs font-bold text-orange-300 uppercase tracking-wide">{line}</p>
-                  : <p key={i} className={`font-mono text-xs ${line.trim() === "" ? "h-2" : "text-neutral-300"}`}>{line}</p>;
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Scan Timeline ────────────────────────────────────────────────── */}
-      {selectedAccountId && (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="text-sm font-semibold text-neutral-300">Scan History</div>
-            {loadingHistory && <span className="text-xs text-neutral-600">Loading…</span>}
-          </div>
-          {scanHistory.length === 0 && !loadingHistory ? (
-            <p className="text-xs text-neutral-600">Run more scans to see the history timeline.</p>
           ) : (
-            <div className="flex items-end gap-2 overflow-x-auto pb-1">
-              {[...scanHistory].reverse().map((s) => {
-                const barPct = s.total > 0 ? Math.min(100, Math.round((s.fail / s.total) * 100)) : 0;
-                const barH = barPct === 0 ? "h-2" : barPct <= 25 ? "h-4" : barPct <= 50 ? "h-8" : barPct <= 75 ? "h-12" : "h-16";
-                const isSelected = s.scan_id === selectedScanId;
-                const hasCritical = s.critical > 0;
+            <div className="flex flex-col gap-3.5">
+              {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((sev) => {
+                const count = severityCounts[sev] || 0;
+                const pct = sevTotal > 0 ? Math.round((count / sevTotal) * 100) : 0;
+                const active = severityFilter === sev;
+                const tone = severityTone(sev);
                 return (
                   <button
-                    key={s.scan_id}
+                    key={sev}
                     type="button"
-                    title={`${new Date(s.created_at).toLocaleDateString()} — ${s.fail} fail / ${s.total} total`}
-                    onClick={() => setSelectedScanId(s.scan_id)}
-                    className={`group flex flex-col items-center gap-1.5 rounded-xl border px-2.5 py-2 transition-colors ${
-                      isSelected
-                        ? "border-emerald-500/40 bg-emerald-500/10"
-                        : "border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.03]"
-                    }`}
+                    aria-pressed={active}
+                    onClick={() => { setSeverityFilter(active ? "ALL" : sev); setTimeout(() => findingsRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }}
+                    className={`text-left ${tone}`}
                   >
-                    <div className="flex h-16 w-6 items-end">
-                      <div
-                        className={`w-full rounded-t ${barH} ${hasCritical ? "bg-red-500/70" : s.fail > 0 ? "bg-yellow-500/60" : "bg-emerald-500/60"}`}
-                      />
+                    <div className="mb-2 flex items-baseline justify-between">
+                      <span className={`text-[13.5px] font-semibold tracking-[-0.2px] ${active ? "" : "text-[var(--vc-text)]"}`}>
+                        {sev[0] + sev.slice(1).toLowerCase()}
+                      </span>
+                      <span className={`text-[13px] font-semibold ${count > 0 ? "" : "text-[var(--vc-dim)]"}`}>{count}</span>
                     </div>
-                    <span className="text-[9px] text-neutral-600 group-hover:text-neutral-400">
-                      {new Date(s.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                    </span>
-                    {s.critical > 0 && (
-                      <span className="text-[9px] font-bold text-red-400">{s.critical}C</span>
-                    )}
+                    <div className="vc-meter"><i style={{ width: `${pct}%` }} /></div>
+                    <div className="mt-1.5 text-[11.5px] text-[var(--vc-dim)]">
+                      {active ? "Filtering · click to clear" : `${pct}% of this scan`}
+                    </div>
                   </button>
                 );
               })}
             </div>
           )}
-          <div className="mt-3 flex items-center gap-4 text-[10px] text-neutral-600">
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-red-500/70" /> Critical fails</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-yellow-500/60" /> Other fails</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-emerald-500/60" /> All passing</span>
+        </div>
+
+        <div className="vc-card">
+          <div className="vc-card-title">Compliance coverage</div>
+          <div className="vc-card-sub mb-5">
+            {coverage ? "Controls satisfied on this scan" : "Run a scan to map findings onto controls"}
+          </div>
+          <div className="vc-grid vc-grid-2">
+            {COVERAGE_FRAMEWORKS.map(([key, label]) => {
+              const fw = coverage?.coverage[key];
+              const pct = fw?.pct ?? 0;
+              const tone = !fw ? "text-[var(--vc-dim)]" : pct >= 80 ? "vc-ok" : pct >= 60 ? "vc-sev-high" : "vc-sev-critical";
+              return (
+                <div key={key}>
+                  <div className="mb-2 flex items-baseline justify-between">
+                    <span className="text-[13.5px] font-semibold tracking-[-0.2px] text-[var(--vc-text)]">{label}</span>
+                    <span className={`text-[13px] font-semibold ${tone}`}>{fw ? `${pct}%` : "—"}</span>
+                  </div>
+                  <div className={`vc-meter ${fw ? tone : ""}`}><i style={{ width: `${pct}%` }} /></div>
+                  <div className="mt-1.5 text-[11.5px] text-[var(--vc-dim)]">
+                    {fw ? `${fw.passing} of ${fw.total_controls} controls` : "No data"}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
-      )}
+      </div>
 
-      {/* ── Drift banner ─────────────────────────────────────────────────── */}
+      {/* ── Drift ────────────────────────────────────────────────────────── */}
       {drift && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="font-medium text-neutral-300">Drift since last scan</span>
-            {drift.has_baseline ? (
-              <>
-                {drift.summary.new > 0 && (
-                  <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-bold text-cyan-400">
-                    +{drift.summary.new} NEW
-                  </span>
-                )}
-                {drift.summary.remediated > 0 && (
-                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-400">
-                    -{drift.summary.remediated} FIXED
-                  </span>
-                )}
-                {drift.summary.new === 0 && drift.summary.remediated === 0 && (
-                  <span className="text-xs text-neutral-600">No changes detected</span>
-                )}
-              </>
-            ) : (
-              <span className="text-xs text-neutral-600">No baseline — run another scan to enable drift tracking</span>
-            )}
-            {drift.previous_scan_date && (
-              <span className="text-xs text-neutral-700">vs {new Date(drift.previous_scan_date).toLocaleDateString()}</span>
-            )}
-          </div>
+        <div className="vc-card flex flex-wrap items-center gap-3">
+          <span className="vc-card-title">Drift since last scan</span>
+          {drift.has_baseline ? (
+            <>
+              {drift.summary.new > 0 && <span className="vc-pill vc-sev-critical">+{drift.summary.new} new</span>}
+              {drift.summary.remediated > 0 && <span className="vc-pill vc-ok">−{drift.summary.remediated} fixed</span>}
+              {drift.summary.new === 0 && drift.summary.remediated === 0 && (
+                <span className="text-[12.5px] text-[var(--vc-muted)]">No changes detected</span>
+              )}
+            </>
+          ) : (
+            <span className="text-[12.5px] text-[var(--vc-muted)]">
+              No baseline — run another scan to enable drift tracking
+            </span>
+          )}
+          {drift.previous_scan_date && (
+            <span className="text-[12.5px] text-[var(--vc-dim)]">
+              vs {new Date(drift.previous_scan_date).toLocaleDateString()}
+            </span>
+          )}
           {drift.has_baseline && drift.summary.new > 0 && (
             <button
               type="button"
               onClick={() => setDriftFilter((v) => !v)}
-              className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                driftFilter
-                  ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-300"
-                  : "border-white/[0.07] text-neutral-500 hover:text-neutral-300"
-              }`}
+              className={`vc-chip ml-auto${driftFilter ? " is-on" : ""}`}
             >
               {driftFilter ? "Show all" : "New issues only"}
             </button>
@@ -1180,12 +962,188 @@ export default function ScansPage() {
         </div>
       )}
 
-      {/* ── Findings table ───────────────────────────────────────────────── */}
+      {/* ── AI analysis ──────────────────────────────────────────────────── */}
+      <div className="vc-card">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="vc-card-title">AI security analysis</div>
+            <div className="vc-card-sub">
+              Claude reads the whole scan and tells you what to fix first, ranked by blast radius.
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {aiAnalysis && (
+              <button type="button" className="vc-btn" onClick={() => setAiAnalysis("")}>Dismiss</button>
+            )}
+            <button type="button" className="vc-btn-primary" onClick={handleAiAnalysis} disabled={!selectedScanId || loadingAi}>
+              {loadingAi ? "Analysing…" : "Ask Claude"}
+            </button>
+          </div>
+        </div>
+
+        {aiAnalysis && (
+          <div className="mt-4 max-h-96 overflow-y-auto rounded-xl border border-[var(--vc-hairline)] bg-[var(--vc-inset)] p-5">
+            {aiAnalysis.split("\n").map((line, i) => {
+              const isHeader = /^[A-Z][A-Z\s]{3,}$/.test(line.trim()) && line.trim().length < 40;
+              return isHeader ? (
+                <p key={i} className="vc-eyebrow mt-4 mb-1.5 !text-[var(--vc-accent-text)]">{line}</p>
+              ) : (
+                <p key={i} className={`text-[13.5px] leading-[1.6] text-[var(--vc-text-2)] ${line.trim() === "" ? "h-2" : ""}`}>{line}</p>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Questionnaire + IaC ──────────────────────────────────────────── */}
+      <div className="vc-grid vc-grid-2">
+        <div className="vc-card flex flex-col">
+          <div className="vc-card-title">Security questionnaire autofill</div>
+          <div className="vc-card-sub mb-4">Audit-ready answers generated from this scan&rsquo;s evidence.</div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="vc-seg">
+              {(["soc2", "iso27001", "pci"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className={questionnaireFramework === f ? "is-on" : ""}
+                  onClick={() => { setQuestionnaireFramework(f); setQuestionnaire(""); }}
+                >
+                  {f === "soc2" ? "SOC 2" : f === "iso27001" ? "ISO 27001" : "PCI DSS"}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="vc-btn-secondary" onClick={handleGenerateQuestionnaire} disabled={!selectedScanId || loadingQuestionnaire}>
+              {loadingQuestionnaire ? "Generating…" : "Generate"}
+            </button>
+            {questionnaire && (
+              <button type="button" className="vc-btn" onClick={copyQuestionnaire}>
+                {questionnaireCopied ? "Copied" : "Copy"}
+              </button>
+            )}
+          </div>
+
+          {questionnaire && (
+            <div className="mt-4 max-h-80 overflow-y-auto rounded-xl border border-[var(--vc-hairline)] bg-[var(--vc-inset)] p-5">
+              {renderFormattedText(questionnaire)}
+            </div>
+          )}
+        </div>
+
+        <div className="vc-card flex flex-col">
+          <div className="vc-card-title">Infrastructure-as-code fixes</div>
+          <div className="vc-card-sub mb-4">Terraform or CDK to close every failing control on this scan.</div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="vc-seg">
+              {(["terraform", "cdk"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={iacTool === t ? "is-on" : ""}
+                  onClick={() => { setIacTool(t); setIac(null); }}
+                >
+                  {t === "terraform" ? "Terraform" : "CDK (Python)"}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="vc-btn-secondary" onClick={handleGenerateIac} disabled={!selectedScanId || loadingIac}>
+              {loadingIac ? "Generating…" : "Generate"}
+            </button>
+            {iac && (
+              <button type="button" className="vc-btn" onClick={copyIac}>
+                {iacCopied ? "Copied" : "Copy"}
+              </button>
+            )}
+          </div>
+
+          {iac && (
+            <>
+              <div className="mt-3 text-[11.5px] text-[var(--vc-dim)]">
+                {iac.findings_count} failing control{iac.findings_count !== 1 ? "s" : ""} · {iac.tool}
+              </div>
+              <div className="mt-2 max-h-80 overflow-y-auto rounded-xl border border-[var(--vc-hairline)] bg-[var(--vc-inset)] p-5">
+                {iac.snippets.split("\n").map((line, i) => {
+                  if (line.trim() === "---") return <div key={i} className="my-3 border-t border-[var(--vc-hairline)]" />;
+                  return line.startsWith("FINDING:") ? (
+                    <p key={i} className="vc-eyebrow mt-2 mb-1 !text-[var(--vc-accent-text)]">{line}</p>
+                  ) : (
+                    <p key={i} className={`vc-mono text-xs ${line.trim() === "" ? "h-2" : "text-[var(--vc-text-2)]"}`}>{line}</p>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Scan history sparkbars ───────────────────────────────────────── */}
+      {selectedAccountId && (
+        <div className="vc-card">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <div className="vc-card-title">Scan history</div>
+              <div className="vc-card-sub">Failing checks per sweep for this account</div>
+            </div>
+            {loadingHistory && <span className="text-xs text-[var(--vc-dim)]">Loading…</span>}
+          </div>
+
+          {scanHistory.length === 0 && !loadingHistory ? (
+            <p className="text-[12.5px] text-[var(--vc-muted)]">Run more scans to build the timeline.</p>
+          ) : (
+            <div className="flex items-end gap-2 overflow-x-auto pb-1">
+              {[...scanHistory].reverse().map((s) => {
+                const pct = s.total > 0 ? Math.min(100, Math.round((s.fail / s.total) * 100)) : 0;
+                const isSelected = s.scan_id === selectedScanId;
+                const tone = s.critical > 0 ? "vc-sev-critical" : s.fail > 0 ? "vc-sev-high" : "vc-ok";
+                return (
+                  <button
+                    key={s.scan_id}
+                    type="button"
+                    title={`${new Date(s.created_at).toLocaleDateString()} — ${s.fail} failing of ${s.total}`}
+                    onClick={() => setSelectedScanId(s.scan_id)}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border px-2.5 py-2 transition-colors ${
+                      isSelected
+                        ? "border-[var(--vc-accent)] bg-[var(--vc-accent-wash)]"
+                        : "border-[var(--vc-hairline)] hover:bg-[var(--vc-chip)]"
+                    }`}
+                  >
+                    <div className="flex h-16 w-6 items-end">
+                      <div className={`w-full rounded-t bg-current ${tone}`} style={{ height: `${Math.max(8, pct)}%` }} />
+                    </div>
+                    <span className="text-[9px] text-[var(--vc-dim)]">
+                      {new Date(s.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    </span>
+                    {s.critical > 0 && <span className="text-[9px] font-semibold vc-sev-critical">{s.critical}C</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-3.5 flex flex-wrap items-center gap-4 text-[11px] text-[var(--vc-dim)]">
+            <span className="flex items-center gap-1.5"><span className="vc-dot vc-sev-critical" /> Critical fails</span>
+            <span className="flex items-center gap-1.5"><span className="vc-dot vc-sev-high" /> Other fails</span>
+            <span className="flex items-center gap-1.5"><span className="vc-dot vc-ok" /> All passing</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Findings ─────────────────────────────────────────────────────── */}
+      <div className="mt-1 flex items-center justify-between">
+        <div className="vc-card-title">
+          Findings{selectedScan ? ` · ${selectedScan.account_name ?? selectedScan.scan_id}` : ""}
+        </div>
+        <span className="text-[12.5px] text-[var(--vc-muted)]">
+          {filteredFindings.length} shown of {findings.length}
+        </span>
+      </div>
+
       <div ref={findingsRef}>
         <FindingsTable findings={filteredFindings} onOpenFinding={openFinding} loading={loadingFindings} search={search} />
       </div>
 
-      {/* ── Finding detail panel ─────────────────────────────────────────── */}
       {selectedFinding && (
         <FindingDetail
           finding={selectedFinding}
@@ -1203,6 +1161,6 @@ export default function ScansPage() {
           approvalSaving={approvalSaving}
         />
       )}
-    </main>
+    </>
   );
 }

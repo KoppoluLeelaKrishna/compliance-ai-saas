@@ -85,15 +85,28 @@ Requires `ANTHROPIC_API_KEY` env var. Returns executive summary + prioritized re
 
 - Auto-deploys from `main` branch on push
 - Frontend env var: `NEXT_PUBLIC_API_BASE=https://api.vigilicloud.com`
-- DNS is managed at **Namecheap** (`dns1/dns2.registrar-servers.com`). `app` is a CNAME to
-  Vercel; `api` is a CNAME to `vigilicloud-api.onrender.com`.
+### DNS (Namecheap BasicDNS — `dns1/dns2.registrar-servers.com`)
 
-### Known DNS gap
-The apex `vigilicloud.com` and `www` still point at the registrar parking IP `192.64.119.204`,
-which answers on port 80 but **not 443** — so `https://vigilicloud.com` times out with
-`ERR_CONNECTION_TIMED_OUT`. The app is unaffected; only the bare domain is dead. Fix by either
-redirecting the apex to `https://app.vigilicloud.com` at Namecheap, or adding the apex as a
-Vercel domain. Use `app.vigilicloud.com` in any docs, demos, or decks until this is resolved.
+| Type | Host | Value |
+|---|---|---|
+| A | `@` | `216.198.79.1` (Vercel apex) |
+| CNAME | `www` | `4682fb762c9bd9df.vercel-dns-017.com` |
+| CNAME | `app` | `4682fb762c9bd9df.vercel-dns-017.com` |
+| CNAME | `api` | `vigilicloud-api.onrender.com` |
+
+`vigilicloud.com` and `www` are registered as Vercel domains set to **308 redirect** to
+`app.vigilicloud.com`; only `app` is bound to a Production deployment. Verified chain:
+`http://vigilicloud.com` → 308 → `https://vigilicloud.com` → 308 → `https://app.vigilicloud.com` (200).
+Certs are per-hostname Let's Encrypt, auto-renewed by Vercel.
+
+Do **not** use Namecheap "URL Redirect Record" for the apex. Namecheap implements it by
+pointing the host at their parking server (`192.64.119.204`), which listens on port 80 but has
+no cert for the domain — `https://vigilicloud.com` then dies with `ERR_CONNECTION_TIMED_OUT`.
+This was the original breakage; the redirect has to happen at Vercel's edge, not the registrar.
+
+`www` must stay a redirect, never a Production binding: the backend CORS allowlist
+(`build_cors_origins()` in `backend/app/config.py`) has no `www` origin, so an app served there
+would load and then fail every API call.
 
 ### Legacy frontend
 `vigilicloud-ui.onrender.com` is still live and serving an **older build** than Vercel. It

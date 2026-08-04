@@ -42,8 +42,15 @@ function statusLabel(status?: string) {
   return s[0] + s.slice(1).toLowerCase();
 }
 
-/** Column track for the connected-accounts register. */
-const ACCOUNT_COLS = "1fr 160px 130px 120px 190px";
+/**
+ * Column track for the connected-accounts register.
+ *
+ * The register sits in the narrow half of a 400px/1fr split, so the fixed
+ * columns have to leave the client/account name something to live in —
+ * `minmax(0, …)` on the name column alone collapsed it to a few pixels and
+ * truncated every row to "L." / "p..".
+ */
+const ACCOUNT_COLS = "minmax(150px, 1.5fr) 122px 104px 78px 118px";
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);

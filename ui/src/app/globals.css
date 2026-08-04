@@ -989,6 +989,21 @@ html[data-theme="light"] {
 }
 .vc-input:focus, .vc-select:focus, .vc-textarea:focus { border-color: var(--vc-accent); }
 .vc-input::placeholder, .vc-textarea::placeholder { color: var(--vc-dim); }
+
+/* Chromium paints autofilled fields with its own near-white background, which
+   blows a hole in the dark theme. The background cannot be overridden, but an
+   inset shadow covers it and -webkit-text-fill-color restores the text. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--vc-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--vc-raised) inset;
+  box-shadow: 0 0 0 1000px var(--vc-raised) inset;
+  caret-color: var(--vc-text);
+  transition: background-color 10000s ease-in-out 0s;
+}
 .vc-input-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
 .vc-select { appearance: none; padding-right: 32px; cursor: pointer; }
 
@@ -1036,6 +1051,15 @@ html[data-theme="light"] {
 
 .vc-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
 .vc-empty { padding: 40px 22px; text-align: center; font-size: 13.5px; color: var(--vc-muted); }
+
+/* Long registers scroll inside the card instead of stretching the page. A
+   workspace with a year of scans was pushing everything below it off a
+   4,800px page. */
+.vc-scroll-rows { max-height: 460px; overflow-y: auto; overscroll-behavior: contain; }
+.vc-scroll-rows::-webkit-scrollbar { width: 8px; }
+.vc-scroll-rows::-webkit-scrollbar-thumb {
+  background: var(--vc-hairline-strong); border-radius: 999px;
+}
 
 /* ── Severity + status ───────────────────────────────────── */
 .vc-sev-critical { color: var(--vc-critical); }
@@ -1116,6 +1140,11 @@ html[data-theme="light"] {
 .vc-split-wide  { grid-template-columns: minmax(0, 1fr) 400px; }  /* table + rail  */
 .vc-split-form  { grid-template-columns: 400px minmax(0, 1fr); }  /* form + table  */
 .vc-split-three { grid-template-columns: 1.25fr minmax(0, 1fr) minmax(0, 1fr); }
+
+/* These two pair a variable-length list with a fixed rail. Stretching the
+   list to match the rail leaves a large void when there is little to show,
+   so they size to their content instead. */
+.vc-split-panel, .vc-split-form { align-items: start; }
 
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1280px) {

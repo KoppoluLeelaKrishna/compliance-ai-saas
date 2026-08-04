@@ -783,6 +783,7 @@ export default function ScansPage() {
           <span className="text-right">Status</span>
         </div>
 
+        <div className="vc-scroll-rows">
         {loadingScans ? (
           <div className="p-5"><div className="vc-skel h-14 w-full" /></div>
         ) : scans.length === 0 ? (
@@ -859,6 +860,7 @@ export default function ScansPage() {
             );
           })
         )}
+        </div>
       </div>
 
       {/* ── Posture of the selected scan ─────────────────────────────────── */}

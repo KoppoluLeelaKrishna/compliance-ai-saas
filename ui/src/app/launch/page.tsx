@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import TopbarActions from "@/components/app/TopbarActions";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
@@ -75,6 +76,7 @@ export default function LaunchPage() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [billing, setBilling] = useState<BillingMe | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const router = useRouter();
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copyMessage, setCopyMessage] = useState("");
@@ -82,23 +84,36 @@ export default function LaunchPage() {
   useEffect(() => {
     (async () => {
       try {
-        const healthData = await api<HealthResponse>("/health");
+        const auth = await api<AuthMe>("/auth/me").catch(() => null);
+
+        // Launch is an internal go-live checklist, not a customer surface.
+        // It is hidden from the sidebar for non-admins; this stops anyone
+        // reaching it by typing the URL.
+        if (!auth?.authenticated) {
+          router.replace("/signin");
+          return;
+        }
+        if (auth.user?.role !== "admin") {
+          router.replace("/dashboard");
+          return;
+        }
+        setAuthenticated(true);
+
+        const [healthData, billingData, accountsData] = await Promise.all([
+          api<HealthResponse>("/health"),
+          api<BillingMe>("/billing/me"),
+          api<{ accounts: Account[] }>("/accounts"),
+        ]);
         setHealth(healthData);
-        try {
-          const auth = await api<AuthMe>("/auth/me");
-          if (auth.authenticated) {
-            setAuthenticated(true);
-            const [billingData, accountsData] = await Promise.all([
-              api<BillingMe>("/billing/me"),
-              api<{ accounts: Account[] }>("/accounts"),
-            ]);
-            setBilling(billingData);
-            setAccounts(accountsData.accounts || []);
-          }
-        } catch { setAuthenticated(false); }
-      } finally { setLoading(false); }
+        setBilling(billingData);
+        setAccounts(accountsData.accounts || []);
+      } catch {
+        setAuthenticated(false);
+      } finally {
+        setLoading(false);
+      }
     })();
-  }, []);
+  }, [router]);
 
   const activeAccounts = useMemo(() => accounts.filter(a => a.is_active).length, [accounts]);
 

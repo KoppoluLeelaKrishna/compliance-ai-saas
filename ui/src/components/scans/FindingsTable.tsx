@@ -58,6 +58,7 @@ export function FindingsTable({ findings, onOpenFinding, loading, search = "" }:
         <span className="text-right">State</span>
       </div>
 
+      <div className="vc-scroll-rows">
       {findings.map((f) => {
         const resolved = f.resolution === "FIXED" || f.status === "PASS";
         const state = f.resolution || f.approval_status || (f.status === "PASS" ? "PASS" : "OPEN");
@@ -109,6 +110,7 @@ export function FindingsTable({ findings, onOpenFinding, loading, search = "" }:
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

@@ -61,7 +61,9 @@ export default function AppSidebar() {
         { href: "/accounts", label: "Accounts", icon: "accounts", badge: accountsCount },
         { href: "/msp", label: "Clients", icon: "msp" },
         { href: "/onboarding", label: "Get started", icon: "onboarding" },
-        { href: "/launch", label: "Launch", icon: "launch" },
+        // Launch is a go-live checklist for the team running VigiliCloud —
+        // QA status, demo script, outreach copy. Customers have no use for it.
+        { href: "/launch", label: "Launch", icon: "launch", adminOnly: true },
       ],
     },
     {

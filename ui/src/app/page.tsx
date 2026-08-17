@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import RequestDemoForm from "@/components/marketing/RequestDemoForm";
+import WelcomeWidget from "@/components/marketing/WelcomeWidget";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { AuthMe } from "@/types";
@@ -287,7 +289,9 @@ const C = {
   muted: "rgba(233,238,248,0.58)", onDark: "#f5f5f7",
   canvas: "rgba(255,255,255,0.038)", parchment: "rgba(255,255,255,0.055)",
   tile1: "transparent", tile2: "transparent", tile3: "transparent",
-  black: "transparent", hairline: "rgba(255,255,255,0.10)", divider: "rgba(255,255,255,0.09)",
+  // Every marketing card draws its edge from `hairline`. Against the starfield
+  // backdrop 0.10 read as no border at all, so cards floated with no shape.
+  black: "transparent", hairline: "rgba(255,255,255,0.19)", divider: "rgba(255,255,255,0.13)",
 };
 const ff = "var(--ff)", fft = "var(--fft)";
 
@@ -297,6 +301,9 @@ const STEPS = [
   { num: "02", title: "Run a security scan",        desc: "Click Run Scan. VigiliCloud checks all 10 security areas and returns prioritized findings in approximately 2 minutes.", tag: "No agents · No installs" },
   { num: "03", title: "Fix what's wrong",           desc: "Every finding includes the exact AWS Console path, CLI commands, and step-by-step remediation guidance.", tag: "CSV / JSON export" },
 ];
+
+/** Marquee under the hero. Order is arbitrary; the strip loops continuously. */
+const AUDIT_FRAMEWORKS = ["CIS AWS", "SOC 2", "ISO 27001", "HIPAA", "PCI DSS", "GDPR", "NIST CSF"];
 
 const SEV_COL: Record<string, string> = { Critical: "#ef4444", High: "#f97316", Medium: "#f59e0b" };
 /* RGB triples so CSS can build rgba() tints from a single --sev custom property */
@@ -948,47 +955,85 @@ export default function HomePage() {
         <div className="ap-perspective-grid" />
 
         {/* Content */}
-        <div style={{ maxWidth: 980, margin: "0 auto", width: "100%", position: "relative", zIndex: 2 }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto", width: "100%", position: "relative", zIndex: 2 }}>
 
-          <div className="ap-hero-chip" style={{ display: "inline-block", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.72)", fontSize: 14, fontFamily: fft, padding: "8px 18px", borderRadius: 9999, marginBottom: 32, letterSpacing: "-0.224px", border: "1px solid rgba(255,255,255,0.11)" }}>
-            AWS Cloud Security
-          </div>
+          <div className="ap-hero-split">
 
-          <h1 style={{ fontFamily: ff, fontSize: "clamp(44px,6vw,66px)", fontWeight: 600, lineHeight: 1.08, letterSpacing: "-0.5px", maxWidth: 820, margin: "0 auto 16px" }}>
-            <div style={{ overflow: "hidden" }}>
-              <Words text="Find misconfigurations." base={0.18} color="#ffffff" />
+            {/* ── Copy ───────────────────────────────────────────── */}
+            <div className="ap-hero-copy">
+              <div className="ap-hero-chip" style={{ display: "inline-flex", alignItems: "center", gap: 9, background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.72)", fontSize: 13.5, fontFamily: fft, padding: "8px 16px", borderRadius: 9999, marginBottom: 28, letterSpacing: "-0.224px", border: "1px solid rgba(255,255,255,0.11)" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.primaryDark, flex: "none" }} />
+                Now live — 10 AWS checks, zero setup
+              </div>
+
+              <h1 style={{ fontFamily: ff, fontSize: "clamp(38px,4.1vw,53px)", fontWeight: 600, lineHeight: 1.07, letterSpacing: "-1px", margin: "0 0 22px", textWrap: "balance" }}>
+                <div style={{ overflow: "hidden" }}>
+                  <Words text="Find AWS misconfigurations" base={0.18} color="#ffffff" />
+                </div>
+                <div style={{ overflow: "hidden" }}>
+                  <Words text="before attackers do" base={0.45} color={C.primaryDark} />
+                </div>
+              </h1>
+
+              <p className="ap-hero-sub" style={{ fontFamily: ff, fontSize: "clamp(16px,1.5vw,18px)", fontWeight: 300, lineHeight: 1.55, color: C.muted, maxWidth: 480, margin: "0 0 32px" }}>
+                VigiliCloud scans your AWS account in two minutes and surfaces every security
+                gap — with exact fix steps, CLI commands, and exportable compliance evidence.
+              </p>
+
+              <div className="ap-hero-ctas" style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 24 }}>
+                <Link href={authenticated ? "/scans" : "/signup"} className="ap-btn" style={pill(C.primary, "#fff")}>
+                  {loading ? "Get Started Free" : authenticated ? "Go to Dashboard" : "Start free trial →"}
+                </Link>
+                <a href="#how-it-works" className="ap-btn" style={pill("transparent", C.ink, C.hairline)}>
+                  Watch a 2-min demo
+                </a>
+              </div>
+
+              <div className="ap-hero-trust ap-hero-fine">
+                {["Free 2-week trial", "No credit card", "Read-only access"].map((t) => (
+                  <span key={t}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.primaryDark} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m5 12 5 5L20 7" />
+                    </svg>
+                    {t}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div style={{ overflow: "hidden" }}>
-              <Words text="Before hackers do." base={0.45} color="rgba(255,255,255,0.44)" />
+
+            {/* ── Lead capture ───────────────────────────────────── */}
+            <div className="ap-hero-mockup" style={{ minWidth: 0 }}>
+              <RequestDemoForm />
             </div>
-          </h1>
-
-          <p className="ap-hero-sub" style={{ fontFamily: ff, fontSize: "clamp(19px,2.2vw,24px)", fontWeight: 300, lineHeight: 1.5, color: C.muted, maxWidth: 520, margin: "0 auto 32px" }}>
-            10 automated security checks. 2-minute scans. Zero setup.
-          </p>
-
-          <div className="ap-hero-ctas" style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", marginBottom: 16 }}>
-            <Link href={authenticated ? "/scans" : "/signup"} className="ap-btn" style={pill(C.primary, "#fff")}>
-              {loading ? "Get Started Free" : authenticated ? "Go to Dashboard" : "Start Free Trial"}
-            </Link>
-            <a href="#how-it-works" className="ap-btn" style={pill("transparent", C.primaryDark, C.primaryDark)}>See How It Works</a>
           </div>
 
-          <p className="ap-hero-fine" style={{ color: "rgba(255,255,255,0.28)", fontSize: 12, fontFamily: fft, marginBottom: 48 }}>
-            Free 2-week trial · No credit card · Setup in 5 minutes
-          </p>
-
-          {/* Floating security badges */}
-          <div className="ap-hero-badges" style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap", marginBottom: 60 }}>
-            {[["🔒","SOC 2"],["📋","ISO 27001"],["🛡️","AWS Security"],["✅","GDPR Ready"],["🔍","CIS Benchmark"]].map(([icon, label], i) => (
-              <span key={label} className={i % 2 === 0 ? "ap-float" : "ap-float-r"} style={{ animationDelay: `${i * 0.6}s`, display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9999, padding: "6px 14px", fontSize: 12, fontFamily: fft, color: "rgba(255,255,255,0.65)" }}>
-                <span>{icon}</span>{label}
-              </span>
-            ))}
+          {/* ── Audit strip — scrolls left, pauses on hover ───────── */}
+          <div className="ap-audit-strip ap-hero-badges">
+            <div className="ap-audit-track">
+              {/* Rendered twice: the keyframe slides exactly one copy width. */}
+              {[0, 1].map((copy) => (
+                <div key={copy} style={{ display: "flex", alignItems: "center" }} aria-hidden={copy === 1}>
+                  <span className="ap-audit-item is-lead">Built to support your audits</span>
+                  {AUDIT_FRAMEWORKS.map((f) => (
+                    <span key={f} className="ap-audit-item">{f}</span>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Dashboard mockup */}
-          <div ref={mockupRef} className="ap-hero-mockup" style={{ maxWidth: 820, margin: "0 auto" }}>
+          {/* Scroll caret */}
+          <div className="ap-scroll-caret" style={{ marginTop: 40, display: "flex", justifyContent: "center" }}>
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+              <path d="M11 3v16M4 12l7 7 7-7" stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      {/* ══ PRODUCT SHOT ══ */}
+      <section className="ap-sec" style={{ background: "transparent", padding: "16px 22px 80px", position: "relative" }}>
+        <div ref={mockupRef} className="ap-reveal" style={{ maxWidth: 980, margin: "0 auto" }}>
             <div className="ap-product-shadow" style={{ background: "#161617", borderRadius: 20, border: "1px solid rgba(255,255,255,0.10)", overflow: "hidden", textAlign: "left" }}>
               {/* Chrome */}
               <div style={{ background: "#1c1c1e", padding: "12px 18px", display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1027,14 +1072,6 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Scroll caret */}
-          <div className="ap-scroll-caret" style={{ marginTop: 52, display: "flex", justifyContent: "center" }}>
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-              <path d="M11 3v16M4 12l7 7 7-7" stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
         </div>
       </section>
 
@@ -1280,6 +1317,10 @@ export default function HomePage() {
             <a href="https://calendly.com/leelakrishnakoppolu/vigilicloud-demo" target="_blank" rel="noopener noreferrer" className="ap-btn" style={pill(C.primary, "#fff")}>
               Book Free Demo
             </a>
+
+            <div style={{ marginTop: 36 }}>
+              <RequestDemoForm compact />
+            </div>
           </div>
 
           <div id="contact" className="ap-reveal-right">
@@ -1355,6 +1396,8 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      <WelcomeWidget />
     </div>
   );
 }

@@ -29,7 +29,9 @@ cd ui && npm install && npm run dev
 ```
 APP_ENV=production
 DATABASE_URL=postgresql://...
-ANTHROPIC_API_KEY=sk-ant-...   # required for AI analysis endpoint
+ANTHROPIC_API_KEY=sk-ant-...   # required for AI analysis + the in-app assistant
+ASSISTANT_MODEL=claude-opus-5   # optional — assistant model override
+ASSISTANT_EFFORT=low           # optional — low | medium | high | xhigh | max
 RAZORPAY_KEY_ID=rzp_...
 RAZORPAY_KEY_SECRET=...
 RAZORPAY_WEBHOOK_SECRET=...
@@ -65,6 +67,22 @@ Default admin: `admin@compliance.local` / `admin123` (seeded on first startup).
 ## AI Analysis
 `POST /scans/{scan_id}/ai-analysis` — calls Claude Haiku via Anthropic SDK.
 Requires `ANTHROPIC_API_KEY` env var. Returns executive summary + prioritized remediation.
+
+## AI Assistant
+`POST /assistant/chat` — the in-app chatbot (`backend/app/routers/assistant.py`).
+Streams NDJSON frames (`text` / `tool` / `error` / `done`) and answers from the caller's
+own data through eight read-only tools: posture overview, accounts, scans, findings
+search, finding evidence, fix guidance, framework mappings, plan limits.
+
+Every tool re-derives scope from the session via `require_scan_owner()` /
+`validate_account_or_404()` — a scan_id the model invents or is tricked into using
+resolves to "scan not found" rather than another tenant's data. Tool failures are
+returned as `tool_result` content so the model can recover mid-conversation.
+
+`GET /assistant/config` tells the UI whether to render the widget at all;
+`AssistantWidget` (mounted in `LayoutShell`) hides itself when AI is unconfigured.
+
+Model defaults to `claude-opus-5`; override with `ASSISTANT_MODEL` / `ASSISTANT_EFFORT`.
 
 ## Compliance Checks (worker/src/)
 - `s3_public.py` — S3 public access

@@ -65,6 +65,16 @@ region = sanitize_region(payload.region)
 `POST /scans/{scan_id}/ai-analysis` — uses `anthropic` SDK with Claude Haiku.
 Requires `ANTHROPIC_API_KEY` env var. Returns JSON `{scan_id, analysis, findings_count}`.
 
+## AI Assistant Endpoint
+`POST /assistant/chat` in `app/routers/assistant.py` — streaming, tool-using chatbot.
+Adding a tool means three edits in that file: a schema in `TOOLS`, a `_tool_*` function,
+and an entry in `TOOL_IMPLS` (a test asserts those two stay in sync).
+
+Tool functions take `(user, args)` and must scope every read to `user["id"]` — reuse
+`require_scan_owner()` / `validate_account_or_404()` rather than trusting the model's
+arguments. Raise nothing: `run_tool()` converts `HTTPException` into `{"error": ...}`
+so a bad argument becomes a recoverable tool result instead of a dead stream.
+
 ## Adding More Compliance Checks
 Workers live in `../worker/src/`. Each check:
 1. Takes boto3 session + account config

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { AuthMe, BillingMe } from "@/types";
 import KeepAlive from "@/components/KeepAlive";
+import AssistantWidget from "@/components/assistant/AssistantWidget";
 import AppSidebar from "@/components/app/AppSidebar";
 import AppTopbar from "@/components/app/AppTopbar";
 import { AppShellContext, ShellUser } from "@/components/app/AppShellContext";
@@ -117,6 +118,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
           <AppTopbar />
           <main className="vc-content">{children}</main>
         </div>
+        {user && <AssistantWidget />}
       </div>
     </AppShellContext.Provider>
   );

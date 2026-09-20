@@ -1429,3 +1429,94 @@ select:-webkit-autofill {
   .vc-skel, .vc-spinner { animation: none; }
   .vc-side { transition: none; }
 }
+
+/* ── Assistant widget ────────────────────────────────────── */
+/* The in-app AI chat. Fixed to the viewport rather than the content column so
+   it stays put while a findings table scrolls underneath. */
+.vc-assist-launcher {
+  position: fixed; right: 24px; bottom: 24px; z-index: 60;
+  width: 48px; height: 48px; border-radius: 999px; border: none;
+  background: var(--vc-accent); color: #ffffff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  transition: filter 0.18s ease, transform 0.18s ease;
+}
+.vc-assist-launcher:hover { filter: brightness(1.12); transform: scale(1.05); }
+
+.vc-assist-panel {
+  position: fixed; right: 24px; bottom: 24px; z-index: 60;
+  width: min(420px, calc(100vw - 32px));
+  height: min(620px, calc(100vh - 48px));
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--vc-raised); border: 1px solid var(--vc-hairline-strong);
+  border-radius: var(--vc-r-card);
+  box-shadow: 0 24px 70px rgba(0,0,0,0.6);
+}
+.vc-assist-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid var(--vc-hairline);
+}
+.vc-assist-mark {
+  width: 28px; height: 28px; flex: none; border-radius: 8px;
+  border: 1px solid var(--vc-hairline); background: var(--vc-accent-wash);
+  color: var(--vc-accent-text);
+  display: flex; align-items: center; justify-content: center;
+}
+.vc-assist-close {
+  border: none; background: transparent; color: var(--vc-muted);
+  font-size: 12.5px; cursor: pointer; padding: 4px 6px; border-radius: 6px;
+}
+.vc-assist-close:hover { color: var(--vc-text); }
+
+.vc-assist-body {
+  flex: 1; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--vc-inset); padding: 16px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.vc-assist-row    { display: flex; gap: 10px; }
+.vc-assist-row-me { justify-content: flex-end; }
+.vc-assist-avatar {
+  width: 24px; height: 24px; flex: none; margin-top: 2px; border-radius: 999px;
+  border: 1px solid var(--vc-hairline); background: var(--vc-accent-wash);
+  color: var(--vc-accent-text);
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.vc-assist-avatar-me { background: var(--vc-chip); color: var(--vc-muted); }
+.vc-assist-bubble {
+  max-width: 85%; border-radius: 14px; padding: 10px 14px;
+  background: var(--vc-accent-wash);
+}
+.vc-assist-bubble-me {
+  background: var(--vc-chip); color: var(--vc-text);
+  font-size: 13.5px; line-height: 1.5;
+}
+.vc-assist-bubble-err { background: var(--vc-fill); border: 1px solid var(--vc-hairline); }
+.vc-assist-tools { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+.vc-assist-tool {
+  font-size: 10.5px; color: var(--vc-muted);
+  background: var(--vc-inset); border-radius: 999px; padding: 2px 9px;
+}
+.vc-assist-status { font-size: 11.5px; color: var(--vc-muted); padding-left: 34px; }
+.vc-assist-intro  { font-size: 13.5px; line-height: 1.55; color: var(--vc-text-2); }
+.vc-assist-suggests { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.vc-assist-suggest {
+  border: 1px solid var(--vc-hairline-strong); background: var(--vc-chip);
+  border-radius: 999px; padding: 6px 12px; cursor: pointer;
+  font-family: inherit; font-size: 12px; color: var(--vc-text-2);
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+.vc-assist-suggest:hover { border-color: var(--vc-accent); color: var(--vc-text); }
+
+.vc-assist-foot {
+  display: flex; gap: 8px; align-items: center;
+  padding: 12px 14px; border-top: 1px solid var(--vc-hairline);
+}
+
+@media (max-width: 720px) {
+  .vc-assist-panel   { right: 12px; left: 12px; bottom: 12px; width: auto; height: min(560px, calc(100vh - 24px)); }
+  .vc-assist-launcher { right: 16px; bottom: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vc-assist-launcher { transition: none; }
+}

@@ -339,11 +339,27 @@ def auth_exchange(request: Request, code: str = Query(...)):
 
 
 @router.get("/auth/github")
-def github_oauth_start():
+def github_oauth_start(request: Request):
     if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
         # This is reached by a browser navigation, so send the user back to a
         # page that can explain itself rather than a raw JSON error body.
         return RedirectResponse(f"{FRONTEND_URL}/signin?error=github_not_configured")
+
+    # The state cookie is host-only, so only the exact host that set it can read
+    # it back. GITHUB_CALLBACK_URL has to byte-match what is registered in the
+    # GitHub OAuth App, and that host is not necessarily the one this request
+    # arrived on: api.vigilicloud.com and vigilicloud-api.onrender.com are the
+    # same service behind two names. Starting the flow on one and returning to
+    # the other means the callback never sees the cookie, so every sign-in dies
+    # as a state mismatch.
+    #
+    # Hand the flow to the callback's own host first. After that bounce the
+    # hosts match, this branch is false, and no loop is possible.
+    callback = _urlparse.urlparse(GITHUB_CALLBACK_URL)
+    if callback.netloc and request.url.netloc != callback.netloc:
+        return RedirectResponse(
+            str(request.url.replace(netloc=callback.netloc, scheme=callback.scheme or "https"))
+        )
 
     # Bind this authorize request to the callback that comes back, so a callback
     # forged by an attacker (which would otherwise log the victim into the
@@ -386,7 +402,12 @@ def github_oauth_callback(
         return _fail("github_not_configured")
 
     # CSRF check — constant-time, and both halves must actually be present.
-    if not state or not state_cookie or not _secrets.compare_digest(state, state_cookie):
+    # A missing cookie and a wrong cookie look identical to the user but mean
+    # very different things to an operator: missing points at host or SameSite
+    # configuration, wrong points at a forged or stale callback.
+    if not state_cookie:
+        return _fail("github_state_missing")
+    if not state or not _secrets.compare_digest(state, state_cookie):
         return _fail("github_state_mismatch")
 
     # Exchange code → access token

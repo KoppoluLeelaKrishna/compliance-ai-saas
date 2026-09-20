@@ -28,6 +28,7 @@ export default function SignInPage() {
     if (e === "github_failed") setError("GitHub sign-in failed. Please try again or use email.");
     if (e === "github_not_configured") setError("GitHub sign-in is not yet enabled.");
     if (e === "github_state_mismatch") setError("GitHub sign-in expired or was interrupted. Please try again.");
+    if (e === "github_state_missing") setError("GitHub sign-in could not be verified — your browser did not return the security cookie. Check that cookies are enabled, then try again.");
     if (e === "github_email_unverified") setError("Your GitHub account has no verified primary email. Verify one on GitHub, or sign in with email.");
     if (e === "github_account_conflict") setError("That email already belongs to another account. Sign in with your email and password instead.");
   }, []);

@@ -44,9 +44,16 @@ GITHUB_CLIENT_ID=Ov23li...         # GitHub OAuth App — sign-in only
 GITHUB_CLIENT_SECRET=...
 GITHUB_CALLBACK_URL=https://vigilicloud-api.onrender.com/auth/github/callback
 ```
-`GITHUB_CALLBACK_URL` still points at the `onrender.com` hostname, not `api.vigilicloud.com` —
-this is deliberate: it must byte-match the callback URL registered in the GitHub OAuth App.
-Change both together or sign-in breaks with `redirect_uri_mismatch`.
+`GITHUB_CALLBACK_URL` must byte-match the callback URL registered in the GitHub OAuth App —
+change both together or sign-in breaks with `redirect_uri_mismatch`. It currently points at
+the `onrender.com` hostname while the UI calls `api.vigilicloud.com`.
+
+Those two names are the same service, but the `gh_oauth_state` cookie is **host-only**: set on
+`api.vigilicloud.com`, it is never sent to `vigilicloud-api.onrender.com`, so the callback saw
+no cookie and every GitHub sign-in failed with `github_state_mismatch`. `/auth/github` now
+redirects to the callback's own host before setting the cookie, so the flow starts and ends on
+one origin whatever is registered. If you ever re-register the callback, no code change is
+needed — but never assume two hostnames for one service can share a cookie.
 Without `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`, `/auth/github` redirects to
 `/signin?error=github_not_configured` — the button stays visible but degrades cleanly.
 

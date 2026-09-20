@@ -76,3 +76,70 @@ def test_logout(client, auth_headers):
     # After logout, /auth/me should fail
     resp2 = client.get("/auth/me", cookies=auth_headers["cookies"])
     assert resp2.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# GitHub OAuth — state cookie / callback host agreement
+# ---------------------------------------------------------------------------
+# The gh_oauth_state cookie is host-only. If the flow starts on one hostname
+# and GitHub returns to another, the callback never receives the cookie and
+# every sign-in fails as a state mismatch. Production hit exactly this:
+# the UI called api.vigilicloud.com while GITHUB_CALLBACK_URL pointed at
+# vigilicloud-api.onrender.com.
+
+
+def test_github_start_bounces_to_callback_host(client, monkeypatch):
+    """A start request on the wrong host redirects to the callback's host first."""
+    import app.routers.auth as auth_mod
+
+    monkeypatch.setattr(auth_mod, "GITHUB_CLIENT_ID", "cid")
+    monkeypatch.setattr(auth_mod, "GITHUB_CLIENT_SECRET", "secret")
+    monkeypatch.setattr(auth_mod, "GITHUB_CALLBACK_URL", "https://callback.example.com/auth/github/callback")
+
+    resp = client.get("/auth/github", follow_redirects=False, headers={"host": "other.example.com"})
+    assert resp.status_code in (302, 307)
+    location = resp.headers["location"]
+    assert location.startswith("https://callback.example.com/auth/github")
+    # The cookie must NOT be set yet — setting it here is what the bug did.
+    assert "gh_oauth_state" not in resp.headers.get("set-cookie", "")
+
+
+def test_github_start_sets_state_on_matching_host(client, monkeypatch):
+    """On the callback's own host it proceeds to GitHub and sets the state cookie."""
+    import app.routers.auth as auth_mod
+
+    monkeypatch.setattr(auth_mod, "GITHUB_CLIENT_ID", "cid")
+    monkeypatch.setattr(auth_mod, "GITHUB_CLIENT_SECRET", "secret")
+    monkeypatch.setattr(auth_mod, "GITHUB_CALLBACK_URL", "http://testserver/auth/github/callback")
+
+    resp = client.get("/auth/github", follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert resp.headers["location"].startswith("https://github.com/login/oauth/authorize")
+    assert "gh_oauth_state" in resp.headers.get("set-cookie", "")
+
+
+def test_github_callback_without_cookie_reports_missing_state(client, monkeypatch):
+    """No cookie is reported distinctly from a wrong cookie, for diagnosability."""
+    import app.routers.auth as auth_mod
+
+    monkeypatch.setattr(auth_mod, "GITHUB_CLIENT_ID", "cid")
+    monkeypatch.setattr(auth_mod, "GITHUB_CLIENT_SECRET", "secret")
+
+    resp = client.get("/auth/github/callback?code=abc&state=xyz", follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert "error=github_state_missing" in resp.headers["location"]
+
+
+def test_github_callback_with_wrong_cookie_reports_mismatch(client, monkeypatch):
+    import app.routers.auth as auth_mod
+
+    monkeypatch.setattr(auth_mod, "GITHUB_CLIENT_ID", "cid")
+    monkeypatch.setattr(auth_mod, "GITHUB_CLIENT_SECRET", "secret")
+
+    resp = client.get(
+        "/auth/github/callback?code=abc&state=xyz",
+        cookies={"gh_oauth_state": "a-different-value"},
+        follow_redirects=False,
+    )
+    assert resp.status_code in (302, 307)
+    assert "error=github_state_mismatch" in resp.headers["location"]

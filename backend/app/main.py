@@ -27,7 +27,7 @@ from app.deps import (
     razorpay_config_summary,
     run_scheduled_scans,
 )
-from app.routers import accounts, admin, approvals, audit, auth, billing, compliance, developer, fix_guidance, integrations, msp, org_notes, remediation, scans
+from app.routers import accounts, admin, approvals, assistant, audit, auth, billing, compliance, developer, fix_guidance, integrations, msp, org_notes, remediation, scans
 
 # ---------------------------------------------------------------------------
 # Startup — db init, seed data, scheduler
@@ -291,3 +291,4 @@ app.include_router(compliance.router)
 app.include_router(audit.router)
 app.include_router(org_notes.router)
 app.include_router(remediation.router)
+app.include_router(assistant.router)

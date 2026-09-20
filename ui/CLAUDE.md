@@ -96,6 +96,14 @@ const result = await api<MyType>("/endpoint", { method: "POST", body: JSON.strin
 Call `POST /scans/{scan_id}/ai-analysis` → returns `{ analysis: string, findings_count: number }`.
 Display the `analysis` text in a dedicated panel in the scans page.
 
+## AI Assistant Widget
+`components/assistant/AssistantWidget.tsx` — floating chat, mounted once in `LayoutShell`
+for signed-in users on non-bare routes. It streams NDJSON from `POST /assistant/chat`
+(frames: `text` / `tool` / `error` / `done`), renders replies with
+`components/chat/ChatMarkdown.tsx` (shared with the per-finding chat in `FindingDetail`),
+and hides itself when `GET /assistant/config` reports `enabled: false`.
+Styling lives in the `.vc-assist-*` block at the bottom of `globals.css`.
+
 ## Common Patterns
 - Auth check: `const auth = await api<AuthMe>("/auth/me")` — redirect to `/signin` if `!auth.authenticated`
 - Loading: `<div className="vc-skel h-14 w-full" />` or `<span className="vc-spinner" />`

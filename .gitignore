@@ -33,3 +33,7 @@ coverage/
 
 # Claude Code
 .claude/
+# Generated presentation media — large binaries, rebuildable from
+# VigiliCloud_Explainer_Video.html and generate_ppt.py
+*.mp4
+_ppt_text.txt

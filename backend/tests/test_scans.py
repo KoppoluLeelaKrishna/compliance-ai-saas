@@ -74,8 +74,16 @@ def test_compliance_mappings(client, auth_headers):
 
 
 def test_compliance_mapping_for_check(client, auth_headers):
-    resp = client.get("/compliance/mappings/S3_PUBLIC_ACCESS_001", cookies=auth_headers["cookies"])
+    resp = client.get("/compliance/mappings/S3_PUBLIC_ACCESS_BLOCK_OFF", cookies=auth_headers["cookies"])
     assert resp.status_code == 200
     data = resp.json()
     assert data["mapped"] is True
     assert "soc2" in data["controls"]
+
+
+def test_compliance_mapping_for_unknown_check(client, auth_headers):
+    resp = client.get("/compliance/mappings/NOT_A_REAL_CHECK", cookies=auth_headers["cookies"])
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mapped"] is False
+    assert data["controls"] == {}

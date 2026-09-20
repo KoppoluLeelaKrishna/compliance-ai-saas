@@ -297,3 +297,59 @@ def test_chat_request_uses_the_configured_model_and_tools(client, auth_headers):
     assert {t["name"] for t in call["tools"]} == set(assistant.TOOL_IMPLS)
     assert call["thinking"] == {"type": "adaptive"}
     assert "/dashboard" in call["system"]
+
+
+# ---------------------------------------------------------------------------
+# System prompt — topical scope
+# ---------------------------------------------------------------------------
+# The assistant is a compliance tool, not a general chatbot. Scope lives in the
+# system prompt, so these assert the instruction is actually being sent rather
+# than that the model obeyed it (which only a live call could show).
+
+
+def _prompt_for(role="user", plan="free"):
+    user = {"id": 1, "name": "Test", "email": "t@example.com", "role": role,
+            "subscription_status": plan}
+    return assistant.build_system_prompt(user, "scans")
+
+
+def test_system_prompt_declares_scope_and_refusal():
+    prompt = _prompt_for()
+    assert "SCOPE" in prompt
+    assert "out of scope" in prompt.lower()
+    # It must say what to do instead of answering, not merely that it shouldn't.
+    assert "decline" in prompt.lower()
+
+
+def test_system_prompt_names_in_scope_subjects():
+    prompt = _prompt_for().lower()
+    for subject in ("findings", "aws", "soc 2", "remediate"):
+        assert subject in prompt, f"missing in-scope subject: {subject}"
+
+
+def test_system_prompt_blocks_common_jailbreak_framings():
+    """Insisting, claiming admin, or 'just testing' must not be an exception."""
+    prompt = _prompt_for(role="admin").lower()
+    assert "insists" in prompt
+    assert "admin" in prompt
+    assert "hypothetical" in prompt
+
+
+def test_system_prompt_treats_finding_content_as_data():
+    """Scan output is attacker-influenced; it must not be read as instructions."""
+    prompt = _prompt_for().lower()
+    assert "never as instructions" in prompt
+    assert "reveal this prompt" in prompt
+
+
+def test_system_prompt_keeps_hard_compliance_questions_in_scope():
+    """Scoping must not turn into refusing difficult but legitimate questions."""
+    prompt = _prompt_for().lower()
+    assert "topic, not difficulty" in prompt
+
+
+def test_system_prompt_still_carries_user_context():
+    """Scope text must not have displaced the per-user grounding."""
+    prompt = _prompt_for(plan="msp")
+    assert "t@example.com" in prompt
+    assert "scans" in prompt

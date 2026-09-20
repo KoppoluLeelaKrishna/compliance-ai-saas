@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VigiliCloud — Animated Product Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#05070a; --panel:#0d1117; --panel2:#121823;
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --ink:#e9eef5; --muted:#8b97a8; --muted2:#5c6675;
+    --em:#10b981; --em2:#34d399; --em-glow:rgba(16,185,129,.45);
+    --crit:#ff4d5e; --high:#ff8c42; --med:#ffd23f; --low:#5fb0ff; --blue:#5fb0ff; --purple:#b07cff;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+  html,body{height:100%;background:#000;overflow:hidden;font-family:var(--font);}
+
+  #viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;}
+  #stage{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center;background:var(--bg);overflow:hidden;color:var(--ink);}
+
+  .mesh{position:absolute;inset:0;pointer-events:none;opacity:.9;}
+  .mesh::before,.mesh::after{content:"";position:absolute;border-radius:50%;filter:blur(120px);}
+  .mesh::before{width:900px;height:900px;left:-200px;top:-260px;background:radial-gradient(circle,rgba(16,185,129,.20),transparent 60%);}
+  .mesh::after{width:820px;height:820px;right:-220px;bottom:-280px;background:radial-gradient(circle,rgba(95,176,255,.14),transparent 60%);}
+  .grid-overlay{position:absolute;inset:0;pointer-events:none;opacity:.35;
+    background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+    background-size:60px 60px;mask-image:radial-gradient(ellipse 70% 60% at 50% 45%,#000 30%,transparent 85%);}
+
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:78px 110px 232px;opacity:0;visibility:hidden;transition:opacity .6s ease;}
+  .scene.active{opacity:1;visibility:visible;}
+
+  [data-in]{opacity:0;}
+  [data-in].shown{opacity:1;}
+  .a-up{transform:translateY(38px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);}
+  .a-up.shown{transform:translateY(0);}
+  .a-fade{transition:opacity .8s ease;}
+  .a-scale{transform:scale(.86);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);}
+  .a-scale.shown{transform:scale(1);}
+  .a-left{transform:translateX(-50px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);}
+  .a-left.shown{transform:translateX(0);}
+  .a-right{transform:translateX(50px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);}
+  .a-right.shown{transform:translateX(0);}
+
+  .kicker{font-size:22px;font-weight:600;letter-spacing:.32em;text-transform:uppercase;color:var(--em2);margin-bottom:26px;}
+  h1.big{font-size:108px;line-height:1.02;font-weight:800;letter-spacing:-.03em;text-align:center;}
+  h2.title{font-size:70px;line-height:1.05;font-weight:800;letter-spacing:-.025em;text-align:center;}
+  .lead{font-size:33px;line-height:1.4;color:var(--muted);text-align:center;max-width:1180px;font-weight:400;}
+  .em{color:var(--em2);}
+
+  .logo-wrap{display:flex;flex-direction:column;align-items:center;gap:40px;}
+  .shield{width:220px;height:220px;filter:drop-shadow(0 0 60px var(--em-glow));}
+  .shield path.outline{stroke:var(--em2);stroke-width:5;fill:none;stroke-dasharray:760;stroke-dashoffset:760;}
+  .shield .fillg{opacity:0;transition:opacity 1s ease .9s;}
+  .shield.go path.outline{animation:draw 1.5s cubic-bezier(.7,0,.3,1) forwards;}
+  .shield.go .fillg{opacity:1;}
+  .shield .tick{stroke:#04130d;stroke-width:9;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:120;stroke-dashoffset:120;}
+  .shield.go .tick{animation:draw2 .7s ease 1.1s forwards;}
+  @keyframes draw{to{stroke-dashoffset:0;}}
+  @keyframes draw2{to{stroke-dashoffset:0;}}
+  .wordmark{font-size:92px;font-weight:800;letter-spacing:-.03em;}
+  .wordmark .vigili{color:#fff;}.wordmark .cloud{color:var(--em2);}
+  .pulse-ring{position:absolute;width:220px;height:220px;border-radius:50%;border:2px solid var(--em);opacity:0;}
+  .shield.go ~ .pulse-ring{animation:pulsering 2.6s ease-out 1.4s infinite;}
+  @keyframes pulsering{0%{transform:scale(.7);opacity:.6;}100%{transform:scale(2.4);opacity:0;}}
+
+  .hero-stats{display:flex;gap:60px;margin-top:8px;}
+  .hstat{text-align:center;}
+  .hstat b{font-size:60px;font-weight:900;letter-spacing:-.03em;display:block;background:linear-gradient(120deg,#fff,var(--em2));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .hstat span{font-size:18px;color:var(--muted);font-weight:500;letter-spacing:.02em;}
+
+  .pain-row{display:flex;gap:26px;margin-top:54px;flex-wrap:wrap;justify-content:center;max-width:1560px;}
+  .pain{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:32px 28px;width:280px;text-align:left;position:relative;overflow:hidden;}
+  .pain .pi{font-size:44px;margin-bottom:16px;}
+  .pain h4{font-size:26px;font-weight:700;margin-bottom:10px;}
+  .pain p{font-size:18px;color:var(--muted);line-height:1.45;}
+  .pain::after{content:"";position:absolute;left:0;top:0;height:3px;width:100%;background:linear-gradient(90deg,var(--crit),var(--high));}
+
+  .xform{display:flex;align-items:center;gap:80px;}
+  .xcol{display:flex;flex-direction:column;align-items:center;gap:18px;}
+  .xnum{font-size:170px;font-weight:900;letter-spacing:-.04em;line-height:.9;}
+  .xnum.old{color:var(--muted2);text-decoration:line-through;text-decoration-color:var(--crit);text-decoration-thickness:8px;}
+  .xnum.new{color:var(--em2);text-shadow:0 0 70px var(--em-glow);}
+  .xlbl{font-size:30px;font-weight:600;color:var(--muted);letter-spacing:.04em;}
+  .xarrow{font-size:120px;color:var(--em);transform:translateY(-30px);}
+
+  .browser{width:1480px;height:740px;background:var(--panel);border:1px solid var(--line2);border-radius:20px;overflow:hidden;box-shadow:0 50px 120px rgba(0,0,0,.6);display:flex;flex-direction:column;}
+  .bbar{height:54px;background:#0a0e14;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 22px;flex:none;}
+  .dot{width:14px;height:14px;border-radius:50%;}
+  .dot.r{background:#ff5f57;}.dot.y{background:#febc2e;}.dot.g{background:#28c840;}
+  .url{margin-left:22px;background:#070a0f;border:1px solid var(--line);border-radius:9px;height:34px;display:flex;align-items:center;padding:0 18px;font-family:var(--mono);font-size:16px;color:var(--muted);gap:10px;min-width:480px;}
+  .url .lock{color:var(--em2);}
+  .bbody{flex:1;display:flex;min-height:0;}
+  .side{width:230px;border-right:1px solid var(--line);padding:24px 16px;flex:none;background:#0b0f15;}
+  .side .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:21px;margin-bottom:28px;padding-left:8px;}
+  .side .brand i{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--em),var(--em2));display:inline-block;}
+  .nav-i{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:11px;color:var(--muted);font-size:18px;font-weight:500;margin-bottom:4px;}
+  .nav-i .g{width:9px;height:9px;border-radius:3px;background:currentColor;opacity:.6;}
+  .nav-i.on{background:rgba(16,185,129,.12);color:var(--em2);}
+  .main{flex:1;padding:32px 38px;min-width:0;overflow:hidden;}
+  .main h3{font-size:29px;font-weight:700;margin-bottom:6px;}
+  .main .sub{font-size:17px;color:var(--muted);margin-bottom:22px;}
+
+  .btn{display:inline-flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--em),#0ea371);color:#04130d;font-weight:700;font-size:20px;padding:15px 30px;border-radius:13px;box-shadow:0 12px 40px var(--em-glow);}
+  .btn .play{width:0;height:0;border-left:14px solid #04130d;border-top:9px solid transparent;border-bottom:9px solid transparent;}
+  .cursor{position:absolute;width:34px;height:34px;z-index:40;pointer-events:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5));opacity:0;}
+  .cursor svg{width:100%;height:100%;}
+
+  .checklist{display:grid;grid-template-columns:1fr 1fr;gap:11px 28px;margin-top:6px;}
+  .chk{display:flex;align-items:center;gap:14px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:13px 18px;}
+  .chk .ic{width:27px;height:27px;border-radius:8px;border:2px solid var(--muted2);flex:none;position:relative;transition:all .3s;}
+  .chk .ic .spin{position:absolute;inset:-2px;border-radius:8px;border:2px solid transparent;border-top-color:var(--em2);animation:spin .8s linear infinite;opacity:0;}
+  .chk .nm{font-size:18px;font-weight:500;flex:1;display:flex;align-items:center;gap:8px;}
+  .chk .gh{font-size:13px;font-weight:700;color:var(--purple);background:rgba(176,124,255,.14);padding:2px 7px;border-radius:5px;}
+  .chk .st{font-size:14px;color:var(--muted2);font-family:var(--mono);}
+  .chk.run .ic{border-color:var(--em2);}
+  .chk.run .ic .spin{opacity:1;}
+  .chk.run .st{color:var(--em2);}
+  .chk.done .ic{background:var(--em);border-color:var(--em);}
+  .chk.done .ic::after{content:"";position:absolute;left:8px;top:3px;width:7px;height:14px;border:solid #04130d;border-width:0 3px 3px 0;transform:rotate(45deg);}
+  .chk.done .st{color:var(--em2);}
+  .chk.flag.done .ic{background:var(--crit);border-color:var(--crit);}
+  .chk.flag.done .st{color:var(--crit);}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .scanbar{height:12px;border-radius:8px;background:#0a0e14;border:1px solid var(--line);overflow:hidden;margin:12px 0 22px;}
+  .scanbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--em),var(--em2));box-shadow:0 0 24px var(--em-glow);transition:width .25s linear;}
+
+  .finding{display:flex;align-items:center;gap:18px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:17px 22px;margin-bottom:12px;transform:translateX(-30px);opacity:0;}
+  .finding.in{transform:translateX(0);opacity:1;transition:all .5s cubic-bezier(.2,.7,.2,1);}
+  .sev{font-size:13px;font-weight:800;letter-spacing:.08em;padding:6px 12px;border-radius:7px;flex:none;width:96px;text-align:center;}
+  .sev.c{background:rgba(255,77,94,.16);color:var(--crit);border:1px solid rgba(255,77,94,.4);}
+  .sev.h{background:rgba(255,140,66,.16);color:var(--high);border:1px solid rgba(255,140,66,.4);}
+  .sev.m{background:rgba(255,210,63,.14);color:var(--med);border:1px solid rgba(255,210,63,.36);}
+  .finding .ftxt{flex:1;}
+  .finding .ftxt b{font-size:21px;font-weight:600;display:block;}
+  .finding .ftxt span{font-size:15px;color:var(--muted);font-family:var(--mono);}
+  .finding .res{font-size:15px;color:var(--muted2);font-family:var(--mono);}
+  .finding .map{font-size:13px;color:var(--blue);font-family:var(--mono);background:rgba(95,176,255,.1);padding:3px 9px;border-radius:6px;}
+
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;}
+  .gauge{position:relative;width:300px;height:300px;}
+  .gauge svg{transform:rotate(-90deg);}
+  .gauge .gval{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .gauge .gval b{font-size:110px;font-weight:900;letter-spacing:-.03em;line-height:1;color:var(--high);}
+  .gauge .gval small{font-size:22px;color:var(--muted);letter-spacing:.04em;margin-top:2px;font-family:var(--mono);}
+  .gauge .gval em{font-style:normal;font-size:16px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase;margin-top:8px;}
+
+  .fixcard{width:1180px;background:var(--panel);border:1px solid var(--line2);border-radius:20px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.5);}
+  .fixhead{padding:24px 32px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:18px;}
+  .fixtabs{display:flex;gap:10px;padding:18px 32px 0;}
+  .ftab{padding:12px 26px;border-radius:11px 11px 0 0;font-size:19px;font-weight:600;color:var(--muted);border:1px solid transparent;border-bottom:none;}
+  .ftab.on{background:#0a0e14;color:var(--em2);border-color:var(--line);}
+  .fixbody{background:#070a0f;margin:0 32px 32px;border:1px solid var(--line);border-radius:0 12px 12px 12px;padding:28px 34px;font-family:var(--mono);font-size:20px;line-height:1.85;min-height:220px;}
+  .cm{color:var(--muted2);}.kw{color:var(--em2);}.st2{color:#ffb86c;}
+  .typed::after{content:"▋";color:var(--em2);animation:blink 1s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+
+  /* auto-remediation flow */
+  .remflow{display:flex;align-items:stretch;gap:0;width:1560px;}
+  .rstep{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px 22px;text-align:center;position:relative;transition:all .4s;opacity:.45;}
+  .rstep.on{opacity:1;border-color:var(--em);box-shadow:0 0 44px rgba(16,185,129,.28);transform:translateY(-6px);}
+  .rstep .ri{font-size:40px;margin-bottom:14px;}
+  .rstep h4{font-size:23px;font-weight:700;margin-bottom:8px;}
+  .rstep p{font-size:16px;color:var(--muted);line-height:1.4;}
+  .rarrow{display:flex;align-items:center;font-size:34px;color:var(--em);padding:0 10px;opacity:.4;transition:opacity .4s;}
+  .rarrow.on{opacity:1;}
+  .remlist{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:1400px;margin-top:38px;}
+  .rchip{font-size:16px;font-family:var(--mono);color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 15px;}
+  .rchip b{color:var(--em2);font-weight:600;}
+
+  /* framework coverage */
+  .fwgrid{display:flex;gap:26px;margin-top:10px;}
+  .fwcard{width:300px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:30px 28px;text-align:center;}
+  .fwcard h4{font-size:30px;font-weight:800;margin-bottom:4px;}
+  .fwcard .ctrls{font-size:15px;color:var(--muted2);margin-bottom:20px;}
+  .fwring{position:relative;width:170px;height:170px;margin:0 auto 16px;}
+  .fwring svg{transform:rotate(-90deg);}
+  .fwring .pc{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:42px;font-weight:900;}
+  .fwcard .fail{font-size:14px;color:var(--muted);font-family:var(--mono);line-height:1.4;}
+  .fwbanner{margin-top:38px;font-size:30px;font-weight:700;background:rgba(16,185,129,.1);border:1px solid var(--em);border-radius:16px;padding:18px 40px;}
+  .fwbanner .em{color:var(--em2);}
+
+  .aipanel{width:1180px;background:var(--panel);border:1px solid var(--line2);border-radius:20px;box-shadow:0 40px 100px rgba(0,0,0,.5);overflow:hidden;}
+  .aihead{display:flex;align-items:center;gap:16px;padding:22px 32px;border-bottom:1px solid var(--line);}
+  .aihead .av{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,#b07cff,#5fb0ff);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;color:#fff;}
+  .aihead b{font-size:24px;font-weight:700;}
+  .aihead .by{font-size:15px;color:var(--muted);}
+  .aibody{padding:32px 40px;font-size:24px;line-height:1.6;color:var(--ink);min-height:360px;}
+  .aibody .hl{color:var(--em2);font-weight:600;}
+  .aibody .typed::after{content:"▋";color:var(--purple);animation:blink 1s steps(1) infinite;}
+
+  .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:1500px;width:100%;}
+  .feat{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:30px 30px;text-align:left;}
+  .feat .fi{width:58px;height:58px;border-radius:15px;background:rgba(16,185,129,.12);display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:18px;}
+  .feat h4{font-size:26px;font-weight:700;margin-bottom:10px;}
+  .feat p{font-size:18px;color:var(--muted);line-height:1.45;}
+
+  /* comparison table */
+  .ctable{width:1560px;border-collapse:separate;border-spacing:0;font-size:21px;}
+  .ctable th,.ctable td{padding:15px 14px;text-align:center;border-bottom:1px solid var(--line);}
+  .ctable th:first-child,.ctable td:first-child{text-align:left;font-weight:600;width:380px;color:var(--ink);}
+  .ctable thead th{font-size:20px;font-weight:700;color:var(--muted);padding-bottom:18px;}
+  .ctable thead th.us{color:var(--em2);font-size:24px;}
+  .ctable td.us{background:rgba(16,185,129,.08);}
+  .ctable .yes{color:var(--em2);font-weight:800;}
+  .ctable .no{color:var(--crit);font-weight:800;}
+  .ctable .part{color:var(--med);font-weight:800;}
+  .ctable .col-us{border-left:1px solid var(--em);border-right:1px solid var(--em);}
+  .ctable tr.price td{font-size:26px;font-weight:800;padding-top:18px;border-bottom:none;}
+  .ctable tr.price td.us{color:var(--em2);}
+  .ctable tr.price td .no{color:var(--crit);}
+
+  .plans{display:flex;gap:22px;align-items:stretch;}
+  .plan{width:300px;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:34px 28px;text-align:left;position:relative;}
+  .plan.pop{border-color:var(--em);box-shadow:0 0 60px rgba(16,185,129,.25);transform:scale(1.05);}
+  .plan .pop-tag{position:absolute;top:-15px;left:50%;transform:translateX(-50%);background:var(--em);color:#04130d;font-size:14px;font-weight:800;padding:6px 16px;border-radius:8px;letter-spacing:.06em;}
+  .plan h4{font-size:25px;font-weight:700;margin-bottom:8px;}
+  .plan .price{font-size:48px;font-weight:900;letter-spacing:-.03em;margin-bottom:4px;}
+  .plan .price small{font-size:19px;color:var(--muted);font-weight:500;}
+  .plan .pn{font-size:16px;color:var(--muted2);margin-bottom:20px;}
+  .plan ul{list-style:none;display:flex;flex-direction:column;gap:12px;}
+  .plan li{font-size:17px;color:var(--muted);display:flex;gap:11px;align-items:flex-start;}
+  .plan li::before{content:"✓";color:var(--em2);font-weight:800;flex:none;}
+
+  .road{display:flex;gap:0;align-items:stretch;width:1560px;}
+  .phase{flex:1;padding:0 34px;position:relative;}
+  .phase:not(:last-child){border-right:1px solid var(--line);}
+  .phase .pdot{width:22px;height:22px;border-radius:50%;background:var(--em);margin-bottom:22px;box-shadow:0 0 24px var(--em-glow);}
+  .phase.future .pdot{background:var(--muted2);box-shadow:none;}
+  .phase .pt{font-size:19px;font-weight:700;letter-spacing:.06em;color:var(--em2);margin-bottom:8px;}
+  .phase.future .pt{color:var(--muted);}
+  .phase h4{font-size:28px;font-weight:700;margin-bottom:14px;}
+  .phase ul{list-style:none;display:flex;flex-direction:column;gap:9px;}
+  .phase li{font-size:17px;color:var(--muted);line-height:1.35;display:flex;gap:9px;}
+  .phase li::before{content:"–";color:var(--em2);}
+  .phase.future li::before{content:"→";color:var(--muted2);}
+  .phase.bet li::before{content:"★";color:var(--purple);}
+
+  .cta-pill{display:inline-flex;align-items:center;gap:14px;background:linear-gradient(135deg,var(--em),#0ea371);color:#04130d;font-weight:800;font-size:30px;padding:22px 48px;border-radius:16px;box-shadow:0 18px 60px var(--em-glow);}
+  .urlrow{font-family:var(--mono);font-size:28px;color:var(--em2);letter-spacing:.02em;}
+  .stat-row{display:flex;gap:64px;margin-top:6px;}
+  .stat{text-align:center;}
+  .stat b{font-size:70px;font-weight:900;letter-spacing:-.03em;display:block;background:linear-gradient(120deg,#fff,var(--em2));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .stat span{font-size:20px;color:var(--muted);font-weight:500;}
+
+  #caption{position:absolute;left:50%;bottom:84px;transform:translateX(-50%);width:1720px;max-width:calc(100% - 120px);text-align:center;font-size:25px;line-height:1.34;font-weight:500;color:#fff;background:rgba(4,6,9,.82);backdrop-filter:blur(12px);border:1px solid var(--line2);border-radius:16px;padding:16px 34px;opacity:0;transition:opacity .4s;z-index:30;box-shadow:0 10px 40px rgba(0,0,0,.5);}
+  #caption.show{opacity:1;}
+  #caption .em{color:var(--em2);}
+
+  .badge{position:absolute;top:50px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;font-size:18px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);z-index:20;}
+  .badge i{width:9px;height:9px;border-radius:50%;background:var(--em);box-shadow:0 0 14px var(--em-glow);}
+
+  #rail{position:absolute;left:0;right:0;bottom:0;height:5px;background:rgba(255,255,255,.06);z-index:50;}
+  #railfill{height:100%;width:0;background:linear-gradient(90deg,var(--em),var(--em2));box-shadow:0 0 16px var(--em-glow);}
+
+  #controls{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:200;display:flex;align-items:center;gap:14px;background:rgba(10,14,20,.82);backdrop-filter:blur(14px);border:1px solid var(--line2);border-radius:16px;padding:12px 18px;font-family:var(--font);color:var(--ink);opacity:.25;transition:opacity .3s;}
+  #controls:hover{opacity:1;}
+  #viewport:hover #controls{opacity:.9;}
+  .cbtn{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink);font-size:15px;font-weight:600;padding:9px 14px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:.15s;}
+  .cbtn:hover{background:rgba(16,185,129,.16);border-color:var(--em);color:var(--em2);}
+  .cbtn.primary{background:linear-gradient(135deg,var(--em),#0ea371);color:#04130d;border:none;}
+  #scrub{width:280px;accent-color:var(--em);cursor:pointer;}
+  #time{font-family:var(--mono);font-size:14px;color:var(--muted);min-width:96px;text-align:center;}
+  .chapsel{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:14px;font-family:var(--font);}
+
+  #start{position:fixed;inset:0;z-index:300;background:radial-gradient(ellipse at 50% 40%,#0b141c,#020304);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;color:var(--ink);font-family:var(--font);}
+  #start .s-logo{font-size:62px;font-weight:800;letter-spacing:-.03em;}
+  #start .s-logo .c{color:var(--em2);}
+  #start p{font-size:21px;color:var(--muted);max-width:700px;text-align:center;line-height:1.5;}
+  #start .opts{display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:center;}
+  #start .big-btn{background:linear-gradient(135deg,var(--em),#0ea371);color:#04130d;font-weight:800;font-size:24px;padding:20px 44px;border-radius:16px;border:none;cursor:pointer;box-shadow:0 18px 60px var(--em-glow);display:flex;align-items:center;gap:14px;}
+  #start .ghost{background:rgba(255,255,255,.05);border:1px solid var(--line2);color:var(--ink);font-weight:600;font-size:18px;padding:18px 30px;border-radius:14px;cursor:pointer;}
+  #start .ghost.on{border-color:var(--em);color:var(--em2);background:rgba(16,185,129,.1);}
+  #start .hint{font-size:15px;color:var(--muted2);}
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+    <div class="mesh"></div>
+    <div class="grid-overlay"></div>
+
+    <!-- ===== 1 · INTRO ===== -->
+    <section class="scene" data-dur="7000">
+      <div class="logo-wrap">
+        <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+          <svg class="shield" id="shield" viewBox="0 0 200 200">
+            <defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#34d399"/></linearGradient></defs>
+            <path class="outline" d="M100 14 L172 44 V104 C172 150 138 178 100 190 C62 178 28 150 28 104 V44 Z"/>
+            <g class="fillg"><path fill="url(#sg)" d="M100 22 L165 49 V104 C165 146 134 171 100 182 C66 171 35 146 35 104 V49 Z"/><path class="tick" d="M70 100 L92 122 L134 78"/></g>
+          </svg>
+          <div class="pulse-ring"></div>
+        </div>
+        <div class="wordmark" data-in="700" data-anim="a-up"><span class="vigili">Vigili</span><span class="cloud">Cloud</span></div>
+        <div class="lead" data-in="1400" data-anim="a-up" style="font-size:29px;color:var(--muted);">AWS + GitHub compliance, made simple.</div>
+        <div class="hero-stats" data-in="2200" data-anim="a-up">
+          <div class="hstat"><b>19+</b><span>Security checks</span></div>
+          <div class="hstat"><b>4</b><span>Audit frameworks</span></div>
+          <div class="hstat"><b>2 min</b><span>Average scan</span></div>
+          <div class="hstat"><b>A→F</b><span>Risk grade</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 2 · PROBLEM ===== -->
+    <section class="scene" data-dur="15500">
+      <div class="badge"><i></i>The Problem</div>
+      <div class="kicker" data-in="200" data-anim="a-up" style="color:var(--crit);">AWS compliance is broken for SMBs</div>
+      <h2 class="title" data-in="500" data-anim="a-up">A manual audit takes <span style="color:var(--crit)">2–3 days</span>.<br/>The good tools cost a fortune.</h2>
+      <div class="pain-row">
+        <div class="pain" data-in="2400" data-anim="a-up"><div class="pi">⏱️</div><h4>Slow</h4><p>A manual AWS audit takes a senior engineer 2–3 full days.</p></div>
+        <div class="pain" data-in="2900" data-anim="a-up"><div class="pi">💸</div><h4>Expensive</h4><p>Drata & Vanta start at $800–1,250/mo + a sales call. Wiz is $15K+/yr.</p></div>
+        <div class="pain" data-in="3400" data-anim="a-up"><div class="pi">📄</div><h4>Stale</h4><p>Point-in-time PDFs. No re-scan, no drift, no SOC 2 Type II evidence.</p></div>
+        <div class="pain" data-in="3900" data-anim="a-up"><div class="pi">🔧</div><h4>No fix help</h4><p>Tools say <i>what's</i> wrong, never <i>how</i> to fix it. Copy-paste Terraform? Nowhere.</p></div>
+        <div class="pain" data-in="4400" data-anim="a-up"><div class="pi">🏢</div><h4>Enterprise-only</h4><p>Security Hub, Lacework, Orca are built and priced for enterprises. SMBs ignored.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 3 · TRANSFORM ===== -->
+    <section class="scene" data-dur="8500">
+      <div class="kicker" data-in="200" data-anim="a-up">One-click compliance for teams that ship fast</div>
+      <div class="xform">
+        <div class="xcol" data-in="600" data-anim="a-scale"><div class="xnum old">2 days</div><div class="xlbl">Manual audit</div></div>
+        <div class="xarrow" data-in="1500" data-anim="a-fade">→</div>
+        <div class="xcol" data-in="2000" data-anim="a-scale"><div class="xnum new">2 min</div><div class="xlbl">Automated scan</div></div>
+      </div>
+      <div class="lead" data-in="3200" data-anim="a-up" style="margin-top:56px;">And we don't just find problems —<br/><span class="em">we map them to frameworks and fix them in one click.</span></div>
+    </section>
+
+    <!-- ===== 4 · CONNECT ===== -->
+    <section class="scene" data-dur="13500">
+      <div class="badge"><i></i>How it works · Step 1 · Connect</div>
+      <div style="display:flex;gap:64px;align-items:center;">
+        <div style="width:600px;text-align:left;">
+          <div class="kicker" data-in="200" data-anim="a-left">Connect AWS + GitHub</div>
+          <h2 class="title" data-in="500" data-anim="a-left" style="text-align:left;font-size:58px;">Read-only IAM role.<br/>GitHub API token.</h2>
+          <div class="lead" data-in="1100" data-anim="a-left" style="text-align:left;margin-top:22px;font-size:25px;">
+            One CloudFormation click for a read-only AWS role, plus a GitHub token. <span class="em">Credentials are never stored;</span> we assume the role with 1-hour STS tokens and an External ID.
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="chk done" data-in="2300" data-anim="a-right" style="width:500px;"><div class="ic"></div><div class="nm">Deploy CloudFormation · read-only role</div></div>
+          <div class="chk done" data-in="2900" data-anim="a-right" style="width:500px;"><div class="ic"></div><div class="nm">Connect GitHub org via API token</div></div>
+          <div class="chk done" data-in="3500" data-anim="a-right" style="width:500px;background:rgba(16,185,129,.1);border-color:var(--em);"><div class="ic"></div><div class="nm" style="color:var(--em2)">Connected · zero credentials stored</div></div>
+          <div class="url" data-in="4200" data-anim="a-right" style="margin:8px 0 0;min-width:0;"><span class="lock">🔒</span> arn:aws:iam::<span style="color:var(--ink)">8210-4471-9930</span>:role/VigiliCloud-ReadOnly</div>
+          <div style="display:flex;gap:20px;margin-top:18px;flex-wrap:wrap;max-width:500px;" data-in="4900" data-anim="a-right">
+            <span style="font-size:17px;color:var(--em2);">✓ No agents</span>
+            <span style="font-size:17px;color:var(--em2);">✓ 1-hr STS tokens</span>
+            <span style="font-size:17px;color:var(--em2);">✓ 31 automated tests</span>
+            <span style="font-size:17px;color:var(--em2);">✓ CORS-hardened API</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 5 · LIVE SCAN ===== -->
+    <section class="scene" data-dur="16500">
+      <div class="badge"><i></i>Step 2 + 3 · Live scan · 19+ checks</div>
+      <div class="browser">
+        <div class="bbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><div class="url"><span class="lock">🔒</span> app.vigilicloud.com/scans</div></div>
+        <div class="bbody">
+          <div class="side">
+            <div class="brand"><i></i>VigiliCloud</div>
+            <div class="nav-i"><span class="g"></span>Dashboard</div>
+            <div class="nav-i on"><span class="g"></span>Scans</div>
+            <div class="nav-i"><span class="g"></span>Findings</div>
+            <div class="nav-i"><span class="g"></span>Coverage</div>
+            <div class="nav-i"><span class="g"></span>Evidence</div>
+          </div>
+          <div class="main">
+            <h3>Run a compliance scan</h3>
+            <div class="sub">Production · AWS (CIS v1.4) + GitHub org · maps to SOC 2 · ISO 27001 · PCI · NIST</div>
+            <div id="scanProgWrap" style="opacity:0;transition:opacity .4s;">
+              <div style="display:flex;justify-content:space-between;font-size:17px;margin-bottom:6px;"><span class="em" id="scanPct">Scanning… 0%</span><span style="color:var(--muted)" id="scanCount">0 / 12 checks</span></div>
+              <div class="scanbar"><i id="scanFill"></i></div>
+            </div>
+            <div class="checklist" id="checklist">
+              <div class="chk flag" data-c><div class="ic"><div class="spin"></div></div><div class="nm">S3 Public Access</div><div class="st">queued</div></div>
+              <div class="chk flag" data-c><div class="ic"><div class="spin"></div></div><div class="nm">IAM Root Access Keys</div><div class="st">queued</div></div>
+              <div class="chk flag" data-c><div class="ic"><div class="spin"></div></div><div class="nm">IAM Admin Permissions</div><div class="st">queued</div></div>
+              <div class="chk flag" data-c><div class="ic"><div class="spin"></div></div><div class="nm">MFA Enforcement</div><div class="st">queued</div></div>
+              <div class="chk flag" data-c><div class="ic"><div class="spin"></div></div><div class="nm">No 2FA Required <span class="gh">GitHub</span></div><div class="st">queued</div></div>
+              <div class="chk" data-c><div class="ic"><div class="spin"></div></div><div class="nm">Open Security Groups</div><div class="st">queued</div></div>
+              <div class="chk" data-c><div class="ic"><div class="spin"></div></div><div class="nm">RDS Encryption</div><div class="st">queued</div></div>
+              <div class="chk" data-c><div class="ic"><div class="spin"></div></div><div class="nm">Branch Protection <span class="gh">GitHub</span></div><div class="st">queued</div></div>
+              <div class="chk" data-c><div class="ic"><div class="spin"></div></div><div class="nm">EBS Encryption</div><div class="st">queued</div></div>
+              <div class="chk" data-c><div class="ic"><div class="spin"></div></div><div class="nm">CloudTrail Logging</div><div class="st">queued</div></div>
+              <div class="chk" data-c><div class="ic"><div class="spin"></div></div><div class="nm">VPC Flow Logs</div><div class="st">queued</div></div>
+              <div class="chk" data-c><div class="ic"><div class="spin"></div></div><div class="nm">KMS Key Rotation</div><div class="st">queued</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="btn" id="runBtn" style="position:absolute;top:198px;right:300px;z-index:30;opacity:0;transition:opacity .3s;"><span class="play"></span>Run Scan</div>
+      <div class="cursor" id="cursor1"><svg viewBox="0 0 24 24"><path fill="#fff" stroke="#000" stroke-width="1.2" d="M4 2l14 9-6 1.5 3.5 6.5-2.7 1.4-3.5-6.6L6 18z"/></svg></div>
+    </section>
+
+    <!-- ===== 6 · FINDINGS + GRADE ===== -->
+    <section class="scene" data-dur="15000">
+      <div class="badge"><i></i>Step 4 · Findings mapped to controls</div>
+      <div style="display:flex;gap:56px;align-items:center;width:100%;justify-content:center;">
+        <div style="width:920px;">
+          <div class="kicker" data-in="150" data-anim="a-up">Real scan · 4 CRITICAL · 1 MEDIUM</div>
+          <div id="fwrap">
+            <div class="finding"><div class="sev c">CRITICAL</div><div class="ftxt"><b>S3 bucket publicly readable</b><span>s3:GetObject · AllUsers</span></div><div class="map">SOC2 CC6.1</div></div>
+            <div class="finding"><div class="sev c">CRITICAL</div><div class="ftxt"><b>Root account access keys active</b><span>iam · root AccessKey</span></div><div class="map">CIS 1.4</div></div>
+            <div class="finding"><div class="sev c">CRITICAL</div><div class="ftxt"><b>Role with AdministratorAccess</b><span>iam · over-permissioned</span></div><div class="map">NIST AC-3</div></div>
+            <div class="finding"><div class="sev c">CRITICAL</div><div class="ftxt"><b>GitHub org does not enforce 2FA</b><span>github · org members</span></div><div class="map">SOC2 CC6.6</div></div>
+            <div class="finding"><div class="sev m">MEDIUM</div><div class="ftxt"><b>EBS volume unencrypted</b><span>ec2 · Encrypted=false</span></div><div class="map">PCI 3.4</div></div>
+          </div>
+        </div>
+        <div class="gauge-wrap" data-in="600" data-anim="a-scale">
+          <div class="gauge">
+            <svg width="300" height="300">
+              <circle cx="150" cy="150" r="128" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="22"/>
+              <circle id="gaugeArc" cx="150" cy="150" r="128" fill="none" stroke="url(#gg)" stroke-width="22" stroke-linecap="round" stroke-dasharray="804" stroke-dashoffset="804"/>
+              <defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff4d5e"/><stop offset="1" stop-color="#ff8c42"/></linearGradient></defs>
+            </svg>
+            <div class="gval"><b id="riskGrade">D</b><small id="riskNum">52 / 100</small><em>Risk score</em></div>
+          </div>
+          <div style="font-size:20px;color:var(--muted);text-align:center;max-width:300px;">Every finding maps to a specific SOC 2, ISO, PCI or NIST control.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 7 · FIX GUIDANCE ===== -->
+    <section class="scene" data-dur="13000">
+      <div class="badge"><i></i>The differentiator · Fix guidance</div>
+      <div class="kicker" data-in="150" data-anim="a-up">Not just "it's broken." Here's the exact fix.</div>
+      <div class="fixcard" data-in="500" data-anim="a-scale" style="margin-top:26px;">
+        <div class="fixhead"><div class="sev c">CRITICAL</div><b style="font-size:24px;">S3 bucket "prod-customer-data" is publicly readable</b></div>
+        <div class="fixtabs"><div class="ftab" id="tabConsole">AWS Console</div><div class="ftab on" id="tabCli">CLI</div><div class="ftab" id="tabTf">Terraform</div></div>
+        <div class="fixbody"><div id="fixCode"></div></div>
+      </div>
+      <div class="lead" data-in="1000" data-anim="a-up" style="margin-top:24px;font-size:25px;">Console path · copy-paste CLI · ready-to-apply Terraform — <span class="em">no Googling, no Stack Overflow.</span></div>
+    </section>
+
+    <!-- ===== 8 · AUTO-REMEDIATION ===== -->
+    <section class="scene" data-dur="13500">
+      <div class="badge"><i></i>Auto-remediation engine</div>
+      <div class="kicker" data-in="150" data-anim="a-up">1-click fixes — applied directly in your AWS account</div>
+      <h2 class="title" data-in="450" data-anim="a-up" style="font-size:50px;margin-bottom:46px;">Detect → confirm → fix → re-verify</h2>
+      <div class="remflow" id="remflow">
+        <div class="rstep" data-r="0"><div class="ri">🖱️</div><h4>Click Auto-Fix</h4><p>On any supported finding</p></div>
+        <div class="rarrow" data-a="0">→</div>
+        <div class="rstep" data-r="1"><div class="ri">✅</div><h4>Confirm</h4><p>You approve the change</p></div>
+        <div class="rarrow" data-a="1">→</div>
+        <div class="rstep" data-r="2"><div class="ri">⚙️</div><h4>VigiliCloud calls AWS</h4><p>Via your read-only+remediation role</p></div>
+        <div class="rarrow" data-a="2">→</div>
+        <div class="rstep" data-r="3"><div class="ri">🛡️</div><h4>Finding → FIXED</h4><p>Change applied safely</p></div>
+        <div class="rarrow" data-a="3">→</div>
+        <div class="rstep" data-r="4"><div class="ri">🔁</div><h4>Re-scan</h4><p>Verified & evidence stored</p></div>
+      </div>
+      <div class="remlist" data-in="1000" data-anim="a-up">
+        <span class="rchip"><b>S3</b> Block Public Access</span>
+        <span class="rchip"><b>S3</b> ACL → private</span>
+        <span class="rchip"><b>EBS</b> default encryption</span>
+        <span class="rchip"><b>CloudTrail</b> start logging</span>
+        <span class="rchip"><b>CloudTrail</b> log validation</span>
+        <span class="rchip"><b>GitHub</b> enforce org 2FA</span>
+      </div>
+    </section>
+
+    <!-- ===== 9 · FRAMEWORK COVERAGE ===== -->
+    <section class="scene" data-dur="12500">
+      <div class="badge"><i></i>Compliance coverage by framework</div>
+      <div class="kicker" data-in="150" data-anim="a-up">Coverage %, not just a findings count</div>
+      <h2 class="title" data-in="450" data-anim="a-up" style="font-size:48px;margin-bottom:38px;">Every finding maps to specific audit controls</h2>
+      <div class="fwgrid">
+        <div class="fwcard" data-in="900" data-anim="a-up"><h4>SOC 2</h4><div class="ctrls">2 / 9 controls passing</div>
+          <div class="fwring"><svg width="170" height="170"><circle cx="85" cy="85" r="70" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="16"/><circle class="fwarc" data-pct="22" cx="85" cy="85" r="70" fill="none" stroke="#ff4d5e" stroke-width="16" stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="440"/></svg><div class="pc" style="color:#ff4d5e">22%</div></div>
+          <div class="fail">CC6.1 · CC6.6 · CC7.1 — 7 failing</div></div>
+        <div class="fwcard" data-in="1150" data-anim="a-up"><h4>ISO 27001</h4><div class="ctrls">5 / 12 controls passing</div>
+          <div class="fwring"><svg width="170" height="170"><circle cx="85" cy="85" r="70" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="16"/><circle class="fwarc" data-pct="42" cx="85" cy="85" r="70" fill="none" stroke="#ff8c42" stroke-width="16" stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="440"/></svg><div class="pc" style="color:#ff8c42">42%</div></div>
+          <div class="fail">A.9 · A.10 · A.12 — access + crypto</div></div>
+        <div class="fwcard" data-in="1400" data-anim="a-up"><h4>PCI DSS</h4><div class="ctrls">6 / 12 controls passing</div>
+          <div class="fwring"><svg width="170" height="170"><circle cx="85" cy="85" r="70" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="16"/><circle class="fwarc" data-pct="50" cx="85" cy="85" r="70" fill="none" stroke="#ffd23f" stroke-width="16" stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="440"/></svg><div class="pc" style="color:#ffd23f">50%</div></div>
+          <div class="fail">1.3 · 3.4 · 8.3 — firewall + crypto</div></div>
+        <div class="fwcard" data-in="1650" data-anim="a-up"><h4>NIST 800-53</h4><div class="ctrls">5 / 12 controls passing</div>
+          <div class="fwring"><svg width="170" height="170"><circle cx="85" cy="85" r="70" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="16"/><circle class="fwarc" data-pct="42" cx="85" cy="85" r="70" fill="none" stroke="#ff8c42" stroke-width="16" stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="440"/></svg><div class="pc" style="color:#ff8c42">42%</div></div>
+          <div class="fail">AC-3 · IA-2 · SC-28 — failing</div></div>
+      </div>
+      <div class="fwbanner" data-in="2100" data-anim="a-up">Fix <span class="em">3 root causes</span> → jump to <span class="em">85%+</span> across all four frameworks</div>
+    </section>
+
+    <!-- ===== 10 · AI ANALYSIS ===== -->
+    <section class="scene" data-dur="15000">
+      <div class="badge"><i></i>AI analysis · Powered by Claude</div>
+      <div class="kicker" data-in="150" data-anim="a-up">One click → an auditor-ready executive summary</div>
+      <div class="aipanel" data-in="500" data-anim="a-scale" style="margin-top:22px;">
+        <div class="aihead"><div class="av">C</div><div><b>Executive Summary</b><div class="by">Generated by Claude Haiku · /scans/{id}/ai-analysis · + per-finding chat</div></div><div style="margin-left:auto;color:var(--em2);font-size:17px;font-family:var(--mono);" id="aiStatus">● generating…</div></div>
+        <div class="aibody"><div id="aiText"></div></div>
+      </div>
+      <div class="lead" data-in="1000" data-anim="a-up" style="margin-top:20px;font-size:24px;">Plain English, not AWS jargon. <span class="em">Shareable with auditors — saves hours of report writing.</span></div>
+    </section>
+
+    <!-- ===== 11 · FEATURES ===== -->
+    <section class="scene" data-dur="13500">
+      <div class="badge"><i></i>A complete compliance workflow</div>
+      <h2 class="title" data-in="150" data-anim="a-up" style="font-size:54px;margin-bottom:42px;">Scan to audit — far more than a scanner</h2>
+      <div class="feat-grid">
+        <div class="feat" data-in="600" data-anim="a-up"><div class="fi">📋</div><h4>Evidence timeline</h4><p>Timestamped snapshots per control — a 6–12 month SOC 2 Type II audit trail.</p></div>
+        <div class="feat" data-in="850" data-anim="a-up"><div class="fi">🔀</div><h4>Drift monitoring</h4><p>Every scan diffs the last — new, fixed, or unchanged. Continuous, not point-in-time.</p></div>
+        <div class="feat" data-in="1100" data-anim="a-up"><div class="fi">🔗</div><h4>Share auditor link</h4><p>A read-only portal for auditors. Plus CSV / JSON / PDF evidence exports.</p></div>
+        <div class="feat" data-in="1350" data-anim="a-up"><div class="fi">🔑</div><h4>RBAC + approvals</h4><p>Admin / user / viewer roles, approval workflows, immutable audit log.</p></div>
+        <div class="feat" data-in="1600" data-anim="a-up"><div class="fi">🐙</div><h4>GitHub compliance</h4><p>Org 2FA, branch protection and more — alongside your AWS posture.</p></div>
+        <div class="feat" data-in="1850" data-anim="a-up"><div class="fi">🏬</div><h4>MSP multi-tenant</h4><p>Group accounts by client, aggregate risk, bulk-scan — plus Jira, GitHub & Slack sync.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 12 · COMPARISON ===== -->
+    <section class="scene" data-dur="14000">
+      <div class="badge"><i></i>Head-to-head</div>
+      <h2 class="title" data-in="150" data-anim="a-up" style="font-size:50px;margin-bottom:34px;">$99/mo vs. the enterprise quote</h2>
+      <table class="ctable" data-in="600" data-anim="a-up">
+        <thead><tr><th>Capability</th><th class="us col-us">VigiliCloud</th><th>Drata</th><th>Vanta</th><th>Wiz</th><th>Orca</th></tr></thead>
+        <tbody>
+          <tr><td>ISO 27001 / PCI / NIST</td><td class="us col-us yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>GitHub / SaaS checks</td><td class="us col-us yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Auto-remediation</td><td class="us col-us yes">✓</td><td class="part">~</td><td class="part">~</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>AI analysis</td><td class="us col-us yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="part">~</td><td class="no">✗</td></tr>
+          <tr><td>IaC fix generation</td><td class="us col-us yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="part">~</td><td class="no">✗</td></tr>
+          <tr><td>Self-serve signup</td><td class="us col-us yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr class="price"><td>Price / month</td><td class="us col-us">$99</td><td><span class="no">$1,250</span></td><td><span class="no">$800</span></td><td><span class="no">$15k+</span></td><td><span class="no">$25k+</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===== 13 · PRICING ===== -->
+    <section class="scene" data-dur="12500">
+      <div class="badge"><i></i>Pricing · flat-rate USD</div>
+      <h2 class="title" data-in="150" data-anim="a-up" style="font-size:52px;margin-bottom:44px;">Flat pricing — not per-finding. 2-week free trial.</h2>
+      <div class="plans">
+        <div class="plan" data-in="600" data-anim="a-up"><h4>Free</h4><div class="price">$0<small>/mo</small></div><div class="pn">1 account</div><ul><li>19+ checks</li><li>Framework coverage %</li><li>Fix guidance (CLI/TF)</li><li>Drift monitoring</li></ul></div>
+        <div class="plan" data-in="850" data-anim="a-up"><h4>Starter</h4><div class="price">$99<small>/mo</small></div><div class="pn">3 accounts</div><ul><li>Everything in Free</li><li>Auto-remediation</li><li>CSV / JSON / PDF export</li><li>Evidence timeline</li></ul></div>
+        <div class="plan pop" data-in="1100" data-anim="a-up"><div class="pop-tag">MOST POPULAR</div><h4>Pro</h4><div class="price">$299<small>/mo</small></div><div class="pn">10 accounts</div><ul><li>AI executive summaries</li><li>Scheduled daily scans</li><li>Approval workflows</li><li>Jira + GitHub sync</li></ul></div>
+        <div class="plan" data-in="1350" data-anim="a-up"><h4>MSP</h4><div class="price">$999<small>+/mo</small></div><div class="pn">Unlimited accounts</div><ul><li>Multi-tenant clients</li><li>Aggregate risk</li><li>Priority support</li></ul></div>
+      </div>
+      <div class="lead" data-in="1700" data-anim="a-up" style="margin-top:38px;font-size:23px;">Self-serve signup · no sales call · never penalized for a bigger environment.</div>
+    </section>
+
+    <!-- ===== 14 · ROADMAP ===== -->
+    <section class="scene" data-dur="11500">
+      <div class="badge"><i></i>Roadmap & vision</div>
+      <h2 class="title" data-in="150" data-anim="a-up" style="font-size:50px;margin-bottom:48px;">From detect &amp; report → detect, propose &amp; fix</h2>
+      <div class="road">
+        <div class="phase" data-in="600" data-anim="a-up"><div class="pdot"></div><div class="pt">NOW · LIVE</div><h4>Complete platform</h4><ul><li>19+ AWS + GitHub checks</li><li>SOC2 / ISO / PCI / NIST mapping</li><li>Auto-remediation + evidence timeline</li><li>AI summaries, RBAC, MSP, 31 tests green</li></ul></div>
+        <div class="phase future" data-in="900" data-anim="a-up"><div class="pdot"></div><div class="pt">6 MONTHS</div><h4>More clouds &amp; SaaS</h4><ul><li>Google Workspace + Okta checks</li><li>Azure CIS + GCP scanning</li><li>HIPAA + PCI custom frameworks</li><li>White-label MSP · SIEM integrations</li></ul></div>
+        <div class="phase future bet" data-in="1200" data-anim="a-up"><div class="pdot" style="background:var(--purple);box-shadow:0 0 24px rgba(176,124,255,.5)"></div><div class="pt" style="color:var(--purple)">FUTURE · THE BIG BET</div><h4>MCP execution engine</h4><ul><li>Detect → propose → approve → fix</li><li>Claude proposes, human approves</li><li>Multi-cloud unified dashboard</li><li>24/7 real-time breach detection</li></ul></div>
+      </div>
+    </section>
+
+    <!-- ===== 15 · OUTRO ===== -->
+    <section class="scene" data-dur="10000">
+      <div class="logo-wrap">
+        <div class="wordmark" data-in="200" data-anim="a-scale" style="font-size:82px;"><span class="vigili">Vigili</span><span class="cloud">Cloud</span></div>
+        <div class="lead" data-in="800" data-anim="a-up" style="font-size:30px;color:#fff;">AWS + GitHub Compliance, Made Simple.</div>
+        <div class="stat-row" data-in="1500" data-anim="a-up">
+          <div class="stat"><b>19+</b><span>checks</span></div>
+          <div class="stat"><b>4</b><span>frameworks</span></div>
+          <div class="stat"><b>2 min</b><span>per scan</span></div>
+          <div class="stat"><b>$99</b><span>per month</span></div>
+        </div>
+        <div data-in="2300" data-anim="a-up" style="display:flex;flex-direction:column;align-items:center;gap:20px;margin-top:12px;">
+          <div class="cta-pill">Start free → no credit card</div>
+          <div class="urlrow">app.vigilicloud.com</div>
+        </div>
+      </div>
+    </section>
+
+    <div id="caption"></div>
+    <div id="rail"><div id="railfill"></div></div>
+  </div>
+</div>
+
+<div id="controls">
+  <button class="cbtn primary" id="playBtn">⏸ Pause</button>
+  <button class="cbtn" id="backBtn">⏮ Prev</button>
+  <button class="cbtn" id="fwdBtn">Next ⏭</button>
+  <input type="range" id="scrub" min="0" max="1000" value="0" />
+  <span id="time">0:00 / 0:00</span>
+  <select class="chapsel" id="chapsel"></select>
+  <button class="cbtn" id="voiceBtn">🔊 Voice</button>
+  <button class="cbtn" id="fsBtn">⛶ Fullscreen</button>
+  <button class="cbtn" id="replayBtn">↻ Replay</button>
+</div>
+
+<div id="start">
+  <div class="s-logo">Vigili<span class="c">Cloud</span></div>
+  <p>An animated product explainer — from the problem, through a live scan and 1-click remediation, to the business case. Built for investors, customers, and technical leaders.</p>
+  <div class="opts">
+    <button class="big-btn" id="startBtn"><span style="font-size:18px">▶</span> Play the film</button>
+    <button class="ghost" id="voiceToggle">🔊 Narration: Off</button>
+  </div>
+  <div class="hint">~3 min · Best fullscreen · <b>F</b> fullscreen · <b>Space</b> pause · Screen-record for an MP4</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const stage=document.getElementById('stage');
+  const scenes=Array.from(document.querySelectorAll('.scene'));
+  const railfill=document.getElementById('railfill');
+  const caption=document.getElementById('caption');
+
+  const NARR=[
+    "VigiliCloud. AWS and GitHub compliance, made simple — nineteen-plus checks, four audit frameworks, scanned in two minutes.",
+    "For small teams, AWS compliance is broken. A manual audit takes two to three days. Drata and Vanta start around eight hundred to twelve hundred dollars a month, Wiz is fifteen thousand a year, and none of them tell you how to fix what they find.",
+    "VigiliCloud turns that two-day audit into a two-minute scan — then maps every finding to a framework and fixes it in one click.",
+    "Step one: connect AWS with a read-only IAM role and your GitHub org with an API token. Credentials are never stored — we use one-hour STS tokens, and the platform ships with thirty-one automated tests and a hardened API.",
+    "Step two and three: click Run Scan. Nineteen-plus checks run across S3, IAM, EC2, RDS, CloudTrail, KMS — and your GitHub organization — finishing in about two minutes.",
+    "Step four: findings, severity-ranked, each mapped to a specific SOC 2, ISO, PCI or NIST control — and an overall risk grade. This real scan scored a D, fifty-two out of a hundred.",
+    "Here's the differentiator. Click any finding for three ready-to-use fixes: the console path, a copy-paste CLI command, and Terraform. No Googling.",
+    "Even better — for supported findings, click Auto-Fix. You confirm, VigiliCloud calls AWS in your own account, the finding is fixed, and we re-scan to verify.",
+    "Coverage is shown as a percentage per framework — SOC 2, ISO 27001, PCI DSS and NIST. Fix just three root causes and you jump past eighty-five percent across all four.",
+    "One click, and Claude writes an auditor-ready executive summary — plus per-finding chat — in plain English.",
+    "It's a complete workflow: evidence timeline for SOC 2 Type II, drift monitoring, an auditor share portal, role-based access, GitHub compliance, and multi-tenant MSP mode.",
+    "Head to head, no competitor at our price offers ISO, GitHub checks, auto-remediation, AI analysis, IaC fixes and self-serve signup together — at ninety-nine dollars a month.",
+    "Flat USD pricing — free, ninety-nine, two-ninety-nine, or nine-ninety-nine and up. Self-serve, no sales call, two-week free trial.",
+    "And the roadmap is clear: from detect-and-report today, to more clouds and SaaS, to an AI execution engine — detect, propose, approve, fix.",
+    "VigiliCloud — AWS and GitHub compliance, made simple. Start free at app dot vigilicloud dot com."
+  ];
+  const CHAPTERS=["Intro","The Problem","2 days → 2 min","Connect","Live Scan","Findings & Grade","Fix Guidance","Auto-Remediation","Coverage","AI Analysis","Features","Comparison","Pricing","Roadmap","Start Free"];
+
+  const durs=(window.__DURS&&window.__DURS.length===scenes.length)?window.__DURS.slice():scenes.map(s=>parseInt(s.dataset.dur,10));
+  const starts=[]; let acc=0; durs.forEach(d=>{starts.push(acc);acc+=d;});
+  const TOTAL=acc; window.__TOTAL=TOTAL; window.__ended=false;
+
+  function fit(){ const s=Math.min(window.innerWidth/1920,window.innerHeight/1080); stage.style.transform='scale('+s+')'; }
+  window.addEventListener('resize',fit); fit();
+
+  let clock=0,playing=false,lastTS=null,curIdx=-1,voiceOn=false;
+  function fmt(ms){const t=Math.max(0,Math.floor(ms/1000));return Math.floor(t/60)+":"+String(t%60).padStart(2,'0');}
+
+  function resetScene(sc){
+    sc.querySelectorAll('[data-in]').forEach(el=>{el.classList.remove('shown');const a=el.getAttribute('data-anim');if(a)el.classList.add(a);});
+    const i=scenes.indexOf(sc);
+    if(i===0){document.getElementById('shield').classList.remove('go');}
+    if(i===4){resetScan();}
+    if(i===5){resetFindings();}
+    if(i===6){resetFix();}
+    if(i===7){resetRem();}
+    if(i===8){sc.querySelectorAll('.fwarc').forEach(a=>a.style.strokeDashoffset='440');}
+    if(i===9){resetAI();}
+  }
+  function revealScene(sc,el){sc.querySelectorAll('[data-in]').forEach(e=>{if(el>=parseInt(e.getAttribute('data-in'),10))e.classList.add('shown');});}
+
+  function activate(idx){
+    scenes.forEach((s,i)=>{if(i!==idx)s.classList.remove('active');});
+    const sc=scenes[idx]; resetScene(sc); void sc.offsetWidth; sc.classList.add('active');
+    caption.innerHTML=NARR[idx]||""; caption.classList.add('show');
+    if(idx===0){setTimeout(()=>document.getElementById('shield').classList.add('go'),120);}
+    if(idx===8){setTimeout(()=>{sc.querySelectorAll('.fwarc').forEach(a=>{const p=+a.dataset.pct;a.style.strokeDashoffset=440-(440*p/100);});},900);}
+    speak(idx); chapsel.value=idx;
+  }
+
+  function frame(ts){
+    if(lastTS==null)lastTS=ts; const dt=ts-lastTS; lastTS=ts;
+    if(playing){clock+=dt;if(clock>=TOTAL){clock=TOTAL;playing=false;window.__ended=true;setPlayBtn();}}
+    let idx=starts.length-1;
+    for(let i=0;i<starts.length;i++){if(clock<starts[i]+durs[i]){idx=i;break;}}
+    if(idx!==curIdx){curIdx=idx;activate(idx);}
+    const el=clock-starts[idx];
+    revealScene(scenes[idx],el); driveScene(idx,el);
+    const p=clock/TOTAL; railfill.style.width=(p*100)+'%';
+    if(!scrubbing)scrub.value=Math.round(p*1000);
+    time.textContent=fmt(clock)+" / "+fmt(TOTAL);
+    requestAnimationFrame(frame);
+  }
+
+  /* scene 4 — scan */
+  function resetScan(){
+    const cl=document.getElementById('checklist'); if(!cl)return;
+    cl.querySelectorAll('.chk').forEach(c=>{c.classList.remove('run','done');c.querySelector('.st').textContent='queued';});
+    const f=document.getElementById('scanFill'); if(f)f.style.width='0';
+    const w=document.getElementById('scanProgWrap'); if(w)w.style.opacity='0';
+    const rb=document.getElementById('runBtn'); if(rb)rb.style.opacity='0';
+    const cur=document.getElementById('cursor1'); if(cur)cur.style.opacity='0';
+  }
+  function driveScan(el){
+    const cl=document.getElementById('checklist'); if(!cl)return;
+    const chks=cl.querySelectorAll('.chk');
+    const rb=document.getElementById('runBtn'),cur=document.getElementById('cursor1');
+    const w=document.getElementById('scanProgWrap'),fill=document.getElementById('scanFill');
+    const pct=document.getElementById('scanPct'),cnt=document.getElementById('scanCount');
+    if(rb)rb.style.opacity=el>400?'1':'0';
+    if(cur){
+      if(el>200&&el<2400){cur.style.opacity='1';const k=Math.min(1,Math.max(0,(el-300)/1300));
+        const x=760+(1500-760)*k,y=620+(248-620)*k;cur.style.left=x+'px';cur.style.top=y+'px';
+        cur.style.transform=(el>1500&&el<1750)?'scale(.8)':'scale(1)';
+      } else if(el>=2400){cur.style.opacity='0';}
+    }
+    const scanning=el>=1700; if(w)w.style.opacity=scanning?'1':'0';
+    if(rb&&el>1650)rb.style.opacity=el<1900?'0.4':'0';
+    const S=1900,E=14000; let prog=Math.min(1,Math.max(0,(el-S)/(E-S)));
+    const n=chks.length,doneCount=Math.floor(prog*n);
+    chks.forEach((c,i)=>{const st=c.querySelector('.st');
+      if(i<doneCount){c.classList.remove('run');c.classList.add('done');st.textContent=c.classList.contains('flag')?'1 issue':'passed';}
+      else if(i===doneCount&&prog>0&&prog<1){c.classList.add('run');c.classList.remove('done');st.textContent='scanning…';}
+      else{c.classList.remove('run','done');st.textContent='queued';}
+    });
+    if(fill)fill.style.width=(prog*100)+'%';
+    if(pct)pct.textContent=prog>=1?'Scan complete ✓':'Scanning… '+Math.round(prog*100)+'%';
+    if(cnt)cnt.textContent=Math.min(n,doneCount)+' / '+n+' checks';
+  }
+
+  /* scene 5 — findings + grade */
+  function resetFindings(){
+    document.querySelectorAll('#fwrap .finding').forEach(f=>f.classList.remove('in'));
+    const arc=document.getElementById('gaugeArc'); if(arc)arc.style.strokeDashoffset='804';
+    const rn=document.getElementById('riskNum'); if(rn)rn.textContent='0 / 100';
+    const rg=document.getElementById('riskGrade'); if(rg)rg.textContent='–';
+  }
+  function driveFindings(el){
+    const f=document.querySelectorAll('#fwrap .finding');
+    f.forEach((x,i)=>{if(el>1100+i*420)x.classList.add('in');});
+    const arc=document.getElementById('gaugeArc'),rn=document.getElementById('riskNum'),rg=document.getElementById('riskGrade');
+    const k=Math.min(1,Math.max(0,(el-1300)/2600)),target=52;
+    if(arc)arc.style.strokeDashoffset=804-(804*(target/100)*k);
+    if(rn)rn.textContent=Math.round(target*k)+' / 100';
+    if(rg)rg.textContent=k>0.15?'D':'–';
+  }
+
+  /* scene 6 — fix guidance */
+  let fixState=null;
+  const FIX_CLI='<span class="cm"># Block all public access on the bucket</span>\n<span class="kw">aws</span> s3api put-public-access-block \\\n  --bucket <span class="st2">prod-customer-data</span> \\\n  --public-access-block-configuration \\\n  BlockPublicAcls=<span class="st2">true</span>,IgnorePublicAcls=<span class="st2">true</span>,\\\n  BlockPublicPolicy=<span class="st2">true</span>,RestrictPublicBuckets=<span class="st2">true</span>';
+  const FIX_TF='<span class="kw">resource</span> <span class="st2">"aws_s3_bucket_public_access_block"</span> <span class="st2">"fix"</span> {\n  bucket                  = aws_s3_bucket.prod.id\n  <span class="kw">block_public_acls</span>       = <span class="st2">true</span>\n  <span class="kw">block_public_policy</span>     = <span class="st2">true</span>\n  <span class="kw">ignore_public_acls</span>      = <span class="st2">true</span>\n  <span class="kw">restrict_public_buckets</span> = <span class="st2">true</span>\n}';
+  const FIX_CON='<span class="cm">// AWS Console path</span>\n1 · Open <span class="st2">S3 → prod-customer-data → Permissions</span>\n2 · Edit <span class="st2">"Block public access (bucket settings)"</span>\n3 · Enable <span class="kw">all four</span> block settings\n4 · Type <span class="st2">confirm</span> → Save changes';
+  function resetFix(){fixState={tab:''};const fc=document.getElementById('fixCode');if(fc)fc.innerHTML='';setFixTab('cli');}
+  function setFixTab(t){const map={console:'tabConsole',cli:'tabCli',tf:'tabTf'};['tabConsole','tabCli','tabTf'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.remove('on');});const e=document.getElementById(map[t]);if(e)e.classList.add('on');}
+  function sliceHTML(html,n){let out='',count=0,i=0;while(i<html.length&&count<n){if(html[i]==='<'){const j=html.indexOf('>',i);out+=html.slice(i,j+1);i=j+1;}else{out+=html[i];count++;i++;}}const o=(out.match(/<span/g)||[]).length,c=(out.match(/<\/span>/g)||[]).length;for(let k=0;k<o-c;k++)out+='</span>';return out;}
+  function plainLen(html){return html.replace(/<[^>]+>/g,'').length;}
+  function driveFix(el){
+    if(!fixState)return; let tab,full,t0,dur;
+    if(el<5000){tab='cli';full=FIX_CLI;t0=900;dur=3200;}
+    else if(el<9000){tab='tf';full=FIX_TF;t0=5200;dur=3200;}
+    else{tab='console';full=FIX_CON;t0=9200;dur=2800;}
+    if(fixState.tab!==tab){fixState.tab=tab;setFixTab(tab);}
+    const len=plainLen(full),k=Math.min(1,Math.max(0,(el-t0)/dur)),shown=Math.floor(len*k);
+    const e=document.getElementById('fixCode');
+    if(e)e.innerHTML='<span class="typed" style="white-space:pre-wrap;display:block">'+sliceHTML(full,shown)+'</span>';
+  }
+
+  /* scene 7 — auto-remediation */
+  function resetRem(){document.querySelectorAll('#remflow .rstep').forEach(s=>s.classList.remove('on'));document.querySelectorAll('#remflow .rarrow').forEach(a=>a.classList.remove('on'));}
+  function driveRem(el){
+    const steps=document.querySelectorAll('#remflow .rstep'),arrows=document.querySelectorAll('#remflow .rarrow');
+    const t0=1600,each=1900; // staggered
+    steps.forEach((s,i)=>{ s.classList.toggle('on', el>=t0+i*each && el< t0+i*each+each+200 || (i===steps.length-1 && el>=t0+i*each)); });
+    // keep current + light trail: simpler — activate up to current index
+    let cur=Math.floor((el-t0)/each);
+    steps.forEach((s,i)=>s.classList.toggle('on', i<=cur && cur>=0));
+    arrows.forEach((a,i)=>a.classList.toggle('on', i<cur && cur>=0));
+  }
+
+  /* scene 9 — AI typing */
+  const AI_TEXT='<span class="hl">Your environment has 4 critical misconfigurations</span> that could expose customer data and accounts to the public internet.\n\n<span class="hl">Top priorities:</span> First, lock down the public S3 bucket "prod-customer-data". Second, delete the active root access keys. Third, enforce 2FA on the GitHub organization.\n\n<span class="hl">Compliance impact:</span> these findings fail SOC 2 CC6.1 and CC6.6, ISO 27001 A.9, and NIST AC-3 — your risk grade is currently D, 52 out of 100.\n\n<span class="hl">Suggested timeline:</span> all three are quick wins — resolve today, then re-scan to confirm an A or B grade.';
+  function resetAI(){const e=document.getElementById('aiText');if(e)e.innerHTML='';const s=document.getElementById('aiStatus');if(s){s.textContent='● generating…';s.style.color='var(--em2)';}}
+  function driveAI(el){
+    const e=document.getElementById('aiText'); if(!e)return;
+    const len=plainLen(AI_TEXT),k=Math.min(1,Math.max(0,(el-900)/11000)),shown=Math.floor(len*k);
+    e.innerHTML='<span class="typed" style="white-space:pre-wrap;display:block">'+sliceHTML(AI_TEXT,shown)+'</span>';
+    const s=document.getElementById('aiStatus');
+    if(s&&k>=1){s.textContent='● complete';const tn=e.querySelector('.typed');if(tn)tn.classList.remove('typed');}
+  }
+
+  function driveScene(idx,el){
+    if(idx===4)driveScan(el); else if(idx===5)driveFindings(el);
+    else if(idx===6)driveFix(el); else if(idx===7)driveRem(el); else if(idx===9)driveAI(el);
+  }
+
+  /* narration */
+  let voices=[];
+  function loadVoices(){voices=window.speechSynthesis?window.speechSynthesis.getVoices():[];}
+  if(window.speechSynthesis){loadVoices();window.speechSynthesis.onvoiceschanged=loadVoices;}
+  function pickVoice(){const pref=['Google US English','Microsoft Aria','Microsoft Guy','Samantha','Daniel','Microsoft David','Google UK English Male'];for(const p of pref){const v=voices.find(v=>v.name&&v.name.includes(p));if(v)return v;}return voices.find(v=>/en[-_]/i.test(v.lang))||voices[0];}
+  function speak(idx){if(!voiceOn||!window.speechSynthesis)return;window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(NARR[idx].replace(/<[^>]+>/g,''));const v=pickVoice();if(v)u.voice=v;u.rate=1.0;u.pitch=1.0;u.volume=1.0;window.speechSynthesis.speak(u);}
+  function stopSpeak(){if(window.speechSynthesis)window.speechSynthesis.cancel();}
+
+  const playBtn=document.getElementById('playBtn'),scrub=document.getElementById('scrub'),time=document.getElementById('time'),chapsel=document.getElementById('chapsel');
+  CHAPTERS.forEach((c,i)=>{const o=document.createElement('option');o.value=i;o.textContent=(i+1)+'. '+c;chapsel.appendChild(o);});
+  function setPlayBtn(){playBtn.textContent=playing?'⏸ Pause':'▶ Play';}
+  function play(){playing=true;lastTS=null;window.__ended=false;setPlayBtn();if(voiceOn&&curIdx>=0)speak(curIdx);}
+  function pause(){playing=false;setPlayBtn();stopSpeak();}
+  function toggle(){playing?pause():play();}
+  function seekTo(ms){clock=Math.max(0,Math.min(TOTAL,ms));curIdx=-1;lastTS=null;stopSpeak();}
+  function gotoScene(i){seekTo(starts[i]+1);if(voiceOn&&playing)setTimeout(()=>speak(i),60);}
+
+  playBtn.onclick=toggle;
+  document.getElementById('backBtn').onclick=()=>{let i=curIdx;if(clock-starts[curIdx]<800&&i>0)i--;gotoScene(Math.max(0,i));};
+  document.getElementById('fwdBtn').onclick=()=>gotoScene(Math.min(scenes.length-1,curIdx+1));
+  document.getElementById('replayBtn').onclick=()=>{seekTo(0);play();};
+  chapsel.onchange=()=>gotoScene(parseInt(chapsel.value,10));
+  let scrubbing=false;
+  scrub.addEventListener('input',()=>{scrubbing=true;seekTo(scrub.value/1000*TOTAL);});
+  scrub.addEventListener('change',()=>{scrubbing=false;});
+  document.getElementById('fsBtn').onclick=()=>{const vp=document.getElementById('viewport');if(!document.fullscreenElement){vp.requestFullscreen&&vp.requestFullscreen();}else document.exitFullscreen();};
+  function setVoice(on){voiceOn=on;document.getElementById('voiceBtn').textContent=on?'🔊 Voice On':'🔇 Voice';document.getElementById('voiceToggle').textContent='🔊 Narration: '+(on?'On':'Off');document.getElementById('voiceToggle').classList.toggle('on',on);if(!on)stopSpeak();else if(playing&&curIdx>=0)speak(curIdx);}
+  document.getElementById('voiceBtn').onclick=()=>setVoice(!voiceOn);
+  document.getElementById('voiceToggle').onclick=()=>setVoice(!voiceOn);
+  document.addEventListener('keydown',e=>{
+    if(e.code==='Space'){e.preventDefault();toggle();}
+    else if(e.code==='ArrowRight')gotoScene(Math.min(scenes.length-1,curIdx+1));
+    else if(e.code==='ArrowLeft')document.getElementById('backBtn').click();
+    else if(e.key==='f'||e.key==='F')document.getElementById('fsBtn').click();
+    else if(e.key==='r'||e.key==='R')document.getElementById('replayBtn').click();
+  });
+  document.getElementById('startBtn').onclick=()=>{document.getElementById('start').classList.add('hidden');seekTo(0);play();};
+
+  // expose for headless renderer
+  window.__startFilm=function(){document.getElementById('start').classList.add('hidden');seekTo(0);play();};
+  window.__seek=function(ms){document.getElementById('start').classList.add('hidden');pause();seekTo(ms);};
+
+  activate(0); pause();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

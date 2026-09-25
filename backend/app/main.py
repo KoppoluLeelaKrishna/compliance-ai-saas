@@ -9,6 +9,7 @@ All business logic lives in:
 """
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -29,6 +30,8 @@ from app.deps import (
 )
 from app.routers import accounts, admin, approvals, assistant, audit, auth, billing, compliance, developer, fix_guidance, integrations, msp, org_notes, remediation, scans
 
+logger = logging.getLogger("vigilicloud")
+
 # ---------------------------------------------------------------------------
 # Startup — db init, seed data, scheduler
 # ---------------------------------------------------------------------------
@@ -36,8 +39,15 @@ from app.routers import accounts, admin, approvals, assistant, audit, auth, bill
 def ensure_auth_tables() -> None:
     """Create users / auth_sessions / billing_webhook_events tables and seed admin."""
     import sqlite3
-    from app.config import USE_POSTGRES, DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, DEFAULT_ADMIN_NAME
-    from app.deps import get_conn, hash_password, now_utc_iso
+    from app.config import (
+        DEFAULT_ADMIN_EMAIL,
+        DEFAULT_ADMIN_NAME,
+        DEFAULT_ADMIN_PASSWORD,
+        DEV_ADMIN_PASSWORD,
+        IS_PRODUCTION,
+        USE_POSTGRES,
+    )
+    from app.deps import get_conn, hash_password, now_utc_iso, verify_password
 
     conn = get_conn()
     cur = conn.cursor()
@@ -176,8 +186,27 @@ def ensure_auth_tables() -> None:
 
     conn.commit()
 
-    cur.execute("SELECT id FROM users WHERE lower(email) = lower(?)", (DEFAULT_ADMIN_EMAIL,))
-    if not cur.fetchone():
+    cur.execute("SELECT id, password_hash FROM users WHERE lower(email) = lower(?)", (DEFAULT_ADMIN_EMAIL,))
+    existing = cur.fetchone()
+    if existing and IS_PRODUCTION and verify_password(DEV_ADMIN_PASSWORD, existing["password_hash"]):
+        if DEFAULT_ADMIN_PASSWORD:
+            # Rotate an admin still on the published dev password to ADMIN_PASSWORD.
+            cur.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (hash_password(DEFAULT_ADMIN_PASSWORD), existing["id"]),
+            )
+            cur.execute("DELETE FROM auth_sessions WHERE user_id = ?", (existing["id"],))
+            conn.commit()
+            logger.warning("Default admin password rotated from the dev default to ADMIN_PASSWORD.")
+        else:
+            logger.error(
+                "Default admin %s still has the dev password; sign-in with it is refused in "
+                "production. Set ADMIN_PASSWORD to rotate it on the next restart.",
+                DEFAULT_ADMIN_EMAIL,
+            )
+    elif not existing and not DEFAULT_ADMIN_PASSWORD:
+        logger.warning("ADMIN_PASSWORD is not set; skipping default admin seed in production.")
+    elif not existing:
         cur.execute(
             """
             INSERT INTO users (

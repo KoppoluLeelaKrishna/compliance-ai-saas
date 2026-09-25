@@ -19,10 +19,13 @@ from pydantic import BaseModel
 from app.config import (
     COOKIE_SAMESITE,
     COOKIE_SECURE,
+    DEFAULT_ADMIN_EMAIL,
+    DEV_ADMIN_PASSWORD,
     FRONTEND_URL,
     GITHUB_CALLBACK_URL,
     GITHUB_CLIENT_ID,
     GITHUB_CLIENT_SECRET,
+    IS_PRODUCTION,
     SCAN_SCHEDULE_HOURS,
     SESSION_COOKIE_NAME,
     SESSION_TTL_HOURS,
@@ -44,6 +47,7 @@ from app.deps import (
     list_connected_accounts,
     normalize_account_row,
     now_utc_iso,
+    password_needs_rehash,
     run_account_scan,
     sanitize_email,
     sanitize_password,
@@ -198,10 +202,27 @@ def auth_login(payload: LoginIn, request: Request):
         (email,),
     )
     user = cur.fetchone()
-    conn.close()
 
     if not user or not verify_password(password, user["password_hash"]):
+        conn.close()
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if (
+        IS_PRODUCTION
+        and user["email"].lower() == DEFAULT_ADMIN_EMAIL.lower()
+        and password == DEV_ADMIN_PASSWORD
+    ):
+        # The dev password is published in the repo; never let it open production.
+        conn.close()
+        raise HTTPException(
+            status_code=403,
+            detail="This account still uses the default password. Set ADMIN_PASSWORD on the server to reset it.",
+        )
+
+    if password_needs_rehash(user["password_hash"]):
+        cur.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(password), user["id"]))
+        conn.commit()
+    conn.close()
 
     session = create_session(user["id"])
 
@@ -230,6 +251,50 @@ def auth_login(payload: LoginIn, request: Request):
         path="/",
     )
     return response
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/auth/change-password")
+def auth_change_password(
+    payload: ChangePasswordIn,
+    request: Request,
+    session_cookie: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    authorization: Optional[str] = Header(default=None),
+):
+    user = get_current_user(session_cookie, authorization)
+    # Shares the login bucket: this endpoint also verifies a password guess.
+    enforce_rate_limit(f"login:{client_ip(request)}", LOGIN_RATE_LIMIT[0], LOGIN_RATE_LIMIT[1])
+
+    new_password = sanitize_password(payload.new_password)
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    if new_password == DEV_ADMIN_PASSWORD:
+        raise HTTPException(status_code=400, detail="Choose a different password")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT password_hash FROM users WHERE id = ?", (user["id"],))
+    row = cur.fetchone()
+    if not row or not verify_password(payload.current_password or "", row["password_hash"]):
+        conn.close()
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if payload.current_password == new_password:
+        conn.close()
+        raise HTTPException(status_code=400, detail="New password must differ from the current one")
+
+    cur.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(new_password), user["id"]))
+    # Sign out every other session; keep the one making this request.
+    cur.execute(
+        "DELETE FROM auth_sessions WHERE user_id = ? AND session_token <> ?",
+        (user["id"], user.get("session_token") or ""),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
 
 
 @router.post("/auth/register")

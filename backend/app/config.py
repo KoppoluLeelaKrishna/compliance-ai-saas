@@ -52,10 +52,9 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 def build_cors_origins() -> List[str]:
-    origins: List[str] = [
-        "https://app.vigilicloud.com",
-        "https://vigilicloud-ui.onrender.com",
-    ]
+    # The legacy Render frontend (vigilicloud-ui.onrender.com) is retired: it ran
+    # an older build than Vercel, so it is deliberately no longer allowed here.
+    origins: List[str] = ["https://app.vigilicloud.com"]
     frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
     if frontend_url:
         origins.append(frontend_url)
@@ -81,8 +80,14 @@ COOKIE_SECURE: bool = env_bool("COOKIE_SECURE", IS_PRODUCTION)
 COOKIE_SAMESITE: str = "none" if COOKIE_SECURE else "lax"
 
 DEFAULT_ADMIN_EMAIL: str = "admin@compliance.local"
-DEFAULT_ADMIN_PASSWORD: str = "admin123"
 DEFAULT_ADMIN_NAME: str = "Admin User"
+# The well-known dev password. Seeded locally for convenience; in production it
+# is never seeded and never accepted (see ensure_auth_tables / auth_login).
+DEV_ADMIN_PASSWORD: str = "admin123"
+# Production sets ADMIN_PASSWORD to seed the admin, or to rotate an admin that
+# still has the dev password. Locally it falls back to the dev password.
+ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "").strip()
+DEFAULT_ADMIN_PASSWORD: str = ADMIN_PASSWORD or ("" if IS_PRODUCTION else DEV_ADMIN_PASSWORD)
 
 # ---------------------------------------------------------------------------
 # Frontend / CORS

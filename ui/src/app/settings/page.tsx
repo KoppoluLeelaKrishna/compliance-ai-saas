@@ -39,6 +39,9 @@ export default function SettingsPage() {
   const [jiraInput, setJiraInput] = useState({ url: "", email: "", token: "", project_key: "" });
   const [jiraSaving, setJiraSaving] = useState(false);
 
+  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
+  const [pwSaving, setPwSaving] = useState(false);
+
   const [github, setGithub] = useState<GitHubConfig | null>(null);
   const [githubInput, setGithubInput] = useState({ token: "", repo: "", org: "" });
   const [githubSaving, setGithubSaving] = useState(false);
@@ -88,6 +91,29 @@ export default function SettingsPage() {
       setError(e instanceof Error ? e.message : "Failed to update schedule");
     } finally {
       setScheduleLoading(false);
+    }
+  }
+
+  async function changePassword() {
+    if (pw.next !== pw.confirm) {
+      setError("New passwords do not match.");
+      return;
+    }
+    setPwSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      await api<{ ok: boolean }>("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ current_password: pw.current, new_password: pw.next }),
+      });
+      setPw({ current: "", next: "", confirm: "" });
+      setMessage("Password changed. Other sessions have been signed out.");
+      setTimeout(() => setMessage(""), 4000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to change password");
+    } finally {
+      setPwSaving(false);
     }
   }
 
@@ -360,6 +386,59 @@ export default function SettingsPage() {
                 </div>
               ))}
             </div>
+          )}
+        </section>
+
+        {/* ── Password ─────────────────────────────────────────────────── */}
+        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+              <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-bold">Password</h2>
+          </div>
+
+          {loading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-14 animate-pulse rounded-[10px] bg-[var(--vc-chip)]" />)}
+            </div>
+          ) : (
+            <form
+              className="space-y-3"
+              onSubmit={e => {
+                e.preventDefault();
+                changePassword();
+              }}
+            >
+              {([
+                { key: "current", label: "Current password", autoComplete: "current-password" },
+                { key: "next",    label: "New password",     autoComplete: "new-password" },
+                { key: "confirm", label: "Confirm new password", autoComplete: "new-password" },
+              ] as const).map(({ key, label, autoComplete }) => (
+                <div key={key} className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--vc-muted)]">{label}</label>
+                  <input
+                    type="password"
+                    autoComplete={autoComplete}
+                    value={pw[key]}
+                    onChange={e => setPw(prev => ({ ...prev, [key]: e.target.value }))}
+                    className="w-full rounded-[10px] border border-[var(--vc-hairline-strong)] bg-[var(--vc-fill)] px-4 py-2.5 text-sm text-[var(--vc-text)] placeholder-[var(--vc-dim)] focus:border-[var(--vc-accent)] focus:outline-none transition-colors"
+                  />
+                </div>
+              ))}
+              <p className="text-[10px] text-[var(--vc-dim)]">
+                At least 8 characters. Changing it signs out your other sessions. Accounts created with GitHub sign-in have no password to change.
+              </p>
+              <button
+                type="submit"
+                disabled={!pw.current || pw.next.length < 8 || !pw.confirm || pwSaving}
+                className="rounded-[10px] bg-[var(--vc-accent)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40 transition-colors"
+              >
+                {pwSaving ? "Saving…" : "Change Password"}
+              </button>
+            </form>
           )}
         </section>
 

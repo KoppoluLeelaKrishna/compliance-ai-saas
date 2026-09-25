@@ -275,12 +275,44 @@ def now_utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Salted scrypt, stored as "scrypt$n$r$p$salt_hex$hash_hex". n=2**14, r=8 costs
+# ~16 MiB and a few tens of ms per check — slow enough to make offline guessing
+# expensive, cheap enough for a login endpoint that is already rate limited.
+_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1
+
+
+def _scrypt(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
+    return hashlib.scrypt(password.encode("utf-8"), salt=salt, n=n, r=r, p=p, maxmem=64 * 1024 * 1024, dklen=32)
+
+
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    salt = secrets.token_bytes(16)
+    digest = _scrypt(password, salt, _SCRYPT_N, _SCRYPT_R, _SCRYPT_P)
+    return f"scrypt${_SCRYPT_N}${_SCRYPT_R}${_SCRYPT_P}${salt.hex()}${digest.hex()}"
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return hmac.compare_digest(hash_password(password), password_hash)
+    if not password_hash:
+        # GitHub-only accounts store an empty hash: no password can match it.
+        return False
+    if password_hash.startswith("scrypt$"):
+        try:
+            _, n, r, p, salt_hex, digest_hex = password_hash.split("$")
+            digest = _scrypt(password, bytes.fromhex(salt_hex), int(n), int(r), int(p))
+        except (ValueError, TypeError):
+            return False
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    # Legacy unsalted SHA-256 — accepted so existing users can still sign in,
+    # then upgraded by password_needs_rehash() on their next successful login.
+    legacy = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(legacy, password_hash)
+
+
+def password_needs_rehash(password_hash: str) -> bool:
+    if not password_hash.startswith("scrypt$"):
+        return bool(password_hash)
+    parts = password_hash.split("$")
+    return parts[1:4] != [str(_SCRYPT_N), str(_SCRYPT_R), str(_SCRYPT_P)]
 
 
 # ---------------------------------------------------------------------------

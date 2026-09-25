@@ -39,6 +39,7 @@ RAZORPAY_PLAN_STARTER=plan_...
 RAZORPAY_PLAN_PRO=plan_...
 RAZORPAY_PLAN_MSP=plan_...
 FRONTEND_URL=https://app.vigilicloud.com
+ADMIN_PASSWORD=...             # production: seeds/rotates the default admin (see Auth)
 
 GITHUB_CLIENT_ID=Ov23li...         # GitHub OAuth App — sign-in only
 GITHUB_CLIENT_SECRET=...
@@ -64,7 +65,15 @@ Without `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`, `/auth/github` redirects to
 
 ## Auth
 Session-cookie based. `SESSION_COOKIE_NAME`, `SESSION_TTL_HOURS` configured in main.py.
-Default admin: `admin@compliance.local` / `admin123` (seeded on first startup).
+Passwords are salted scrypt (`hash_password()` in `deps.py`). Legacy unsalted SHA-256
+hashes still verify and are upgraded on the user's next login. Users change their
+password at `POST /auth/change-password` (Settings → Password), which signs out their other sessions.
+
+Default admin: `admin@compliance.local`. Locally it is seeded with `admin123`. In production:
+- `admin123` is never seeded and never accepted at login (403), even if it is still stored.
+- Set `ADMIN_PASSWORD` to seed the admin, or to rotate an admin still on `admin123`
+  on the next restart. Once rotated, the env var can be removed; later changes go
+  through Settings.
 
 ## API Patterns
 - All endpoints in `backend/app/main.py` (monolith — consider splitting into routers when >2000 LOC)
@@ -133,7 +142,7 @@ This was the original breakage; the redirect has to happen at Vercel's edge, not
 (`build_cors_origins()` in `backend/app/config.py`) has no `www` origin, so an app served there
 would load and then fail every API call.
 
-### Legacy frontend
-`vigilicloud-ui.onrender.com` is still live and serving an **older build** than Vercel. It
-remains in the backend CORS allowlist (`build_cors_origins()` in `backend/app/config.py`).
-Retire it once nothing depends on it — two live frontends drift apart silently.
+### Legacy frontend (retired)
+`vigilicloud-ui.onrender.com` served an older build than Vercel. It is removed from the backend
+CORS allowlist (`build_cors_origins()` in `backend/app/config.py`), so it can no longer call the
+API; the Render service itself should be suspended or deleted. Do not re-add it.

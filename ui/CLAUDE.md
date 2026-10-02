@@ -13,6 +13,11 @@ npm run build                 # production build
 Apple-derived: **Action Blue is the only accent**, 600 weight for display and 400 for body,
 hairline borders instead of glow, and a single elevation reserved for overlays.
 Dark is the default surface; `html[data-theme="light"]` swaps the same variables.
+Users pick Dark / Light / System in **Settings → Appearance** (`components/settings/AppearanceCard.tsx`);
+`src/lib/theme.ts` stores it in localStorage (`vc-theme`) and a boot script in `layout.tsx` applies it
+before first paint. Bare routes (landing, sign-in, sign-up) never get `data-theme` and stay dark.
+In app pages, colour text and surfaces with `--vc-*` variables — a raw `text-white` or `bg-white/…`
+vanishes in light mode.
 
 All tokens and component classes live at the bottom of `src/app/globals.css`.
 **Style with `vc-*` classes, not raw Tailwind colours** — that is what keeps marketing

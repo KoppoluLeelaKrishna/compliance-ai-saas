@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ApiKey, AuthMe, BillingMe } from "@/types";
+import AppearanceCard from "@/components/settings/AppearanceCard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
@@ -356,7 +357,7 @@ export default function SettingsPage() {
         {/* ── Account Profile ──────────────────────────────────────────── */}
         <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
               </svg>
@@ -392,7 +393,7 @@ export default function SettingsPage() {
         {/* ── Password ─────────────────────────────────────────────────── */}
         <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
               </svg>
@@ -442,10 +443,13 @@ export default function SettingsPage() {
           )}
         </section>
 
+        {/* ── Appearance ───────────────────────────────────────────────── */}
+        <AppearanceCard />
+
         {/* ── Billing & Plan ───────────────────────────────────────────── */}
         <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
               </svg>
@@ -512,7 +516,7 @@ export default function SettingsPage() {
         {/* ── Plan Capabilities ────────────────────────────────────────── */}
         <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
               </svg>
@@ -560,7 +564,7 @@ export default function SettingsPage() {
         {/* ── Scheduled Scans ──────────────────────────────────────────── */}
         <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -621,7 +625,7 @@ export default function SettingsPage() {
         {/* ── Slack Alerts ──────────────────────────────────────────────── */}
         <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
               </svg>
@@ -764,7 +768,7 @@ export default function SettingsPage() {
         {/* ── GitHub Integration ───────────────────────────────────────── */}
         <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-text-2)]" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12"/>
               </svg>
@@ -839,7 +843,7 @@ export default function SettingsPage() {
         {/* ── Developer API Keys ───────────────────────────────────────── */}
         <section className="col-span-1 xl:col-span-2 rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
               </svg>
@@ -922,7 +926,7 @@ export default function SettingsPage() {
         {/* ── Quick Navigation ─────────────────────────────────────────── */}
         <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-white/[0.03]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
               </svg>

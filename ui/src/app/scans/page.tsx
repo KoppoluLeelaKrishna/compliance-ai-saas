@@ -525,7 +525,7 @@ export default function ScansPage() {
       const isHeading = parts.length === 1 && trimmed.startsWith("**") && trimmed.endsWith("**");
       if (isHeading) {
         return (
-          <div key={i} className="mt-4 mb-1 text-sm font-semibold text-white">
+          <div key={i} className="mt-4 mb-1 text-sm font-semibold text-[var(--vc-text)]">
             {trimmed.slice(2, -2)}
           </div>
         );

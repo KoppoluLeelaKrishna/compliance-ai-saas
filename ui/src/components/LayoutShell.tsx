@@ -9,9 +9,7 @@ import AssistantWidget from "@/components/assistant/AssistantWidget";
 import AppSidebar from "@/components/app/AppSidebar";
 import AppTopbar from "@/components/app/AppTopbar";
 import { AppShellContext, ShellUser } from "@/components/app/AppShellContext";
-
-/** Routes that render full-bleed, with no app chrome. */
-const BARE_ROUTES = ["/", "/signin", "/signup", "/auth/callback"];
+import { BARE_ROUTES, applyTheme, getThemePref } from "@/lib/theme";
 
 const PLAN_LABEL: Record<string, string> = {
   starter: "Starter plan",
@@ -34,6 +32,16 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const [navOpen, setNavOpen] = useState(false);
 
   const bare = BARE_ROUTES.includes(pathname);
+
+  // Re-apply on every route change (bare routes stay dark) and follow the OS
+  // live while the preference is "system".
+  useEffect(() => {
+    applyTheme(getThemePref(), pathname);
+    const mq = window.matchMedia("(prefers-color-scheme: light)");
+    const onChange = () => applyTheme(getThemePref(), pathname);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [pathname]);
 
   useEffect(() => {
     if (bare) return;

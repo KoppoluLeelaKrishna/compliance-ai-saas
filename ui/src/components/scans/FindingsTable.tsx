@@ -8,8 +8,13 @@ interface FindingsTableProps {
   search?: string;
 }
 
-/** Column track shared by the header and every row. */
-const COLS = "1fr 150px 220px 190px 84px 120px";
+/**
+ * Column track shared by the header and every row. The finding title is the
+ * one column that must stay readable, so it alone gets a floor; the other text
+ * columns share what is left and truncate. (Fixed widths summing to ~840px
+ * squeezed the title to "S3 …" on a laptop-width card.)
+ */
+const COLS = "minmax(200px, 2fr) minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 1.1fr) 52px 80px";
 
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query) return <>{text}</>;
@@ -49,7 +54,10 @@ export function FindingsTable({ findings, onOpenFinding, loading, search = "" }:
 
   return (
     <div className="vc-card vc-card-flush">
-      <div className="vc-thead" style={{ gridTemplateColumns: COLS }}>
+      {/* The header lives inside the scroller (sticky) so the rows' scrollbar
+          narrows both equally and the columns stay aligned. */}
+      <div className="vc-scroll-rows">
+      <div className="vc-thead vc-thead-sticky" style={{ gridTemplateColumns: COLS }}>
         <span>Finding</span>
         <span>Check</span>
         <span>Resource</span>
@@ -57,11 +65,12 @@ export function FindingsTable({ findings, onOpenFinding, loading, search = "" }:
         <span>Age</span>
         <span className="text-right">State</span>
       </div>
-
-      <div className="vc-scroll-rows">
       {findings.map((f) => {
         const resolved = f.resolution === "FIXED" || f.status === "PASS";
-        const state = f.resolution || f.approval_status || (f.status === "PASS" ? "PASS" : "OPEN");
+        // "OPEN" is the default resolution, not a decision: let a pass or an
+        // approval status show through it.
+        const userResolution = f.resolution && f.resolution !== "OPEN" ? f.resolution : "";
+        const state = userResolution || (f.status === "PASS" ? "PASS" : f.approval_status || "OPEN");
         return (
           <div
             key={`${f.scan_id}-${f.check_id}-${f.resource_id}`}

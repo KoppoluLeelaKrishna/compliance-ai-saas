@@ -7,7 +7,7 @@ import { ApprovalEvent, AuthMe, Finding, FixGuidance } from "@/types";
 import { FindingsTable } from "@/components/scans/FindingsTable";
 import { FindingDetail } from "@/components/scans/FindingDetail";
 import TopbarActions from "@/components/app/TopbarActions";
-import { severityTone } from "@/lib/ui";
+import { severityTone, isOpenFinding } from "@/lib/ui";
 
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
 
@@ -78,7 +78,7 @@ export default function FindingsPage() {
 
   const severityCounts = useMemo(() => {
     const counts: Record<string, number> = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
-    findings.filter(f => f.status === "FAIL").forEach(f => {
+    findings.filter(isOpenFinding).forEach(f => {
       counts[f.severity] = (counts[f.severity] || 0) + 1;
     });
     return counts;
@@ -176,7 +176,7 @@ export default function FindingsPage() {
   }
 
   const hasActiveFilters = search || severityFilter !== "ALL" || serviceFilter !== "ALL" || statusFilter !== "ALL";
-  const failCount = findings.filter(f => f.status === "FAIL").length;
+  const failCount = findings.filter(isOpenFinding).length;
   const passCount = findings.filter(f => f.status === "PASS").length;
 
   return (

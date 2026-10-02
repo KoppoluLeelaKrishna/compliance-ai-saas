@@ -371,14 +371,24 @@ def all_findings_endpoint(
     authorization: Optional[str] = Header(default=None),
 ):
     user = get_current_user(session_cookie, authorization)
-    scans = list_scans(20, user_id=user["id"])
+    # Newest first. Only each account's latest scan counts — the same rule as
+    # /dashboard. Merging every recent scan repeated each finding once per
+    # scan, so the Findings page reported many times the real open count.
+    scans = list_scans(100, user_id=user["id"])
 
     aggregated: List[Dict[str, Any]] = []
+    seen_accounts: set = set()
     for scan in scans:
         scan_id = scan["scan_id"] if isinstance(scan, dict) else scan.get("scan_id", "")
         if not scan_id:
             continue
         account = get_scan_account_link(scan_id)
+        account_key = account.get("account_id") if account else None
+        # Scans not linked to a connected account are left out, as on
+        # /dashboard; they remain listed on the Scans page.
+        if account_key is None or account_key in seen_accounts:
+            continue
+        seen_accounts.add(account_key)
         for f in get_findings(scan_id):
             row = dict(f)
             row["scan_id"] = scan_id

@@ -211,7 +211,7 @@ export default function AccountsPage() {
         </div>
         <div className="text-right">
           <div className="mb-1.5 text-[12.5px] text-[var(--vc-muted)]">
-            {loadingBilling ? "Checking plan…" : `${accountsUsed} of ${accountLimit} on the ${currentPlan} plan`}
+            {loadingBilling ? "Checking plan…" : accountLimit >= 999999 ? `${accountsUsed} connected · unlimited on the ${currentPlan} plan` : `${accountsUsed} of ${accountLimit} on the ${currentPlan} plan`}
           </div>
           <div className={`vc-meter vc-meter-thin w-[200px] ${usagePct >= 100 ? "vc-sev-critical" : usagePct >= 75 ? "vc-sev-high" : "text-[var(--vc-accent)]"}`}>
             <i style={{ width: `${Math.min(usagePct, 100)}%` }} />

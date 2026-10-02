@@ -97,3 +97,12 @@ export function duration(startIso?: string, endIso?: string) {
   if (secs < 60) return `${secs}s`;
   return `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, "0")}s`;
 }
+
+/**
+ * A finding is open when its check failed and nobody has marked it Fixed or
+ * Ignored. The dashboard totals (and so the sidebar badge) use the same rule.
+ */
+export function isOpenFinding(f: { status?: string; resolution?: string | null }) {
+  const resolution = (f.resolution || "").toUpperCase();
+  return (f.status || "").toUpperCase() === "FAIL" && resolution !== "FIXED" && resolution !== "IGNORED";
+}

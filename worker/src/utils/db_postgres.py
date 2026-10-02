@@ -325,19 +325,27 @@ def get_findings(scan_id: str) -> List[Dict[str, Any]]:
     rows = conn.execute(
         """
         SELECT
-            id,
-            scan_id,
-            service,
-            severity,
-            check_id,
-            title,
-            resource_id,
-            status,
-            created_at,
-            evidence
-        FROM findings
-        WHERE scan_id = ?
-        ORDER BY id ASC
+            f.id,
+            f.scan_id,
+            f.service,
+            f.severity,
+            f.check_id,
+            f.title,
+            f.resource_id,
+            f.status,
+            f.created_at,
+            f.evidence,
+            -- Mirrors db_sqlite: without the action join, Fixed/Ignored never
+            -- reached the UI in production and reverted to Open on reload.
+            COALESCE(a.resolution, 'OPEN') AS resolution,
+            COALESCE(a.note, '') AS note
+        FROM findings f
+        LEFT JOIN finding_actions a
+          ON f.scan_id = a.scan_id
+         AND f.check_id = a.check_id
+         AND f.resource_id = a.resource_id
+        WHERE f.scan_id = ?
+        ORDER BY f.id ASC
         """,
         (scan_id,),
     ).fetchall()

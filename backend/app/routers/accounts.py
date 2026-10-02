@@ -187,7 +187,10 @@ def get_dashboard(
                 summary["total"] += 1
                 if (f.get("status") or "").upper() == "FAIL":
                     summary["fail"] += 1
-                    if sev in summary:
+                    # Severity buckets are *open* findings: a failure someone
+                    # marked Fixed or Ignored no longer counts as open.
+                    resolved = (f.get("resolution") or "").upper() in ("FIXED", "IGNORED")
+                    if sev in summary and not resolved:
                         summary[sev] += 1
                 else:
                     summary["pass"] += 1

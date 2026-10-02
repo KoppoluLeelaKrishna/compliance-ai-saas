@@ -794,7 +794,8 @@ function ScrollGallery() {
       <div style={{
         position: "fixed",
         top: 44, left: 0, right: 0, bottom: 0,
-        background: "rgba(3,6,14,0.88)",
+        // No fill: the page's own background shows through behind the sphere.
+        background: "transparent",
         zIndex: on ? 150 : -1,
         opacity: on ? 1 : 0,
         transition: "opacity 0.3s ease",
@@ -802,12 +803,6 @@ function ScrollGallery() {
       }}>
         {/* Particle canvas — full fixed panel */}
         <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }} />
-
-        {/* Right-side gradient — keeps text legible */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(to right, transparent 30%, #020408 65%)", pointerEvents: "none" }} />
-
-        {/* Top + bottom vignette */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(to bottom, rgba(2,4,8,0.5) 0%, transparent 15%, transparent 75%, rgba(2,4,8,0.8) 100%)", pointerEvents: "none" }} />
 
         {/* Accent glow behind text */}
         <div style={{ position: "absolute", right: 0, top: "20%", width: 500, height: 500,

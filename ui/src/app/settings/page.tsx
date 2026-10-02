@@ -347,7 +347,7 @@ export default function SettingsPage() {
           { label: "Exports",        value: loading ? "…" : billing?.capabilities?.exports ? "Enabled" : "Locked", color: billing?.capabilities?.exports ? "text-[var(--vc-accent-text)]" : "text-[var(--vc-medium)]" },
           { label: "Role",           value: loading ? "…" : (user?.role ?? "—"),     color: "text-[var(--vc-accent-text)]" },
         ].map(({ label, value, color }) => (
-          <div key={label} className="rounded-[14px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-5">
+          <div key={label} className="vc-elevate rounded-[14px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-5">
             <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--vc-muted)]">{label}</div>
             <div className={`mt-2 text-2xl font-bold capitalize ${color}`}>{value}</div>
           </div>
@@ -437,7 +437,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={!pw.current || pw.next.length < 8 || !pw.confirm || pwSaving}
-                className="rounded-[10px] bg-[var(--vc-accent)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40 transition-colors"
+                className="vc-solid rounded-[10px] bg-[var(--vc-accent)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 transition-colors"
               >
                 {pwSaving ? "Saving…" : "Change Password"}
               </button>
@@ -501,7 +501,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={openPortal}
                     disabled={portalLoading}
-                    className="rounded-[10px] bg-[var(--vc-accent)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40 transition-colors"
+                    className="vc-solid rounded-[10px] bg-[var(--vc-accent)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 transition-colors"
                   >
                     {portalLoading ? "Opening…" : "Manage Billing"}
                   </button>
@@ -672,7 +672,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={saveSlack}
                   disabled={!slackInput.trim() || slackSaving}
-                  className="rounded-[10px] bg-[var(--vc-accent)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40 transition-colors"
+                  className="vc-solid rounded-[10px] bg-[var(--vc-accent)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 transition-colors"
                 >
                   {slackSaving ? "Saving…" : "Save Webhook"}
                 </button>
@@ -758,7 +758,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={saveJira}
                 disabled={!jiraInput.url.trim() || !jiraInput.email.trim() || !jiraInput.token.trim() || jiraSaving}
-                className="w-full rounded-[10px] bg-blue-600 px-4 py-2.5 text-sm font-medium text-[var(--vc-text)] hover:bg-blue-500 disabled:opacity-40 transition-colors"
+                className="w-full vc-solid rounded-[10px] bg-[var(--vc-accent)] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 transition-colors"
               >
                 {jiraSaving ? "Saving…" : jira?.jira_url ? "Update Jira Config" : "Connect Jira"}
               </button>
@@ -911,7 +911,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={createApiKey}
                   disabled={!newKeyLabel.trim() || creatingKey}
-                  className="shrink-0 rounded-[10px] bg-[var(--vc-accent)] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40 transition-colors"
+                  className="shrink-0 vc-solid rounded-[10px] bg-[var(--vc-accent)] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 transition-colors"
                 >
                   {creatingKey ? "Creating…" : "+ New Key"}
                 </button>

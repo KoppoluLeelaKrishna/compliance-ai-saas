@@ -336,34 +336,34 @@ export default function DashboardPage() {
         <div className="vc-card">
           <div className="vc-stat-label !mb-4">Portfolio posture</div>
           {portfolio ? (
-            <div className="flex items-center gap-[22px]">
-              <PostureDial
-                score={portfolio.score}
-                grade={gradeFor(portfolio.score)}
-                tone={scoreTone(portfolio.score)}
-              />
-              <div className="flex min-w-0 flex-1 flex-col gap-[11px]">
-                <div className="text-[13.5px] leading-[1.45] tracking-[-0.15px] text-[var(--vc-text-2)] text-pretty">
+            <div className="flex flex-col gap-[14px]">
+              <div className="flex items-center gap-[22px]">
+                <PostureDial
+                  score={portfolio.score}
+                  grade={gradeFor(portfolio.score)}
+                  tone={scoreTone(portfolio.score)}
+                />
+                <div className="min-w-0 flex-1 text-[13.5px] leading-[1.45] tracking-[-0.15px] text-[var(--vc-text-2)] text-pretty">
                   Checks passing across {portfolio.accounts} scanned account
                   {portfolio.accounts === 1 ? "" : "s"}.
                 </div>
-                <div className="flex items-center justify-between border-t border-[var(--vc-hairline)] pt-[11px]">
-                  <span className="truncate text-[12.5px] text-[var(--vc-muted)]">
-                    Best · {portfolio.best.customer_name}
-                  </span>
-                  <span className={`text-[12.5px] font-semibold ${scoreTone(portfolio.best.findings_summary.pass_rate)}`}>
-                    {gradeFor(portfolio.best.findings_summary.pass_rate)} · {portfolio.best.findings_summary.pass_rate}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="truncate text-[12.5px] text-[var(--vc-muted)]">
-                    Worst · {portfolio.worst.customer_name}
-                  </span>
-                  <span className={`text-[12.5px] font-semibold ${scoreTone(portfolio.worst.findings_summary.pass_rate)}`}>
-                    {gradeFor(portfolio.worst.findings_summary.pass_rate)} ·{" "}
-                    {portfolio.worst.findings_summary.pass_rate}
-                  </span>
-                </div>
+              </div>
+              {/* Full card width, so account names have room. One scanned
+                  account is both best and worst — show it once. */}
+              <div className="flex flex-col gap-[11px] border-t border-[var(--vc-hairline)] pt-[13px]">
+                {(portfolio.accounts === 1
+                  ? [{ label: "Account", row: portfolio.best }]
+                  : [{ label: "Best", row: portfolio.best }, { label: "Worst", row: portfolio.worst }]
+                ).map(({ label, row }) => (
+                  <div key={label} className="flex min-w-0 items-center justify-between gap-3">
+                    <span className="min-w-0 truncate text-[12.5px] text-[var(--vc-muted)]" title={row.customer_name}>
+                      {label} · <span className="text-[var(--vc-text-2)]">{row.customer_name}</span>
+                    </span>
+                    <span className={`flex-none whitespace-nowrap text-[12.5px] font-semibold tabular-nums ${scoreTone(row.findings_summary.pass_rate)}`}>
+                      {gradeFor(row.findings_summary.pass_rate)} · {row.findings_summary.pass_rate}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           ) : (

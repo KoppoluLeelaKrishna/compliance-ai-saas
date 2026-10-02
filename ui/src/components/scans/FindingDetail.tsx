@@ -601,7 +601,7 @@ export function FindingDetail({
               type="button"
               onClick={() => onSetAction("FIXED")}
               disabled={!!actionSaving}
-              className="flex-1 rounded-[10px] bg-[var(--vc-accent)] px-6 py-3 font-semibold text-white hover:brightness-110 disabled:opacity-50"
+              className="vc-solid flex-1 rounded-[10px] bg-[var(--vc-accent)] px-6 py-3 font-semibold text-white hover:brightness-110"
             >
               {actionSaving === "FIXED" ? "Saving..." : "Mark as Fixed"}
             </button>

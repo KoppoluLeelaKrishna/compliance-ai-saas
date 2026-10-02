@@ -310,7 +310,9 @@ export default function SettingsPage() {
   const isPaidPlan = billing?.subscription_status?.toLowerCase() !== "free";
   const accountsUsed = billing?.connected_accounts_used ?? 0;
   const accountLimit = billing?.account_limit ?? 1;
-  const usagePct = accountLimit > 0 ? Math.round((accountsUsed / accountLimit) * 100) : 0;
+  // The MSP plan's limit is the backend sentinel 999999 (config.py): show it as unlimited.
+  const unlimited = accountLimit >= 999999;
+  const usagePct = unlimited ? 0 : accountLimit > 0 ? Math.round((accountsUsed / accountLimit) * 100) : 0;
 
   const NAV_LINKS = [
     { href: "/scans",    label: "Scans & Findings",   desc: "Run scans and review AWS posture findings",    icon: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" },
@@ -341,7 +343,7 @@ export default function SettingsPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: "Current Plan",   value: loading ? "…" : currentPlan,              color: isPaidPlan ? "text-[var(--vc-accent-text)]" : "text-[var(--vc-text-2)]" },
-          { label: "Account Usage",  value: loading ? "…" : `${accountsUsed}/${accountLimit}`, color: usagePct >= 100 ? "text-[var(--vc-critical)]" : "text-[var(--vc-text)]" },
+          { label: "Account Usage",  value: loading ? "…" : unlimited ? `${accountsUsed} / Unlimited` : `${accountsUsed}/${accountLimit}`, color: usagePct >= 100 ? "text-[var(--vc-critical)]" : "text-[var(--vc-text)]" },
           { label: "Exports",        value: loading ? "…" : billing?.capabilities?.exports ? "Enabled" : "Locked", color: billing?.capabilities?.exports ? "text-[var(--vc-accent-text)]" : "text-[var(--vc-medium)]" },
           { label: "Role",           value: loading ? "…" : (user?.role ?? "—"),     color: "text-[var(--vc-accent-text)]" },
         ].map(({ label, value, color }) => (
@@ -355,7 +357,7 @@ export default function SettingsPage() {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
 
         {/* ── Account Profile ──────────────────────────────────────────── */}
-        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -376,14 +378,14 @@ export default function SettingsPage() {
           ) : (
             <div className="space-y-3">
               {[
-                { label: "Name",    value: user.name,  mono: false },
-                { label: "Email",   value: user.email, mono: false },
-                { label: "Role",    value: user.role,  mono: false },
-                { label: "User ID", value: String(user.id), mono: true },
-              ].map(({ label, value, mono }) => (
+                { label: "Name",    value: user.name,  mono: false, cap: false },
+                { label: "Email",   value: user.email, mono: false, cap: false },
+                { label: "Role",    value: user.role,  mono: false, cap: true },
+                { label: "User ID", value: String(user.id), mono: true, cap: false },
+              ].map(({ label, value, mono, cap }) => (
                 <div key={label} className="rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-inset)] px-4 py-3">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--vc-muted)]">{label}</div>
-                  <div className={`mt-1 ${mono ? "font-mono text-sm text-[var(--vc-text-2)]" : "font-medium text-[var(--vc-text)] capitalize"}`}>{value}</div>
+                  <div className={`mt-1 ${mono ? "font-mono text-sm text-[var(--vc-text-2)]" : `font-medium text-[var(--vc-text)] ${cap ? "capitalize" : ""}`}`}>{value}</div>
                 </div>
               ))}
             </div>
@@ -391,7 +393,7 @@ export default function SettingsPage() {
         </section>
 
         {/* ── Password ─────────────────────────────────────────────────── */}
-        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -447,7 +449,7 @@ export default function SettingsPage() {
         <AppearanceCard />
 
         {/* ── Billing & Plan ───────────────────────────────────────────── */}
-        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -472,7 +474,7 @@ export default function SettingsPage() {
                 <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--vc-muted)]">Account Usage</div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className={`text-xl font-bold ${usagePct >= 100 ? "text-[var(--vc-critical)]" : usagePct >= 75 ? "text-[var(--vc-medium)]" : "text-[var(--vc-accent-text)]"}`}>
-                    {accountsUsed}/{accountLimit}
+                    {unlimited ? `${accountsUsed} / Unlimited` : `${accountsUsed}/${accountLimit}`}
                   </span>
                   <span className="text-xs text-[var(--vc-muted)]">accounts used</span>
                 </div>
@@ -514,7 +516,7 @@ export default function SettingsPage() {
         </section>
 
         {/* ── Plan Capabilities ────────────────────────────────────────── */}
-        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -543,7 +545,7 @@ export default function SettingsPage() {
                 },
                 {
                   label: "Connected Accounts",
-                  desc: `${accountsUsed} of ${accountLimit} slot${accountLimit !== 1 ? "s" : ""} used`,
+                  desc: unlimited ? `${accountsUsed} connected · unlimited slots` : `${accountsUsed} of ${accountLimit} slot${accountLimit !== 1 ? "s" : ""} used`,
                   enabled: true,
                 },
               ].map(cap => (
@@ -562,7 +564,7 @@ export default function SettingsPage() {
         </section>
 
         {/* ── Scheduled Scans ──────────────────────────────────────────── */}
-        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -597,7 +599,7 @@ export default function SettingsPage() {
                   onClick={toggleSchedule}
                   disabled={scheduleLoading}
                   title={schedule?.enabled ? "Disable scheduled scans" : "Enable scheduled scans"}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${schedule?.enabled ? "bg-[var(--vc-accent)]" : "bg-[var(--vc-chip)]"}`}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${schedule?.enabled ? "bg-[var(--vc-accent)]" : "bg-[var(--vc-hairline-strong)]"}`}
                 >
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${schedule?.enabled ? "translate-x-5" : "translate-x-0"}`} />
                 </button>
@@ -623,7 +625,7 @@ export default function SettingsPage() {
         </section>
 
         {/* ── Slack Alerts ──────────────────────────────────────────────── */}
-        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" viewBox="0 0 24 24" fill="currentColor">
@@ -706,7 +708,7 @@ export default function SettingsPage() {
         </section>
 
         {/* ── Jira Integration ─────────────────────────────────────────── */}
-        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-blue-500/25 bg-blue-500/10">
               <svg className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
@@ -766,7 +768,7 @@ export default function SettingsPage() {
         </section>
 
         {/* ── GitHub Integration ───────────────────────────────────────── */}
-        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-text-2)]" viewBox="0 0 24 24" fill="currentColor">
@@ -841,7 +843,7 @@ export default function SettingsPage() {
         </section>
 
         {/* ── Developer API Keys ───────────────────────────────────────── */}
-        <section className="col-span-1 xl:col-span-2 rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="col-span-1 xl:col-span-2 vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -924,7 +926,7 @@ export default function SettingsPage() {
         </section>
 
         {/* ── Quick Navigation ─────────────────────────────────────────── */}
-        <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+        <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
               <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

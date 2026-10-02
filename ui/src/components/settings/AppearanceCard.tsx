@@ -50,7 +50,7 @@ export default function AppearanceCard() {
   }
 
   return (
-    <section className="rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
+    <section className="vc-elevate rounded-[18px] border border-[var(--vc-hairline)] bg-[var(--vc-raised)] p-6">
       <div className="mb-1 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--vc-hairline)] bg-[var(--vc-fill)]">
           <svg className="h-4 w-4 text-[var(--vc-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

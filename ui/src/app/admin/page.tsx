@@ -52,6 +52,13 @@ function initials(value: string) {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
+/** "0%" for a non-zero count reads as wrong; show "<1%" instead. */
+function sharePct(n: number, total: number) {
+  if (!total || !n) return "0%";
+  const pct = (n / total) * 100;
+  return pct < 1 ? "<1%" : `${Math.round(pct)}%`;
+}
+
 function joinedDate(value?: string) {
   if (!value) return "—";
   const d = new Date(value);
@@ -235,7 +242,7 @@ export default function AdminPage() {
             </div>
             <div className="vc-stat vc-stat-sm">{countFor(role)}</div>
             <div className="vc-stat-note">
-              {users.length ? Math.round((countFor(role) / users.length) * 100) : 0}% of members
+              {sharePct(countFor(role), users.length)} of members
             </div>
           </div>
         ))}

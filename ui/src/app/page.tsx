@@ -305,7 +305,6 @@ const STEPS = [
 /** Marquee under the hero. Order is arbitrary; the strip loops continuously. */
 const AUDIT_FRAMEWORKS = ["CIS AWS", "SOC 2", "ISO 27001", "HIPAA", "PCI DSS", "GDPR", "NIST CSF"];
 
-const SEV_COL: Record<string, string> = { Critical: "#ef4444", High: "#f97316", Medium: "#f59e0b" };
 /* RGB triples so CSS can build rgba() tints from a single --sev custom property */
 const SEV_RGB: Record<string, string> = { Critical: "239,68,68", High: "249,115,22", Medium: "245,158,11" };
 
@@ -350,19 +349,15 @@ const TESTIMONIALS = [
 ];
 
 /* ── Helpers ─── */
-function SevBadge({ sev, dark }: { sev: string; dark?: boolean }) {
-  const lm: Record<string, [string, string, string]> = {
-    Critical: ["#dc2626", "rgba(220,38,38,0.10)", "rgba(220,38,38,0.24)"],
-    High:     ["#ea580c", "rgba(234,88,12,0.10)",  "rgba(234,88,12,0.24)"],
-    Medium:   ["#b45309", "rgba(180,83,9,0.10)",   "rgba(180,83,9,0.24)"],
-  };
-  const dm: Record<string, [string, string, string]> = {
-    Critical: ["#f87171", "rgba(248,113,113,0.14)", "rgba(248,113,113,0.30)"],
-    High:     ["#fb923c", "rgba(251,146,60,0.14)",  "rgba(251,146,60,0.30)"],
-    Medium:   ["#fbbf24", "rgba(251,191,36,0.14)",  "rgba(251,191,36,0.30)"],
-  };
-  const [color, bg, border] = (dark ? dm : lm)[sev] ?? lm.Medium;
-  return <span style={{ background: bg, border: `1px solid ${border}`, color, fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 9999, fontFamily: fft, display: "inline-block", letterSpacing: "0.02em" }}>{sev}</span>;
+/** Hero headline split into words that animate in one after another. */
+function Words({ text, base, color }: { text: string; base: number; color?: string }) {
+  return (
+    <>
+      {text.split(" ").map((w, i) => (
+        <span key={i} className="ap-word" style={{ animationDelay: `${base + i * 0.09}s`, ...(color ? { color } : {}) }}>{w}</span>
+      ))}
+    </>
+  );
 }
 
 /* ════════════════════════════════════════════════════
@@ -839,7 +834,7 @@ function ScrollGallery() {
           <h2 style={{ fontFamily: ff, fontSize: "clamp(34px,4vw,56px)", fontWeight: 700, color: "#fff", lineHeight: 1.05, letterSpacing: "-0.5px", marginBottom: 20, whiteSpace: "pre-line" }}>
             {panel.title}
           </h2>
-          <p style={{ fontFamily: fft, fontSize: 17, color: "rgba(255,255,255,0.50)", lineHeight: 1.62, letterSpacing: "-0.2px" }}>
+          <p style={{ fontFamily: fft, fontSize: 17, color: "rgba(255,255,255,0.72)", lineHeight: 1.62, letterSpacing: "-0.2px" }}>
             {panel.sub}
           </p>
         </div>
@@ -873,14 +868,6 @@ export default function HomePage() {
       .catch(() => setAuthenticated(false))
       .finally(() => setLoading(false));
   }, []);
-
-  const Words = ({ text, base, color }: { text: string; base: number; color?: string }) => (
-    <>
-      {text.split(" ").map((w, i) => (
-        <span key={i} className="ap-word" style={{ animationDelay: `${base + i * 0.09}s`, ...(color ? { color } : {}) }}>{w}</span>
-      ))}
-    </>
-  );
 
   return (
     <div style={{ background: "#04070f", color: C.onDark, fontFamily: ff, overflowX: "hidden", position: "relative", isolation: "isolate" }}>

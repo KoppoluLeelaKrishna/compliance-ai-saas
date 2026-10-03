@@ -599,7 +599,7 @@ export default function SettingsPage() {
                   onClick={toggleSchedule}
                   disabled={scheduleLoading}
                   title={schedule?.enabled ? "Disable scheduled scans" : "Enable scheduled scans"}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${schedule?.enabled ? "bg-[var(--vc-accent)]" : "bg-[var(--vc-hairline-strong)]"}`}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${schedule?.enabled ? "bg-[var(--vc-ok)]" : "bg-[var(--vc-hairline-strong)]"}`}
                 >
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${schedule?.enabled ? "translate-x-5" : "translate-x-0"}`} />
                 </button>
